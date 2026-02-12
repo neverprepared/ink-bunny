@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Example .envrc file for workspace profiles
+# Copy this to your profile directory and customize as needed
+#
+# This file should contain ONLY:
+#   - Core workspace identity variables
+#   - direnv stdlib commands (PATH_add, dotenv_if_exists, use, layout, etc.)
+#   - Helper functions
+#
+# Tool-specific path variables and secrets go in .env (see .env.example)
+
+# ============================================================================
+# WORKSPACE IDENTIFICATION
+# ============================================================================
+# Set the profile name (should match the directory name)
+export WORKSPACE_PROFILE="example-profile"
+
+# Set the workspace home directory (automatically set to current directory)
+export WORKSPACE_HOME="$PWD"
+
+# ============================================================================
+# PATH MANAGEMENT
+# ============================================================================
+# Add profile-specific bin directory to PATH (before system paths)
+# PATH_add is a direnv stdlib function
+PATH_add bin
+
+# Add custom tool directories
+# PATH_add "$WORKSPACE_HOME/tools"
+# PATH_add "$WORKSPACE_HOME/.local/bin"
+
+# ============================================================================
+# LANGUAGE VERSION MANAGEMENT (direnv stdlib)
+# ============================================================================
+# These are direnv stdlib commands and MUST stay in .envrc (not .env)
+
+# Node.js version (requires direnv node plugin or nvm)
+# use node 18
+
+# Python virtual environment layout
+# layout python python3.11
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+# Print workspace information
+workspace_info() {
+    echo "Workspace Profile: $WORKSPACE_PROFILE"
+    echo "Workspace Home: $WORKSPACE_HOME"
+    echo "Git Config: $GIT_CONFIG_GLOBAL"
+    echo "Git User: $(git config user.name) <$(git config user.email)>"
+}
+export -f workspace_info
+
+# ============================================================================
+# LOAD TOOL-SPECIFIC VARIABLES AND SECRETS
+# ============================================================================
+
+# Load .env file (tool-specific path variables and secrets)
+# The .env file uses dotenv format (no 'export' keyword)
+# See .env.example for available variables
+dotenv_if_exists .env
+
+# Load local overrides (should be in .gitignore)
+dotenv_if_exists .envrc.local
+
+# ============================================================================
+# WELCOME MESSAGE (optional)
+# ============================================================================
+# Show a message when entering the workspace
+log_status "Loaded workspace profile: $WORKSPACE_PROFILE"
+
+# Uncomment to show workspace info on every directory entry
+# workspace_info

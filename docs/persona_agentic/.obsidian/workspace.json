@@ -1,0 +1,225 @@
+{
+  "main": {
+    "id": "283f7efcee050e1b",
+    "type": "split",
+    "children": [
+      {
+        "id": "9dc4c9aae3091428",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b454b8a9fa02fd12",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "REFLEX/reflex-gap-analysis.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "reflex-gap-analysis"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "03f00690a2589b6c",
+    "type": "split",
+    "children": [
+      {
+        "id": "d8118af9d3d2fd8d",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "f08e5e543373ea7c",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "c0bd96052528dfb1",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "33ad3754031c1cb7",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "567df874eb1771e3",
+    "type": "split",
+    "children": [
+      {
+        "id": "2049ea3fa9779545",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "67edbbd62ba7dcc1",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "REFLEX/reflex-gap-analysis.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for reflex-gap-analysis"
+            }
+          },
+          {
+            "id": "6ab0c9fe60e4f0ba",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "REFLEX/reflex-gap-analysis.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from reflex-gap-analysis"
+            }
+          },
+          {
+            "id": "11318f53b652faba",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "2bb61247306ebd67",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "e513f25e10b76130",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "REFLEX/reflex-gap-analysis.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of reflex-gap-analysis"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "b454b8a9fa02fd12",
+  "lastOpenFiles": [
+    "shell-profiler/internal/ui/prompts.go",
+    "shell-profiler/internal/ui/colors.go",
+    "shell-profiler/internal/profile/manager.go",
+    "shell-profiler/internal/config/config.go",
+    "shell-profiler/internal/commands/update.go",
+    "shell-profiler/internal/commands/select.go",
+    "shell-profiler/internal/commands/list.go",
+    "shell-profiler/internal/commands/init.go",
+    "shell-profiler/internal/commands/git.go",
+    "shell-profiler/internal/commands/dotfiles.go",
+    "shell-profiler/internal/commands/delete.go",
+    "shell-profiler/docs/index.md",
+    "shell-profiler/docs/QUICKSTART.md",
+    "shell-profiler/docs/PROJECT-SUMMARY.md",
+    "shell-profiler/docs/INSTALL.md",
+    "shell-profiler/docs/GETTING-STARTED.md",
+    "shell-profiler/docs/CHANGELOG.md",
+    "shell-profiler/cmd/shell-profiler/README.md",
+    "shell-profiler/README.md",
+    "shell-profiler/CLAUDE.md",
+    "REFLEX/reflex-phase1-coverage.md",
+    "REFLEX/reflex-strengths.md",
+    "REFLEX/reflex-gap-analysis.md",
+    "REFLEX/reflex-overview.md",
+    "PHASE_1/arch-orchestration.md",
+    "PHASE_1/arch-observability.md",
+    "PHASE_1/arch-container-lifecycle.md",
+    "PHASE_1/agentic-architecture.md",
+    "PHASE_1/arch-identity-and-trust.md",
+    "PHASE_1/arch-secrets-management.md",
+    "PHASE_1/phase-roadmap.md",
+    "PHASE_1/arch-shared-state.md",
+    "PHASE_1/arch-agent-communication.md",
+    "SECOND_PHASE/agentic-architecture.md",
+    "PHASE_3/phase-roadmap.md",
+    "PHASE_3/TODO/security-review-findings.md"
+  ]
+}

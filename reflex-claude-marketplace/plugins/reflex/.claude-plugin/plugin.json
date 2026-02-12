@@ -1,0 +1,17 @@
+{
+  "name": "reflex",
+  "version": "1.7.2",
+  "description": "Opinionated sub-agents and skills for application development, infrastructure, and data engineering workflows",
+  "author": {
+    "name": "mindmorass"
+  },
+  "repository": "https://github.com/mindmorass/reflex",
+  "license": "MIT",
+  "keywords": [
+    "agents",
+    "skills",
+    "development",
+    "devops",
+    "automation"
+  ]
+}

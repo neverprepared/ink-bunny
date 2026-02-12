@@ -1,0 +1,63 @@
+# Workspace profile gitignore
+
+# Exclude all profile directories (but keep profiles/.gitkeep)
+profiles/*/
+!profiles/.gitkeep
+
+# Environment files with secrets
+.env
+.envrc.local
+
+# SSH keys and sensitive files
+dotfiles/.ssh/id_*
+dotfiles/.ssh/*.pem
+dotfiles/.ssh/*.key
+dotfiles/.ssh/known_hosts
+
+# AWS credentials and sensitive config
+dotfiles/.aws/credentials
+dotfiles/.aws/cli/cache
+dotfiles/.aws/sso/cache
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform.d/plugin-cache/
+.terraform.d/checkpoint_cache
+.terraform.d/checkpoint_signature
+
+# Terragrunt
+.terragrunt-cache/
+*.tfplan
+
+# Kubernetes
+dotfiles/.kube/cache
+dotfiles/.kube/http-cache
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+bin/
+dist/
+build/
+*.log
+
+# Go binaries
+/profile
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib

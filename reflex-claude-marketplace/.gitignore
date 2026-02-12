@@ -1,0 +1,22 @@
+# Claude Code local files (personal, not shared)
+.claude/settings.local.json
+CLAUDE.local.md
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local config
+.mcp.json
+.playwright-mcp/
+__pycache__/
+
+# Docker secrets (use .env.example as template)
+docker/**/.env

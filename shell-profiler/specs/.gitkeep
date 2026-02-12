@@ -1,0 +1,13 @@
+# This directory will contain feature specifications when using SpecKit workflow
+#
+# Each feature gets its own subdirectory:
+# specs/
+# └── feature-name/
+#     ├── spec.md           - Functional specification
+#     ├── plan.md           - Technical plan
+#     ├── tasks.md          - Task breakdown
+#     ├── decisions.md      - Design decisions
+#     ├── research.md       - Technology research
+#     └── quickstart.md     - Validation scenarios
+#
+# See .speckit/README.md for more information about the SpecKit workflow.

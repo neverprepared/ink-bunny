@@ -1,0 +1,267 @@
+# Example SSH configuration for workspace profiles
+# Copy this to your profile's dotfiles/.ssh/config and customize
+
+# ============================================================================
+# GLOBAL DEFAULTS
+# ============================================================================
+Host *
+    # Use workspace-specific known_hosts file (complete isolation)
+    UserKnownHostsFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/known_hosts
+
+    # Security settings
+    AddKeysToAgent yes
+    IdentitiesOnly yes
+
+    # Connection settings
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+    TCPKeepAlive yes
+
+    # Compression
+    Compression yes
+
+    # Forward agent (be careful with this in shared environments)
+    # ForwardAgent no
+
+    # Prefer IPv4
+    AddressFamily inet
+
+# ============================================================================
+# GIT HOSTING SERVICES
+# ============================================================================
+
+# GitHub - Personal account
+Host github.com
+    HostName github.com
+    User git
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_github
+    IdentitiesOnly yes
+    PreferredAuthentications publickey
+
+# GitHub - Work account (using different hostname alias)
+Host github-work
+    HostName github.com
+    User git
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_github_work
+    IdentitiesOnly yes
+    PreferredAuthentications publickey
+
+# GitLab - Personal
+Host gitlab.com
+    HostName gitlab.com
+    User git
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_gitlab
+    IdentitiesOnly yes
+    PreferredAuthentications publickey
+
+# GitLab - Self-hosted
+Host gitlab.company.com
+    HostName gitlab.company.com
+    User git
+    Port 22
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_gitlab_company
+    IdentitiesOnly yes
+    PreferredAuthentications publickey
+
+# Bitbucket
+Host bitbucket.org
+    HostName bitbucket.org
+    User git
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_bitbucket
+    IdentitiesOnly yes
+    PreferredAuthentications publickey
+
+# ============================================================================
+# DEVELOPMENT SERVERS
+# ============================================================================
+
+# Development server with custom port
+Host dev-server
+    HostName dev.example.com
+    User developer
+    Port 2222
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_dev
+    IdentitiesOnly yes
+
+# Production server (read-only access)
+Host prod-server
+    HostName prod.example.com
+    User readonly
+    Port 22
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_prod
+    IdentitiesOnly yes
+    # Disable agent forwarding in production
+    ForwardAgent no
+
+# Staging server
+Host staging-server
+    HostName staging.example.com
+    User deployer
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_staging
+    IdentitiesOnly yes
+
+# ============================================================================
+# JUMP HOST / BASTION CONFIGURATION
+# ============================================================================
+
+# Bastion host (jump server)
+Host bastion
+    HostName bastion.example.com
+    User admin
+    Port 22
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_bastion
+    IdentitiesOnly yes
+    # Don't forward agent to bastion
+    ForwardAgent no
+    # Keep connection alive
+    ServerAliveInterval 30
+
+# Internal server accessed through bastion
+Host internal-db
+    HostName internal-db.example.local
+    User dbadmin
+    ProxyJump bastion
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_internal
+    IdentitiesOnly yes
+
+# Another internal server through bastion
+Host internal-app
+    HostName internal-app.example.local
+    User appuser
+    ProxyJump bastion
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_internal
+    IdentitiesOnly yes
+
+# Multiple jump hosts
+Host super-secure-server
+    HostName secure.example.local
+    User admin
+    ProxyJump bastion,internal-gateway
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_secure
+    IdentitiesOnly yes
+
+# ============================================================================
+# CLOUD PROVIDERS
+# ============================================================================
+
+# AWS EC2 instances
+Host *.compute.amazonaws.com
+    User ec2-user
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_aws
+    IdentitiesOnly yes
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+
+# AWS EC2 instances with pattern matching
+Host aws-*
+    User ubuntu
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_aws
+    IdentitiesOnly yes
+
+# Google Cloud instances
+Host *.cloud.google.com
+    User clouduser
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_gcp
+    IdentitiesOnly yes
+
+# Azure VMs
+Host *.cloudapp.azure.com
+    User azureuser
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_azure
+    IdentitiesOnly yes
+
+# ============================================================================
+# WILDCARD PATTERNS
+# ============================================================================
+
+# All servers in production network
+Host prod-*.example.com
+    User produser
+    Port 22
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_prod
+    StrictHostKeyChecking yes
+    ForwardAgent no
+
+# All servers in development network
+Host dev-*.example.com
+    User devuser
+    Port 2222
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_dev
+    StrictHostKeyChecking no
+
+# ============================================================================
+# PORT FORWARDING EXAMPLES
+# ============================================================================
+
+# Database server with local port forward
+Host db-tunnel
+    HostName db.example.com
+    User dbadmin
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_db
+    LocalForward 3306 localhost:3306
+    # PostgreSQL: LocalForward 5432 localhost:5432
+    # Redis: LocalForward 6379 localhost:6379
+
+# Remote desktop forwarding
+Host remote-desktop
+    HostName desktop.example.com
+    User user
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_desktop
+    LocalForward 5900 localhost:5900
+
+# ============================================================================
+# SPECIAL CONFIGURATIONS
+# ============================================================================
+
+# Server with custom cipher/MAC/KEX algorithms
+Host legacy-server
+    HostName legacy.example.com
+    User admin
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_rsa_legacy
+    # For older servers that need specific algorithms
+    KexAlgorithms +diffie-hellman-group1-sha1
+    HostKeyAlgorithms +ssh-rsa
+    PubkeyAcceptedKeyTypes +ssh-rsa
+
+# Server with X11 forwarding
+Host gui-server
+    HostName gui.example.com
+    User user
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_gui
+    ForwardX11 yes
+    ForwardX11Trusted yes
+
+# Server with dynamic SOCKS proxy
+Host socks-proxy
+    HostName proxy.example.com
+    User user
+    IdentityFile ~/.config/workspace-profiles/profiles/PROFILE_NAME/dotfiles/.ssh/id_ed25519_proxy
+    DynamicForward 1080
+
+# ============================================================================
+# NOTES
+# ============================================================================
+#
+# SSH Key Types (in order of preference):
+# - Ed25519: Recommended, modern, secure (ssh-keygen -t ed25519)
+# - ECDSA: Good alternative (ssh-keygen -t ecdsa -b 521)
+# - RSA: Legacy, use 4096 bits minimum (ssh-keygen -t rsa -b 4096)
+#
+# Generate a key for this profile:
+#   ssh-keygen -t ed25519 -f dotfiles/.ssh/id_ed25519_PROFILENAME -C "email@example.com"
+#
+# Copy public key to server:
+#   ssh-copy-id -i dotfiles/.ssh/id_ed25519_PROFILENAME.pub user@host
+#
+# Test SSH configuration:
+#   ssh -F dotfiles/.ssh/config -T git@github.com
+#
+# Debug SSH connection:
+#   ssh -F dotfiles/.ssh/config -vvv user@host
+#
+# Useful options not shown above:
+# - RemoteForward: Forward remote port to local
+# - ProxyCommand: Use custom command for connection
+# - GatewayPorts: Allow remote hosts to connect to forwarded ports
+# - ExitOnForwardFailure: Terminate if port forward fails
+# - ControlMaster/ControlPath: Connection multiplexing

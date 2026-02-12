@@ -1,0 +1,174 @@
+# Example Terragrunt configuration tips for workspace profiles
+#
+# Terragrunt uses environment variables for configuration
+# Set these in your .envrc file
+
+# ============================================================================
+# ENVIRONMENT VARIABLES
+# ============================================================================
+#
+# Add these to your .envrc:
+#
+# # Terragrunt cache directory (stores downloaded Terraform modules)
+# export TERRAGRUNT_DOWNLOAD="$WORKSPACE_HOME/.terragrunt-cache"
+#
+# # Auto-update source modules on each run
+# export TERRAGRUNT_SOURCE_UPDATE=true
+#
+# # Terragrunt working directory (if different from current)
+# # export TERRAGRUNT_WORKING_DIR="$WORKSPACE_HOME/infrastructure"
+#
+# # Terraform binary path (if not in PATH)
+# # export TERRAGRUNT_TFPATH="/usr/local/bin/terraform"
+#
+# # Non-interactive mode (useful for CI/CD)
+# # export TERRAGRUNT_NON_INTERACTIVE=true
+#
+# # Parallelism for apply/destroy
+# # export TERRAGRUNT_PARALLELISM=10
+#
+# # Log level (trace, debug, info, warn, error)
+# # export TERRAGRUNT_LOG_LEVEL=info
+#
+# # Include parent terragrunt.hcl files
+# # export TERRAGRUNT_INCLUDE_PARENT_HCL=true
+
+# ============================================================================
+# TERRAGRUNT.HCL CONFIGURATION
+# ============================================================================
+#
+# Example root terragrunt.hcl (place in infrastructure root):
+
+# Remote state configuration
+# remote_state {
+#   backend = "s3"
+#   generate = {
+#     path      = "backend.tf"
+#     if_exists = "overwrite_terragrunt"
+#   }
+#   config = {
+#     bucket         = "my-terraform-state-${get_aws_account_id()}"
+#     key            = "${path_relative_to_include()}/terraform.tfstate"
+#     region         = "us-east-1"
+#     encrypt        = true
+#     dynamodb_table = "terraform-locks"
+#   }
+# }
+
+# Generate provider configuration
+# generate "provider" {
+#   path      = "provider.tf"
+#   if_exists = "overwrite_terragrunt"
+#   contents  = <<EOF
+# terraform {
+#   required_version = ">= 1.0"
+#   required_providers {
+#     aws = {
+#       source  = "hashicorp/aws"
+#       version = "~> 5.0"
+#     }
+#   }
+# }
+#
+# provider "aws" {
+#   region = var.aws_region
+# }
+# EOF
+# }
+
+# Common inputs for all modules
+# inputs = {
+#   aws_region     = "us-east-1"
+#   environment    = "dev"
+#   project        = "my-project"
+#   owner          = "team@example.com"
+# }
+
+# ============================================================================
+# COMMON TERRAGRUNT PATTERNS
+# ============================================================================
+
+# Directory structure:
+# infrastructure/
+# ├── terragrunt.hcl              (root config)
+# ├── dev/
+# │   ├── terragrunt.hcl          (environment config)
+# │   ├── vpc/
+# │   │   └── terragrunt.hcl
+# │   └── app/
+# │       └── terragrunt.hcl
+# └── prod/
+#     ├── terragrunt.hcl
+#     ├── vpc/
+#     │   └── terragrunt.hcl
+#     └── app/
+#         └── terragrunt.hcl
+
+# ============================================================================
+# USEFUL TERRAGRUNT COMMANDS
+# ============================================================================
+
+# Run commands across all modules:
+# terragrunt run-all init
+# terragrunt run-all plan
+# terragrunt run-all apply
+# terragrunt run-all destroy
+
+# Update cached modules:
+# terragrunt init --terragrunt-source-update
+
+# Render final terraform code:
+# terragrunt render-json
+
+# Validate terragrunt.hcl:
+# terragrunt hclfmt
+# terragrunt validate-inputs
+
+# Graph dependencies:
+# terragrunt graph-dependencies | dot -Tpng > graph.png
+
+# ============================================================================
+# INTEGRATION WITH WORKSPACE PROFILES
+# ============================================================================
+
+# Example .envrc configuration:
+#
+# # Terragrunt configuration
+# export TERRAGRUNT_DOWNLOAD="$WORKSPACE_HOME/.terragrunt-cache"
+# export TERRAGRUNT_SOURCE_UPDATE=true
+#
+# # Terraform configuration
+# export TF_DATA_DIR="$WORKSPACE_HOME/.terraform"
+# export TF_PLUGIN_CACHE_DIR="$WORKSPACE_HOME/.terraform.d/plugin-cache"
+# export TF_CLI_CONFIG_FILE="$WORKSPACE_HOME/dotfiles/.terraformrc"
+#
+# # AWS configuration (for Terragrunt/Terraform)
+# export AWS_CONFIG_FILE="$WORKSPACE_HOME/dotfiles/.aws/config"
+# export AWS_SHARED_CREDENTIALS_FILE="$WORKSPACE_HOME/dotfiles/.aws/credentials"
+# export AWS_PROFILE="client-acme"
+# export AWS_DEFAULT_REGION="us-east-1"
+#
+# # Create cache directories
+# mkdir -p "$WORKSPACE_HOME/.terragrunt-cache"
+# mkdir -p "$WORKSPACE_HOME/.terraform.d/plugin-cache"
+
+# ============================================================================
+# NOTES
+# ============================================================================
+#
+# Terragrunt cache:
+# - .terragrunt-cache/ stores downloaded Terraform modules
+# - Can grow large, clean periodically with: rm -rf .terragrunt-cache/*
+#
+# Working with AWS:
+# - Terragrunt respects AWS_PROFILE and other AWS environment variables
+# - Use workspace-specific AWS config for complete isolation
+#
+# Module sources:
+# - Terragrunt can download from git, S3, local paths, etc.
+# - Use --terragrunt-source-update to refresh cached modules
+#
+# Debugging:
+# - export TERRAGRUNT_LOG_LEVEL=debug
+# - terragrunt --terragrunt-log-level debug plan
+#

@@ -1,0 +1,253 @@
+# Example .gitconfig for workspace profiles
+# Copy this to your profile's dotfiles directory and customize
+
+[user]
+    # Your name and email for commits
+    name = Your Name
+    email = your.email@example.com
+
+    # GPG signing (optional)
+    # signingkey = YOUR_GPG_KEY_ID
+
+[core]
+    # Default editor for commit messages
+    editor = vim
+
+    # Line ending handling
+    autocrlf = input
+
+    # Whitespace handling
+    whitespace = trailing-space,space-before-tab
+
+    # Exclude file (personal ignores)
+    # excludesfile = ~/.gitignore_global
+
+    # File mode tracking
+    filemode = true
+
+    # Pager settings
+    pager = less -FRX
+
+[init]
+    # Default branch name for new repositories
+    defaultBranch = main
+
+[commit]
+    # GPG sign all commits (optional)
+    # gpgsign = true
+
+    # Template for commit messages
+    # template = ~/.gitmessage
+
+    # Show diff when writing commit message
+    verbose = true
+
+[push]
+    # Push current branch to branch with same name
+    default = current
+
+    # Automatically set up remote tracking
+    autoSetupRemote = true
+
+    # Push tags along with commits
+    # followTags = true
+
+[pull]
+    # Rebase when pulling instead of merge
+    rebase = false
+
+    # Fast-forward only merges
+    # ff = only
+
+[fetch]
+    # Prune deleted remote branches
+    prune = true
+
+    # Prune tags
+    pruneTags = false
+
+[merge]
+    # Show common ancestor in merge conflicts
+    conflictstyle = diff3
+
+    # Tool for resolving merge conflicts
+    # tool = vimdiff
+
+[rebase]
+    # Automatically stash before rebase
+    autoStash = true
+
+    # Auto-squash fixup commits
+    autoSquash = true
+
+[diff]
+    # Algorithm for diff
+    algorithm = histogram
+
+    # Show submodule changes
+    submodule = log
+
+    # Color moved lines differently
+    colorMoved = default
+
+    # External diff tool
+    # tool = vimdiff
+
+[log]
+    # Show branch graph in log
+    # decorate = short
+
+    # Abbreviate commit hashes
+    abbrevCommit = true
+
+    # ISO date format
+    date = iso
+
+[color]
+    # Enable colored output
+    ui = auto
+
+[color "branch"]
+    current = yellow reverse
+    local = yellow
+    remote = green
+
+[color "diff"]
+    meta = yellow bold
+    frag = magenta bold
+    old = red bold
+    new = green bold
+
+[color "status"]
+    added = green
+    changed = yellow
+    untracked = red
+
+[alias]
+    # Short status
+    st = status -sb
+
+    # Short log
+    lg = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
+
+    # Show branches
+    br = branch -v
+
+    # Checkout
+    co = checkout
+
+    # Commit
+    ci = commit
+
+    # Commit with message
+    cm = commit -m
+
+    # Amend last commit
+    amend = commit --amend --no-edit
+
+    # Show last commit
+    last = log -1 HEAD --stat
+
+    # Undo last commit, keep changes
+    undo = reset HEAD~1 --mixed
+
+    # Discard all local changes
+    discard = reset --hard HEAD
+
+    # List aliases
+    aliases = config --get-regexp alias
+
+    # Show who changed what in file
+    blame = blame -w -C -C -C
+
+    # Show contributors
+    contributors = shortlog --summary --numbered
+
+    # Stash with message
+    stash-save = stash save
+
+    # List stashes
+    stash-list = stash list
+
+    # Show stash diff
+    stash-show = stash show -p
+
+    # Clean up merged branches
+    cleanup = !git branch --merged | grep -v '\\*\\|main\\|master\\|develop' | xargs -n 1 git branch -d
+
+    # Interactive rebase
+    rb = rebase -i
+
+    # Continue rebase
+    rbc = rebase --continue
+
+    # Abort rebase
+    rba = rebase --abort
+
+    # Force push with lease (safer)
+    pushf = push --force-with-lease
+
+    # Show ignored files
+    ignored = !git ls-files -v | grep "^[[:lower:]]"
+
+    # Show untracked files
+    untracked = ls-files --others --exclude-standard
+
+[credential]
+    # Cache credentials for 1 hour (3600 seconds)
+    helper = cache --timeout=3600
+
+    # macOS keychain (uncomment for macOS)
+    # helper = osxkeychain
+
+[help]
+    # Autocorrect typos after 1.5 seconds
+    autocorrect = 15
+
+[advice]
+    # Disable hints (optional)
+    # statusHints = false
+    # detachedHead = false
+
+# ============================================================================
+# URL SHORTCUTS
+# ============================================================================
+
+[url "git@github.com:"]
+    # Use SSH instead of HTTPS for GitHub
+    # insteadOf = https://github.com/
+
+[url "git@gitlab.com:"]
+    # Use SSH instead of HTTPS for GitLab
+    # insteadOf = https://gitlab.com/
+
+# ============================================================================
+# INCLUDEIF - Conditional Configuration
+# ============================================================================
+# Include additional configs based on directory
+# Useful for having different settings for different project types
+
+# [includeIf "gitdir:~/work/"]
+#     path = ~/work/.gitconfig
+
+# [includeIf "gitdir:~/personal/"]
+#     path = ~/personal/.gitconfig
+
+# ============================================================================
+# SUBMODULES
+# ============================================================================
+
+[submodule]
+    # Update submodules recursively
+    recurse = true
+
+# ============================================================================
+# LFS (Large File Storage)
+# ============================================================================
+# Uncomment if using Git LFS
+
+# [filter "lfs"]
+#     clean = git-lfs clean -- %f
+#     smudge = git-lfs smudge -- %f
+#     process = git-lfs filter-process
+#     required = true

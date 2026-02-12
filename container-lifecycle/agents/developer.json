@@ -1,0 +1,7 @@
+{
+  "name": "developer",
+  "image": "developer",
+  "description": "Interactive Claude Code session with polyglot toolchain",
+  "capabilities": ["shell_exec", "read_code", "write_code"],
+  "hardened": false
+}

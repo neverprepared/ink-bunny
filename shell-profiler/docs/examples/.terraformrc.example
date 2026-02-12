@@ -1,0 +1,87 @@
+# Example Terraform CLI configuration for workspace profiles
+# Copy this to your profile's dotfiles/.terraformrc
+#
+# Terraform will use this file when TF_CLI_CONFIG_FILE is set in .envrc
+
+# ============================================================================
+# PLUGIN CACHE
+# ============================================================================
+# Cache providers locally to avoid re-downloading
+# Set TF_PLUGIN_CACHE_DIR in .envrc to enable
+plugin_cache_dir = "$WORKSPACE_HOME/.terraform.d/plugin-cache"
+
+# ============================================================================
+# CREDENTIALS
+# ============================================================================
+
+# Terraform Cloud / Enterprise
+credentials "app.terraform.io" {
+  token = "your-terraform-cloud-token"
+}
+
+# Private Terraform Registry
+# credentials "registry.example.com" {
+#   token = "your-registry-token"
+# }
+
+# ============================================================================
+# PROVIDER INSTALLATION
+# ============================================================================
+
+# Use custom provider registry
+# provider_installation {
+#   filesystem_mirror {
+#     path    = "/usr/share/terraform/providers"
+#     include = ["registry.terraform.io/*/*"]
+#   }
+#   direct {
+#     exclude = ["registry.terraform.io/*/*"]
+#   }
+# }
+
+# Use network mirror
+# provider_installation {
+#   network_mirror {
+#     url = "https://terraform-registry.example.com/"
+#   }
+# }
+
+# ============================================================================
+# DISABLE CHECKPOINT (version check)
+# ============================================================================
+# disable_checkpoint = true
+
+# ============================================================================
+# NOTES
+# ============================================================================
+#
+# Environment Variables (set in .envrc):
+# - TF_CLI_CONFIG_FILE: Path to this config file
+# - TF_DATA_DIR: Local terraform data directory (.terraform)
+# - TF_PLUGIN_CACHE_DIR: Provider plugin cache directory
+# - TF_LOG: Enable logging (TRACE, DEBUG, INFO, WARN, ERROR)
+# - TF_LOG_PATH: Path to log file
+#
+# Usage:
+# 1. Copy this file to dotfiles/.terraformrc
+# 2. Set TF_CLI_CONFIG_FILE in .envrc
+# 3. Configure credentials or use environment variables
+#
+# AWS Credentials (prefer environment variables or AWS config):
+# - AWS_ACCESS_KEY_ID
+# - AWS_SECRET_ACCESS_KEY
+# - AWS_SESSION_TOKEN (for temporary credentials)
+# - AWS_PROFILE (use named profile from AWS config)
+#
+# Common Terraform Environment Variables:
+# - TF_VAR_*: Set input variables (e.g., TF_VAR_region=us-east-1)
+# - TF_WORKSPACE: Set workspace
+# - TF_IN_AUTOMATION: Indicate running in automation
+#
+# Plugin Cache:
+# mkdir -p $WORKSPACE_HOME/.terraform.d/plugin-cache
+#
+# Verify configuration:
+# terraform version
+# terraform providers
+#

@@ -1,0 +1,95 @@
+name: "Release: Container Lifecycle"
+
+on:
+  push:
+    tags:
+      - "container-lifecycle/v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Python package
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: container-lifecycle
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/container-lifecycle/v}" >> $GITHUB_OUTPUT
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Create source archive
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          cd ..
+          tar -czf "container-lifecycle-${VERSION}.tar.gz" \
+            --exclude='container-lifecycle/.venv' \
+            --exclude='container-lifecycle/.ruff_cache' \
+            --exclude='container-lifecycle/node_modules' \
+            --exclude='container-lifecycle/__pycache__' \
+            container-lifecycle/
+
+      - name: Upload release artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            container-lifecycle/dist/*.whl
+            container-lifecycle/dist/*.tar.gz
+            container-lifecycle-${{ steps.version.outputs.VERSION }}.tar.gz
+          generate_release_notes: true
+
+  update-formula:
+    name: Update Homebrew Formula
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/container-lifecycle/v}" >> $GITHUB_OUTPUT
+
+      - name: Download release archive and compute SHA
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          URL="https://github.com/neverprepared/reflex/releases/download/container-lifecycle/v${VERSION}/container-lifecycle-${VERSION}.tar.gz"
+          SHA=$(curl -sL "$URL" | sha256sum | awk '{print $1}')
+          FORMULA="container-lifecycle/Formula/container-lifecycle.rb"
+
+          sed -i "s|url \".*\"|url \"${URL}\"|" "$FORMULA"
+          sed -i "s/sha256 \".*\"/sha256 \"${SHA}\"/" "$FORMULA"
+
+      - name: Commit formula update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add container-lifecycle/Formula/container-lifecycle.rb
+          git diff --cached --quiet || git commit -m "formula: update container-lifecycle to v${{ steps.version.outputs.VERSION }}"
+          git push
+
+      - name: Sync formula to homebrew tap
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          git clone https://x-access-token:${{ secrets.TAP_TOKEN }}@github.com/neverprepared/homebrew-container-lifecycle.git /tmp/tap
+          mkdir -p /tmp/tap/Formula
+          cp container-lifecycle/Formula/container-lifecycle.rb /tmp/tap/Formula/container-lifecycle.rb
+          cd /tmp/tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "formula: update container-lifecycle to v${VERSION}"
+          git push

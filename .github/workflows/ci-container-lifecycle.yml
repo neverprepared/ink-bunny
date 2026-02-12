@@ -1,0 +1,39 @@
+name: "CI: Container Lifecycle"
+
+on:
+  push:
+    branches: [main]
+    paths: ["container-lifecycle/**"]
+  pull_request:
+    paths: ["container-lifecycle/**"]
+
+defaults:
+  run:
+    working-directory: container-lifecycle
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+
+      - run: uv sync --group dev
+
+      - run: uv run pytest
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+
+      - run: uv sync --group dev
+
+      - run: uv run ruff check src/
+
+      - run: uv run ruff format --check src/

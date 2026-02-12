@@ -1,0 +1,13 @@
+{
+  "name": "developer",
+  "version": "0.2.0",
+  "description": "Sandboxed Docker container running Claude Code",
+  "scripts": {
+    "build": "./scripts/build.sh",
+    "start": "./scripts/run.sh",
+    "restart": "./scripts/restart.sh",
+    "dashboard": "uv run python -m container_lifecycle api",
+    "dev": "uv run python -m container_lifecycle api --reload",
+    "manage-env": "uv run manage-secrets"
+  }
+}

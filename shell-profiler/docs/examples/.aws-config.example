@@ -1,0 +1,157 @@
+# Example AWS CLI configuration for workspace profiles
+# Copy this to your profile's dotfiles/.aws/config
+#
+# AWS CLI will use this file when AWS_CONFIG_FILE is set in .envrc
+# Credentials go in dotfiles/.aws/credentials (gitignored)
+
+# ============================================================================
+# DEFAULT CONFIGURATION
+# ============================================================================
+[default]
+region = us-east-1
+output = json
+# Output formats: json, yaml, yaml-stream, text, table
+
+# CLI auto-prompt mode (helps with command discovery)
+cli_pager =
+# cli_auto_prompt = on-partial
+
+# ============================================================================
+# NAMED PROFILES
+# ============================================================================
+
+# Personal AWS account
+[profile personal]
+region = us-east-1
+output = json
+# If using SSO:
+# sso_start_url = https://my-sso-portal.awsapps.com/start
+# sso_region = us-east-1
+# sso_account_id = 123456789012
+# sso_role_name = AdministratorAccess
+
+# Work AWS account
+[profile work]
+region = us-west-2
+output = json
+
+# Client AWS account
+[profile client-acme]
+region = eu-west-1
+output = table
+# Assume role configuration
+# role_arn = arn:aws:iam::987654321098:role/ClientRole
+# source_profile = default
+# external_id = unique-external-id
+
+# ============================================================================
+# MULTI-REGION PROFILES
+# ============================================================================
+
+[profile us-east-1]
+region = us-east-1
+output = json
+
+[profile us-west-2]
+region = us-west-2
+output = json
+
+[profile eu-west-1]
+region = eu-west-1
+output = json
+
+# ============================================================================
+# ROLE ASSUMPTION PROFILES
+# ============================================================================
+
+# Admin role via assume role
+[profile admin]
+role_arn = arn:aws:iam::123456789012:role/AdminRole
+source_profile = default
+region = us-east-1
+# MFA token required
+# mfa_serial = arn:aws:iam::123456789012:mfa/username
+
+# Read-only role
+[profile readonly]
+role_arn = arn:aws:iam::123456789012:role/ReadOnlyRole
+source_profile = default
+region = us-east-1
+
+# Cross-account access
+[profile cross-account]
+role_arn = arn:aws:iam::987654321098:role/CrossAccountRole
+source_profile = default
+external_id = unique-external-id
+region = us-east-1
+
+# ============================================================================
+# SSO PROFILES (AWS IAM Identity Center)
+# ============================================================================
+
+[profile sso-admin]
+sso_start_url = https://my-sso-portal.awsapps.com/start
+sso_region = us-east-1
+sso_account_id = 123456789012
+sso_role_name = AdministratorAccess
+region = us-east-1
+output = json
+
+[profile sso-developer]
+sso_start_url = https://my-sso-portal.awsapps.com/start
+sso_region = us-east-1
+sso_account_id = 123456789012
+sso_role_name = DeveloperAccess
+region = us-east-1
+output = json
+
+# ============================================================================
+# SERVICE-SPECIFIC CONFIGURATIONS
+# ============================================================================
+
+# S3-specific settings
+[profile s3-access]
+region = us-east-1
+s3 =
+    max_concurrent_requests = 20
+    max_queue_size = 10000
+    multipart_threshold = 64MB
+    multipart_chunksize = 16MB
+
+# EC2-specific settings
+[profile ec2-operator]
+region = us-east-1
+ec2 =
+    instance_type = t3.micro
+
+# ============================================================================
+# NOTES
+# ============================================================================
+#
+# Environment Variables (set in .envrc):
+# - AWS_CONFIG_FILE: Path to this config file
+# - AWS_SHARED_CREDENTIALS_FILE: Path to credentials file
+# - AWS_PROFILE: Which profile to use
+# - AWS_DEFAULT_REGION: Override region
+#
+# Usage:
+# 1. Copy this file to dotfiles/.aws/config
+# 2. Create dotfiles/.aws/credentials for access keys
+# 3. Set AWS_CONFIG_FILE in .envrc
+# 4. Set AWS_PROFILE in .envrc or use --profile flag
+#
+# Credentials file format (dotfiles/.aws/credentials):
+# [default]
+# aws_access_key_id = AKIA...
+# aws_secret_access_key = ...
+#
+# [profile-name]
+# aws_access_key_id = AKIA...
+# aws_secret_access_key = ...
+#
+# SSO Login:
+# aws sso login --profile sso-admin
+#
+# Test configuration:
+# aws sts get-caller-identity --profile personal
+#

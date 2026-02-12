@@ -1,0 +1,89 @@
+name: "Release: Reflex"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "reflex-claude-marketplace/plugins/**"
+      - "reflex-claude-marketplace/docker/**"
+      - "reflex-claude-marketplace/VERSION"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: reflex-claude-marketplace/release-please-config.json
+          manifest-file: reflex-claude-marketplace/.release-please-manifest.json
+
+  publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create plugin archive
+        run: |
+          VERSION="${{ needs.release-please.outputs.version }}"
+          tar -czf "reflex-${VERSION}.tar.gz" \
+            reflex-claude-marketplace/plugins/ \
+            reflex-claude-marketplace/docker/ \
+            reflex-claude-marketplace/VERSION
+
+      - name: Upload archive to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: reflex-${{ needs.release-please.outputs.version }}.tar.gz
+
+  update-formula:
+    needs: [release-please, publish]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update formula
+        run: |
+          VERSION="${{ needs.release-please.outputs.version }}"
+          URL="https://github.com/neverprepared/reflex/releases/download/reflex/v${VERSION}/reflex-${VERSION}.tar.gz"
+          SHA=$(curl -sL "$URL" | sha256sum | awk '{print $1}')
+          FORMULA="reflex-claude-marketplace/Formula/reflex.rb"
+
+          sed -i "s|url \".*\"|url \"${URL}\"|" "$FORMULA"
+          sed -i "s/sha256 \".*\"/sha256 \"${SHA}\"/" "$FORMULA"
+
+      - name: Commit formula update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reflex-claude-marketplace/Formula/reflex.rb
+          git diff --cached --quiet || git commit -m "formula: update reflex to v${{ needs.release-please.outputs.version }}"
+          git push
+
+      - name: Sync formula to homebrew tap
+        run: |
+          VERSION="${{ needs.release-please.outputs.version }}"
+          git clone https://x-access-token:${{ secrets.TAP_TOKEN }}@github.com/neverprepared/homebrew-reflex.git /tmp/tap
+          mkdir -p /tmp/tap/Formula
+          cp reflex-claude-marketplace/Formula/reflex.rb /tmp/tap/Formula/reflex.rb
+          cd /tmp/tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "formula: update reflex to v${VERSION}"
+          git push

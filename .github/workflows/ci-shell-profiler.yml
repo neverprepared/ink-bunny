@@ -1,0 +1,70 @@
+name: "CI: Shell Profiler"
+
+on:
+  push:
+    branches: [main]
+    paths: ["shell-profiler/**"]
+  pull_request:
+    paths: ["shell-profiler/**"]
+
+defaults:
+  run:
+    working-directory: shell-profiler
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+          cache-dependency-path: shell-profiler/go.sum
+
+      - run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+          cache-dependency-path: shell-profiler/go.sum
+
+      - run: go build -v ./...
+
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62
+          working-directory: shell-profiler
+
+  build:
+    name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+          cache-dependency-path: shell-profiler/go.sum
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -v -o shell-profiler-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/shell-profiler
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shell-profiler-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: shell-profiler/shell-profiler-${{ matrix.goos }}-${{ matrix.goarch }}
