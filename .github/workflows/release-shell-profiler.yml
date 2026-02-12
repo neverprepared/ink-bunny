@@ -121,10 +121,10 @@ jobs:
           VERSION="${{ needs.resolve.outputs.version }}"
           FORMULA="shell-profiler/Formula/shell-profiler.rb"
 
-          DARWIN_ARM64=$(awk '{print $1}' artifacts/shell-profiler/*darwin-arm64*.sha256)
-          DARWIN_AMD64=$(awk '{print $1}' artifacts/shell-profiler/*darwin-amd64*.sha256)
-          LINUX_ARM64=$(awk '{print $1}' artifacts/shell-profiler/*linux-arm64*.sha256)
-          LINUX_AMD64=$(awk '{print $1}' artifacts/shell-profiler/*linux-amd64*.sha256)
+          DARWIN_ARM64=$(awk '{print $1}' artifacts/*darwin-arm64*.sha256)
+          DARWIN_AMD64=$(awk '{print $1}' artifacts/*darwin-amd64*.sha256)
+          LINUX_ARM64=$(awk '{print $1}' artifacts/*linux-arm64*.sha256)
+          LINUX_AMD64=$(awk '{print $1}' artifacts/*linux-amd64*.sha256)
 
           sed -i "s/version \".*\"/version \"${VERSION}\"/" "$FORMULA"
           sed -i "s/sha256 \".*\" # darwin-arm64/sha256 \"${DARWIN_ARM64}\" # darwin-arm64/" "$FORMULA"
