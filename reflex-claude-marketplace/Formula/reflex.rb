@@ -1,8 +1,8 @@
 class Reflex < Formula
   desc "Claude Code plugin for development workflows, skills, and MCP management"
   homepage "https://github.com/neverprepared/reflex"
-  url "https://github.com/neverprepared/reflex/releases/download/reflex/v1.7.2/reflex-1.7.2.tar.gz"
-  sha256 "PLACEHOLDER"
+  url "https://github.com/neverprepared/reflex/releases/download/reflex/v0.0.1/reflex-0.0.1.tar.gz"
+  sha256 "3f0cc0f1b0e3b9491ccfa8f6ed95d16590acc765260e1132e49a857fd021afce"
   license "MIT"
 
   def install
