@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - "container-lifecycle/v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 0.2.0)"
+        required: true
 
 permissions:
   contents: write
@@ -22,9 +27,14 @@ jobs:
 
       - uses: astral-sh/setup-uv@v4
 
-      - name: Get version from tag
+      - name: Resolve version
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/container-lifecycle/v}" >> $GITHUB_OUTPUT
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/container-lifecycle/v}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build sdist and wheel
         run: uv build
@@ -43,6 +53,8 @@ jobs:
       - name: Upload release artifacts
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: container-lifecycle/v${{ steps.version.outputs.VERSION }}
+          name: "container-lifecycle v${{ steps.version.outputs.VERSION }}"
           files: |
             container-lifecycle/dist/*.whl
             container-lifecycle/dist/*.tar.gz
@@ -59,9 +71,14 @@ jobs:
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get version from tag
+      - name: Resolve version
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/container-lifecycle/v}" >> $GITHUB_OUTPUT
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/container-lifecycle/v}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Download release archive and compute SHA
         run: |
