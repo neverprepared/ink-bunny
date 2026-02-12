@@ -13,13 +13,28 @@ on:
 permissions:
   contents: write
 
-defaults:
-  run:
-    working-directory: shell-profiler
-
 jobs:
+  resolve:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.VERSION }}
+      tag: ${{ steps.ver.outputs.TAG }}
+    steps:
+      - name: Set version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ inputs.version }}" >> $GITHUB_OUTPUT
+            echo "TAG=shell-profiler/v${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/shell-profiler/v}" >> $GITHUB_OUTPUT
+            echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
   build:
     name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+    needs: resolve
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -32,26 +47,16 @@ jobs:
             goarch: amd64
           - goos: darwin
             goarch: arm64
+    defaults:
+      run:
+        working-directory: shell-profiler
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
           go-version: "1.21"
           cache-dependency-path: shell-profiler/go.sum
-
-      - name: Resolve version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "VERSION=v${{ inputs.version }}" >> $GITHUB_OUTPUT
-            echo "BARE=${{ inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/shell-profiler/}" >> $GITHUB_OUTPUT
-            echo "BARE=${GITHUB_REF#refs/tags/shell-profiler/v}" >> $GITHUB_OUTPUT
-          fi
 
       - name: Build binary
         env:
@@ -59,30 +64,45 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "0"
         run: |
-          ARCHIVE_NAME="shell-profiler-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}"
-          go build -v -ldflags="-s -w -X main.Version=${{ steps.version.outputs.VERSION }}" -o shell-profiler ./cmd/shell-profiler
+          VERSION="v${{ needs.resolve.outputs.version }}"
+          ARCHIVE_NAME="shell-profiler-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          go build -v -ldflags="-s -w -X main.Version=${VERSION}" -o shell-profiler ./cmd/shell-profiler
           tar -czf "${ARCHIVE_NAME}.tar.gz" shell-profiler
           sha256sum "${ARCHIVE_NAME}.tar.gz" > "${ARCHIVE_NAME}.tar.gz.sha256"
 
-      - name: Upload release artifacts
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: shell-profiler/v${{ steps.version.outputs.BARE }}
-          name: "shell-profiler v${{ steps.version.outputs.BARE }}"
-          files: |
-            shell-profiler/shell-profiler-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
-            shell-profiler/shell-profiler-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz.sha256
-          generate_release_notes: true
-
       - uses: actions/upload-artifact@v4
         with:
-          name: checksum-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: shell-profiler/*.sha256
+          name: dist-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            shell-profiler/shell-profiler-v${{ needs.resolve.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
+            shell-profiler/shell-profiler-v${{ needs.resolve.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz.sha256
           if-no-files-found: error
+
+  release:
+    name: Create release
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: dist-*
+          merge-multiple: true
+
+      - name: List artifacts
+        run: find artifacts/ -type f
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve.outputs.tag }}
+          name: "shell-profiler v${{ needs.resolve.outputs.version }}"
+          files: artifacts/**/*
+          generate_release_notes: true
 
   update-formula:
     name: Update Homebrew Formula
-    needs: build
+    needs: [resolve, release]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -92,33 +112,19 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          path: checksums
-          pattern: checksum-*
-
-      - name: Resolve version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "VERSION=${{ inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/shell-profiler/v}" >> $GITHUB_OUTPUT
-          fi
+          path: artifacts
+          pattern: dist-*
+          merge-multiple: true
 
       - name: Update formula in monorepo
         run: |
-          VERSION="${{ steps.version.outputs.VERSION }}"
+          VERSION="${{ needs.resolve.outputs.version }}"
           FORMULA="shell-profiler/Formula/shell-profiler.rb"
 
-          echo "=== Debug: checksum tree ==="
-          find checksums/ -type f
-          echo "==="
-
-          DARWIN_ARM64=$(find checksums/checksum-darwin-arm64 -name '*darwin-arm64*.sha256' -exec awk '{print $1}' {} \;)
-          DARWIN_AMD64=$(find checksums/checksum-darwin-amd64 -name '*darwin-amd64*.sha256' -exec awk '{print $1}' {} \;)
-          LINUX_ARM64=$(find checksums/checksum-linux-arm64 -name '*linux-arm64*.sha256' -exec awk '{print $1}' {} \;)
-          LINUX_AMD64=$(find checksums/checksum-linux-amd64 -name '*linux-amd64*.sha256' -exec awk '{print $1}' {} \;)
-
-          echo "SHA256: darwin-arm64=$DARWIN_ARM64 darwin-amd64=$DARWIN_AMD64 linux-arm64=$LINUX_ARM64 linux-amd64=$LINUX_AMD64"
+          DARWIN_ARM64=$(awk '{print $1}' artifacts/shell-profiler/*darwin-arm64*.sha256)
+          DARWIN_AMD64=$(awk '{print $1}' artifacts/shell-profiler/*darwin-amd64*.sha256)
+          LINUX_ARM64=$(awk '{print $1}' artifacts/shell-profiler/*linux-arm64*.sha256)
+          LINUX_AMD64=$(awk '{print $1}' artifacts/shell-profiler/*linux-amd64*.sha256)
 
           sed -i "s/version \".*\"/version \"${VERSION}\"/" "$FORMULA"
           sed -i "s/sha256 \".*\" # darwin-arm64/sha256 \"${DARWIN_ARM64}\" # darwin-arm64/" "$FORMULA"
@@ -131,11 +137,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add shell-profiler/Formula/shell-profiler.rb
-          git diff --cached --quiet || git commit -m "formula: update shell-profiler to v${{ steps.version.outputs.VERSION }}"
+          git diff --cached --quiet || git commit -m "formula: update shell-profiler to v${{ needs.resolve.outputs.version }}"
           git push
 
       - name: Sync formula to homebrew tap
         run: |
+          VERSION="${{ needs.resolve.outputs.version }}"
           git clone https://x-access-token:${{ secrets.TAP_TOKEN }}@github.com/neverprepared/homebrew-shell-profiler.git /tmp/tap
           mkdir -p /tmp/tap/Formula
           cp shell-profiler/Formula/shell-profiler.rb /tmp/tap/Formula/shell-profiler.rb
@@ -143,5 +150,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git diff --cached --quiet || git commit -m "formula: update shell-profiler to v${{ steps.version.outputs.VERSION }}"
+          git diff --cached --quiet || git commit -m "formula: update shell-profiler to v${VERSION}"
           git push
