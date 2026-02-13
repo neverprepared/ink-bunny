@@ -120,10 +120,10 @@ The SPIRE server is the identity root — it must be reachable only by the orche
 | **Resource Limits** | CPU, memory, ephemeral storage caps per agent container |
 | **Egress Rules** | Allowlisted outbound destinations only |
 | **Mount Policy** | No host filesystem mounts, no Docker socket, no container runtime sockets |
-| **Container Hardening** | Mandatory in all environments — see [[arch-container-lifecycle#Mandatory Container Hardening]] |
+| **Brainbox Hardening** | Mandatory in all environments — see [[arch-brainbox#Mandatory Brainbox Hardening]] |
 | **Network Zones** | Three-zone segmentation with default-deny between zones |
 
-### Container Hardening (always on)
+### Brainbox Hardening (always on)
 
 These controls are the security floor. They apply in every environment regardless of which [[arch-security-tooling|optional tools]] are enabled.
 
@@ -146,4 +146,4 @@ These controls are the security floor. They apply in every environment regardles
 | **vcluster** | Virtual Kubernetes clusters for multi-agent workloads |
 | **kind** | Local K8s clusters for development and testing |
 
-See [[arch-container-lifecycle]] for the full container lifecycle detail.
+See [[arch-brainbox]] for the full container lifecycle detail.

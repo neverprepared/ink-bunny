@@ -1,6 +1,6 @@
 # Security Guardrails
 
-**New in PHASE_2.** Breaks out from PHASE_1's [[arch-container-lifecycle|Container Lifecycle]] page into its own page, adding three-zone network segmentation, default-deny policies, and OPA-backed authorization.
+**New in PHASE_2.** Breaks out from PHASE_1's [[arch-brainbox|Brainbox Lifecycle]] page into its own page, adding three-zone network segmentation, default-deny policies, and OPA-backed authorization.
 
 The core security boundary. Everything inside runs in containers — agents get **full filesystem autonomy within their container** but have zero access to the host.
 
@@ -107,10 +107,10 @@ graph TD
 | **Resource Limits** | CPU, memory, ephemeral storage caps per agent container |
 | **Egress Rules** | Allowlisted outbound destinations only |
 | **Mount Policy** | No host filesystem mounts, no Docker socket, no container runtime sockets |
-| **Container Hardening** | Full mandatory baseline — see [[arch-container-lifecycle#Mandatory Container Hardening]] |
+| **Brainbox Hardening** | Full mandatory baseline — see [[arch-brainbox#Mandatory Brainbox Hardening]] |
 | **Network Zones** | Three-zone segmentation with default-deny between zones |
 
-### Mandatory Container Hardening
+### Mandatory Brainbox Hardening
 
 | Control | Setting |
 |---|---|
@@ -132,4 +132,4 @@ graph TD
 | **vcluster** | Virtual Kubernetes clusters for multi-agent workloads |
 | **kind** | Local K8s clusters for development and testing |
 
-See [[arch-container-lifecycle]] for the full container lifecycle detail.
+See [[arch-brainbox]] for the full container lifecycle detail.

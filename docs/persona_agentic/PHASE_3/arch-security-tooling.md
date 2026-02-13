@@ -24,7 +24,7 @@ graph TD
 | **SPIRE sidecar isolation** | Separate container, Unix socket only, no shared PID namespace | None — prevents SVID key theft |
 | **Orchestrator built-in policy** | Identity validation, rate limiting, container config validation | None — orchestrator always runs |
 
-See [[arch-container-lifecycle#Mandatory Container Hardening]] for the full hardening spec.
+See [[arch-brainbox#Mandatory Brainbox Hardening]] for the full hardening spec.
 
 ## Optional Tooling (flaggable)
 

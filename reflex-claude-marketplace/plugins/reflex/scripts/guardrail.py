@@ -356,14 +356,14 @@ DEFAULT_PATTERNS: List[Dict] = [
     },
 
     # =========================================================================
-    # Container Lifecycle - Destructive operations
+    # Brainbox - Destructive operations
     # =========================================================================
     {
-        "name": "container_lifecycle_delete",
+        "name": "brainbox_delete",
         "severity": "high",
         "category": "container_destructive",
-        "pattern": r"container-lifecycle.*delete",
-        "description": "Container lifecycle session deletion",
+        "pattern": r"brainbox.*delete",
+        "description": "Brainbox session deletion",
         "tool": "Bash",
         "field": "command"
     },

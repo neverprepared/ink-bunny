@@ -1,4 +1,4 @@
-# container-lifecycle
+# brainbox
 
 Managed Docker lifecycle for sandboxed Claude Code sessions with a 5-phase pipeline (provision → configure → start → monitor → recycle), container hardening, and a web dashboard.
 

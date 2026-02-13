@@ -6,14 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a monorepo for an agentic development platform with four packages:
 
-- **container-lifecycle/** — Sandboxed Docker environment for running Claude Code with a polyglot toolchain (Python, Node.js, Go, Rust) and web terminal access via ttyd
+- **brainbox/** — Sandboxed Docker environment for running Claude Code with a polyglot toolchain (Python, Node.js, Go, Rust) and web terminal access via ttyd
 - **reflex-claude-marketplace/** — Claude Code plugin providing skills, agents, slash commands, workflow orchestration, RAG integration, and MCP server management
 - **shell-profiler/** — Go CLI for managing workspace-specific environment profiles via direnv
 - **docs/** — Three-phase architectural documentation (Foundation → Hardened → Production-ready) describing the broader agentic platform vision
 
 ## Architecture
 
-**container-lifecycle** provides the runtime environment. **reflex** is the plugin that runs inside it (or any Claude Code instance). **shell-profiler** manages per-workspace environment configuration. **docs** describes the aspirational architecture — reflex partially implements Phase 1 concepts (orchestration via Task tool, observability via LangFuse, vector DB via Qdrant), while container isolation, SPIRE identity, and security hardening from Phases 2–3 are not yet implemented.
+**brainbox** provides the runtime environment. **reflex** is the plugin that runs inside it (or any Claude Code instance). **shell-profiler** manages per-workspace environment configuration. **docs** describes the aspirational architecture — reflex partially implements Phase 1 concepts (orchestration via Task tool, observability via LangFuse, vector DB via Qdrant), while container isolation, SPIRE identity, and security hardening from Phases 2–3 are not yet implemented.
 
 ### Reflex Plugin Architecture
 
@@ -33,7 +33,7 @@ Key config files:
 
 Scripts in `reflex-claude-marketplace/plugins/reflex/scripts/` implement hooks and tooling: `guardrail.py` (destructive op blocking), `ingest.py` (Qdrant ingestion), `summarize.py` (transcript summarizer), `mcp-generate.sh` (MCP registration).
 
-### Container Lifecycle Architecture
+### Brainbox Architecture
 
 Docker container (Ubuntu 24.04) with non-root `developer` user, pre-installed Claude Code, and Playwright MCP. Sessions are named and isolated with persistent data in `~/.config/developer/sessions/`. Secrets are managed via `scripts/manage-env.js` and injected as `/home/developer/.env`.
 
@@ -75,18 +75,18 @@ Go CLI (`cmd/shell-profiler/main.go`) using `internal/` packages for commands, c
 
 Uses [Just](https://github.com/casey/just) as the polyglot task runner. Run `just` to see all available recipes.
 
-### Container Lifecycle (Python)
+### Brainbox (Python)
 
 ```bash
-just cl-api              # Start FastAPI backend
-just cl-build            # Install deps + build Svelte dashboard
-just cl-test             # Run pytest
-just cl-lint             # Run ruff
-just cl-mcp              # Start MCP server
-just cl-dashboard        # Start API + dashboard (localhost:8080)
-just cl-docker-build     # Build Docker image
-just cl-docker-start     # Start default session
-just cl-docker-start -s myproject -v /path:/home/developer/workspace/myproject
+just bb-api              # Start FastAPI backend
+just bb-build            # Install deps + build Svelte dashboard
+just bb-test             # Run pytest
+just bb-lint             # Run ruff
+just bb-mcp              # Start MCP server
+just bb-dashboard        # Start API + dashboard (localhost:8080)
+just bb-docker-build     # Build Docker image
+just bb-docker-start     # Start default session
+just bb-docker-start -s myproject -v /path:/home/developer/workspace/myproject
 ```
 
 ### Shell Profiler (Go)
@@ -125,7 +125,7 @@ No build commands. Architecture documents are organized by phase:
 | Package | Channels | Tag format |
 |---------|----------|------------|
 | shell-profiler | Homebrew (`neverprepared/agentic`) | `shell-profiler/vX.Y.Z` |
-| container-lifecycle | Homebrew (`neverprepared/agentic`) | `container-lifecycle/vX.Y.Z` |
+| brainbox | Homebrew (`neverprepared/agentic`) | `brainbox/vX.Y.Z` |
 | reflex | Plugin marketplace + Homebrew (`neverprepared/agentic`) | `reflex/vX.Y.Z` |
 
 All formulas are distributed via a single consolidated tap: `brew install neverprepared/agentic/<package>`. Formulas live in `<package>/Formula/` in the monorepo and are synced to `neverprepared/homebrew-agentic` on release.
@@ -151,7 +151,7 @@ No AI attribution — no "Generated with Claude Code" footers, no Co-Authored-By
 | Package | Strategy | Config |
 |---------|----------|--------|
 | shell-profiler | Manual tag push | — |
-| container-lifecycle | Manual tag push | — |
+| brainbox | Manual tag push | — |
 | reflex | release-please (conventional commits) | `reflex-claude-marketplace/release-please-config.json` |
 
 ### CI/CD

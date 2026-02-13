@@ -35,8 +35,8 @@ graph TD
 |---|---|---|
 | **Orchestration** | Task routing, agent registry, policy evaluation, message routing, state persistence | [[arch-orchestration]] |
 | **Identity & Trust** | SPIFFE/SPIRE workload identity, SVID type policy, image integrity | [[arch-identity-and-trust]] |
-| **Security Guardrails** | Full container hardening, network zones, default-deny | [[arch-security-guardrails]] |
-| **Container Lifecycle** | Provision, configure, start, monitor, recycle — mandatory hardening | [[arch-container-lifecycle]] |
+| **Security Guardrails** | Full brainbox hardening, network zones, default-deny | [[arch-security-guardrails]] |
+| **Brainbox Lifecycle** | Provision, configure, start, monitor, recycle — mandatory hardening | [[arch-brainbox]] |
 | **Agent Communication** | Star topology, internal + external delegation, broadcast | [[arch-agent-communication]] |
 | **Observability** | Logs, traces, metrics, data classification, redaction pipeline | [[arch-observability]] |
 | **Secrets Management** | 1Password + envelope encryption, OIDC federation, file-based delivery | [[arch-secrets-management]] |

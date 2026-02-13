@@ -232,7 +232,7 @@ mcp__plugin_reflex_github__create_issue: owner="$OWNER", repo="$REPO", title="$T
 
 ## Container-Isolated Execution
 
-When container-lifecycle is available, dispatch workflow steps to isolated containers instead of local subagents. This provides sandboxed execution with full toolchain access.
+When brainbox is available, dispatch workflow steps to isolated containers instead of local subagents. This provides sandboxed execution with full toolchain access.
 
 ### Detection
 
@@ -240,7 +240,7 @@ Check for an active connection:
 
 ```bash
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-URL_FILE="${CLAUDE_DIR}/reflex/.container-lifecycle-url"
+URL_FILE="${CLAUDE_DIR}/reflex/.brainbox-url"
 ```
 
 If `$URL_FILE` exists and the URL responds to a health check, container dispatch is available.
@@ -282,7 +282,7 @@ For each workflow step when containers are available:
 
 ### Fallback
 
-When container-lifecycle is NOT available (no URL file or health check fails):
+When brainbox is NOT available (no URL file or health check fails):
 - Fall back to existing behavior: dispatch via local `Task` tool with `subagent_type: "general-purpose"`
 - Log a note that container isolation was not available
 

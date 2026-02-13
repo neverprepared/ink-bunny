@@ -11,8 +11,8 @@ How Reflex maps to each architectural topic in [[PHASE_1/agentic-architecture|PH
 | Orchestration — Container Tokens | Gap                | No agent identity system                                                    |
 | Orchestration — Message Routing  | Partial            | Claude Code IS the message bus (Task tool = star topology)                  |
 | Orchestration — Policy Engine    | Partial            | Guardrails block destructive ops. No agent-to-agent authorization.          |
-| Container Lifecycle              | Gap                | No container provisioning, monitoring, or recycling                         |
-| Container Hardening              | Gap                | Docker patterns skill has guidance, no enforcement                          |
+| Brainbox Lifecycle               | Gap                | No container provisioning, monitoring, or recycling                         |
+| Brainbox Hardening               | Gap                | Docker patterns skill has guidance, no enforcement                          |
 | Image Verification (cosign)      | Gap                | No image signing or verification                                            |
 | Secrets Management               | Different Approach | `.env` files + `/reflex:init` credential setup                              |
 | Observability                    | Covered            | LangFuse: full tool tracing, metrics, analytics                             |
@@ -67,9 +67,9 @@ How Reflex maps to each architectural topic in [[PHASE_1/agentic-architecture|PH
 
 ---
 
-## Container Lifecycle
+## Brainbox Lifecycle
 
-*PHASE_1 source: [[PHASE_1/arch-container-lifecycle]]*
+*PHASE_1 source: [[PHASE_1/arch-brainbox]]*
 
 ### Lifecycle Phases (Provision, Configure, Start, Monitor, Recycle)
 

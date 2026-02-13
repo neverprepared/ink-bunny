@@ -142,7 +142,7 @@ graph LR
 | **SVID TTL** | 5 minutes | Limits damage window from compromised SVID |
 | **Rotation trigger** | 50% of TTL (2.5 minutes) | SPIRE agent requests renewal before expiry |
 | **Grace period** | 30 seconds after expiry | Allows in-flight requests to complete |
-| **Max container TTL** | Matches [[arch-container-lifecycle]] lifecycle TTL | SVID cannot outlive its container |
+| **Max container TTL** | Matches [[arch-brainbox]] lifecycle TTL | SVID cannot outlive its container |
 
 ### Why SPIFFE/SPIRE
 

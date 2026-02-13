@@ -11,7 +11,7 @@
           },
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/container-lifecycle-hook.sh",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/brainbox-hook.sh",
             "timeout": 15
           }
         ]

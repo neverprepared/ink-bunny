@@ -12,10 +12,10 @@ Three design maturity phases. Each phase is a self-contained architecture — no
 
 | Topic | PHASE_1 | PHASE_2 | PHASE_3 |
 |---|---|---|---|
-| **Container Runtime** | Docker + kind/vcluster | Docker + kind/vcluster | Docker + vcluster + kind |
-| **Container Hardening** | Basic (seccomp default, drop dangerous caps, read-only rootfs, non-root) | Full mandatory baseline (custom seccomp, drop ALL caps, AppArmor, PID isolation) | Full mandatory baseline |
+| **Brainbox Runtime** | Docker + kind/vcluster | Docker + kind/vcluster | Docker + vcluster + kind |
+| **Brainbox Hardening** | Basic (seccomp default, drop dangerous caps, read-only rootfs, non-root) | Full mandatory baseline (custom seccomp, drop ALL caps, AppArmor, PID isolation) | Full mandatory baseline |
 | **Image Policy** | cosign verification, allow dev images with debugging tools | Distroless required, vulnerability scanning | Distroless required, approved base image policy, static binaries |
-| **Identity** | Orchestrator-issued container tokens (validated against internal registry) | Full SPIRE, SVID type policy (x509/JWT), aggressive TTLs | Full PKI (HSM root CA, intermediate CA), deny-list revocation, replay protection |
+| **Identity** | Orchestrator-issued brainbox tokens (validated against internal registry) | Full SPIRE, SVID type policy (x509/JWT), aggressive TTLs | Full PKI (HSM root CA, intermediate CA), deny-list revocation, replay protection |
 | **Secrets** | 1Password + direnv, file-based tmpfs delivery | Envelope encryption (KEK/DEK), OIDC federation for CI | Full envelope encryption, break-glass procedure |
 | **Orchestrator** | Single process: task dispatch, agent registry, built-in policy, message routing, identity issuer | State persistence, degraded mode | Resilience (watchdog, safe mode, dead-man switch) |
 | **Communication** | Star topology, request/reply + events, internal delegation (merged into Orchestration) | Separate page: external delegation, broadcast | Full delegation model, scope-based policy |
@@ -34,7 +34,7 @@ Three design maturity phases. Each phase is a self-contained architecture — no
 ```
 agentic-architecture.md    — Overview (hub-spoke, 4 spokes)
 arch-orchestration.md      — Task dispatch + agent identity + message routing + communication
-arch-container-lifecycle.md — Lifecycle phases + hardening + enforcement boundaries
+arch-brainbox.md           — Lifecycle phases + hardening + enforcement boundaries
 arch-secrets-management.md  — 1Password + direnv + tmpfs delivery
 arch-observability.md       — Structured JSON logs
 arch-shared-state.md        — Vector DB + Artifact Store
@@ -47,7 +47,7 @@ agentic-architecture.md     — Expanded overview
 arch-orchestration.md       — + state persistence, degraded mode
 arch-identity-and-trust.md  — Full SPIRE, SVID types, aggressive TTLs
 arch-security-guardrails.md — Full hardening, network zones, default-deny
-arch-container-lifecycle.md — Full mandatory hardening, distroless images
+arch-brainbox.md            — Full mandatory hardening, distroless images
 arch-agent-communication.md — + external delegation, broadcast
 arch-secrets-management.md  — + envelope encryption, OIDC federation
 arch-observability.md       — + traces, data classification, redaction
@@ -64,7 +64,7 @@ agentic-architecture.md     — Full overview with all spokes
 arch-orchestration.md       — + resilience, watchdog, dead-man switch, safe mode
 arch-identity-and-trust.md  — + HSM root CA, intermediate CA, deny-list, replay protection
 arch-security-guardrails.md — + SPIRE server isolation
-arch-container-lifecycle.md — + approved base image policy, static binaries
+arch-brainbox.md            — + approved base image policy, static binaries
 arch-agent-communication.md — + scope-based delegation policy
 arch-secrets-management.md  — + break-glass procedure
 arch-observability.md       — + hash-chained audit trail, WORM storage

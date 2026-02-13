@@ -51,7 +51,7 @@ export OPENAI_API_KEY="$(op read op://AgentVault/openai/api-key)"
 
 ### 4. Secrets are delivered as files on tmpfs
 
-During the [[arch-container-lifecycle|Configure phase]], secrets are written to `/run/secrets/` with restrictive permissions. The agent reads them as files — they never appear in `/proc/*/environ`.
+During the [[arch-brainbox|Configure phase]], secrets are written to `/run/secrets/` with restrictive permissions. The agent reads them as files — they never appear in `/proc/*/environ`.
 
 ```bash
 # Secrets written to tmpfs before container start:

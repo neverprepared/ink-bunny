@@ -92,7 +92,7 @@ sequenceDiagram
 | **Scope** | New container, new SVID, separate resource limits and secrets |
 | **Orchestrator visibility** | Full — orchestrator provisions, monitors, and recycles the delegated container |
 | **Capabilities** | Scoped by policy — delegated agent may have fewer capabilities than the parent |
-| **Lifecycle** | Independent — delegated agent follows full [[arch-container-lifecycle|container lifecycle]] |
+| **Lifecycle** | Independent — delegated agent follows full [[arch-brainbox|container lifecycle]] |
 
 ### When to Use Which
 

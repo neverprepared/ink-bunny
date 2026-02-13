@@ -1,4 +1,4 @@
-"""Container lifecycle: provision → configure → start → monitor → recycle.
+"""Brainbox lifecycle: provision → configure → start → monitor → recycle.
 
 All Docker operations use the Docker SDK and are wrapped with run_in_executor
 so they never block the async event loop.

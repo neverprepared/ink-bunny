@@ -30,8 +30,8 @@ graph TD
 
 | Layer | Description | Detail |
 |---|---|---|
-| **Orchestration** | Task routing, agent registry, container tokens, message routing, star topology | [[arch-orchestration]] |
-| **Container Lifecycle** | Provision (cosign), configure, start, monitor, recycle — container hardening | [[arch-container-lifecycle]] |
+| **Orchestration** | Task routing, agent registry, brainbox tokens, message routing, star topology | [[arch-orchestration]] |
+| **Brainbox Lifecycle** | Provision (cosign), configure, start, monitor, recycle — brainbox hardening | [[arch-brainbox]] |
 | **Observability** | Structured logs, basic metrics | [[arch-observability]] |
 | **Secrets Management** | 1Password + direnv, file-based delivery | [[arch-secrets-management]] |
 | **Shared State** | Vector DB, artifact store | [[arch-shared-state]] |

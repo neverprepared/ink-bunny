@@ -3,32 +3,32 @@
 default:
     @just --list --unsorted
 
-# === Container Lifecycle (Python) ===
+# === Brainbox (Python) ===
 
-cl-api:
-    cd container-lifecycle && uv run python -m container_lifecycle api
+bb-api:
+    cd brainbox && uv run python -m brainbox api
 
-cl-build:
-    cd container-lifecycle && uv sync
-    cd container-lifecycle/dashboard && npm install && npx vite build
+bb-build:
+    cd brainbox && uv sync
+    cd brainbox/dashboard && npm install && npx vite build
 
-cl-test:
-    cd container-lifecycle && uv run pytest
+bb-test:
+    cd brainbox && uv run pytest
 
-cl-lint:
-    cd container-lifecycle && uv run ruff check src/
+bb-lint:
+    cd brainbox && uv run ruff check src/
 
-cl-mcp:
-    cd container-lifecycle && uv run python -m container_lifecycle mcp
+bb-mcp:
+    cd brainbox && uv run python -m brainbox mcp
 
-cl-dashboard:
-    cd container-lifecycle && npm run dashboard
+bb-dashboard:
+    cd brainbox && npm run dashboard
 
-cl-docker-build:
-    cd container-lifecycle && ./scripts/build.sh
+bb-docker-build:
+    cd brainbox && ./scripts/build.sh
 
-cl-docker-start *ARGS:
-    cd container-lifecycle && ./scripts/run.sh {{ ARGS }}
+bb-docker-start *ARGS:
+    cd brainbox && ./scripts/run.sh {{ ARGS }}
 
 # === Shell Profiler (Go) ===
 
@@ -54,6 +54,6 @@ reflex-langfuse:
 
 # === Cross-cutting ===
 
-test-all: cl-test sp-test
+test-all: bb-test sp-test
 
-lint-all: cl-lint sp-lint
+lint-all: bb-lint sp-lint

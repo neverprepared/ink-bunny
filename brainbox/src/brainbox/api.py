@@ -142,7 +142,7 @@ async def lifespan(app: FastAPI):
     await hub_shutdown()
 
 
-app = FastAPI(title="Container Lifecycle", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="Brainbox", version="0.2.0", lifespan=lifespan)
 
 
 # ---------------------------------------------------------------------------

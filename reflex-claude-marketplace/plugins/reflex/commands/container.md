@@ -1,49 +1,49 @@
 ---
-description: Manage the container-lifecycle API and sandboxed dev environments
-allowed-tools: Bash(curl:*), Bash(container-lifecycle:*), Bash(open:*), Bash(kill:*), Bash(cat:*), Bash(mkdir:*), Bash(echo:*), Bash(jq:*)
+description: Manage the brainbox API and sandboxed dev environments
+allowed-tools: Bash(curl:*), Bash(brainbox:*), Bash(open:*), Bash(kill:*), Bash(cat:*), Bash(mkdir:*), Bash(echo:*), Bash(jq:*)
 argument-hint: <start|stop|status|dashboard|config>
 ---
 
-# Container Lifecycle
+# Brainbox
 
-Manage the container-lifecycle API that provides sandboxed Docker environments with web terminal access.
+Manage the brainbox API that provides sandboxed Docker environments with web terminal access.
 
 ## Paths
 
 ```bash
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 CONFIG_DIR="${CLAUDE_DIR}/reflex"
-CONFIG_FILE="${CONFIG_DIR}/container-lifecycle.json"
-URL_FILE="${CONFIG_DIR}/.container-lifecycle-url"
-PID_FILE="${CONFIG_DIR}/.container-lifecycle-pid"
-CONNECT_SCRIPT="${CLAUDE_PLUGIN_ROOT}/scripts/container-lifecycle-connect.sh"
+CONFIG_FILE="${CONFIG_DIR}/brainbox.json"
+URL_FILE="${CONFIG_DIR}/.brainbox-url"
+PID_FILE="${CONFIG_DIR}/.brainbox-pid"
+CONNECT_SCRIPT="${CLAUDE_PLUGIN_ROOT}/scripts/brainbox-connect.sh"
 ```
 
 ## Subcommands
 
 ### `/reflex:container start`
 
-Start the container-lifecycle API locally (if not already running).
+Start the brainbox API locally (if not already running).
 
 ```bash
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-"${CLAUDE_PLUGIN_ROOT}/scripts/container-lifecycle-connect.sh"
+"${CLAUDE_PLUGIN_ROOT}/scripts/brainbox-connect.sh"
 ```
 
 Show the result to the user. If status is "connected", say it was already running. If "started", confirm the API was started. If "unavailable", explain why (check the `reason` field).
 
 ### `/reflex:container stop`
 
-Stop a locally auto-started container-lifecycle API.
+Stop a locally auto-started brainbox API.
 
 ```bash
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-PID_FILE="${CLAUDE_DIR}/reflex/.container-lifecycle-pid"
+PID_FILE="${CLAUDE_DIR}/reflex/.brainbox-pid"
 
 if [ -f "$PID_FILE" ]; then
   PID=$(cat "$PID_FILE")
-  kill "$PID" 2>/dev/null && echo "Container lifecycle API stopped (pid $PID)." || echo "Process $PID not running."
-  rm -f "$PID_FILE" "${CLAUDE_DIR}/reflex/.container-lifecycle-url"
+  kill "$PID" 2>/dev/null && echo "Brainbox API stopped (pid $PID)." || echo "Process $PID not running."
+  rm -f "$PID_FILE" "${CLAUDE_DIR}/reflex/.brainbox-url"
 else
   echo "No locally-started API to stop (no PID file found)."
   echo "If the API was started externally, stop it from its original process."
@@ -56,10 +56,10 @@ Show connection info, running containers, and dashboard URL.
 
 ```bash
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-URL_FILE="${CLAUDE_DIR}/reflex/.container-lifecycle-url"
-CONFIG_FILE="${CLAUDE_DIR}/reflex/container-lifecycle.json"
+URL_FILE="${CLAUDE_DIR}/reflex/.brainbox-url"
+CONFIG_FILE="${CLAUDE_DIR}/reflex/brainbox.json"
 
-echo "## Container Lifecycle Status"
+echo "## Brainbox Status"
 echo ""
 
 # Connection
@@ -93,24 +93,24 @@ fi
 
 echo ""
 echo "**Environment overrides:**"
-echo "  CONTAINER_LIFECYCLE_URL=${CONTAINER_LIFECYCLE_URL:-<not set>}"
-echo "  CONTAINER_LIFECYCLE_AUTOSTART=${CONTAINER_LIFECYCLE_AUTOSTART:-<not set>}"
+echo "  BRAINBOX_URL=${BRAINBOX_URL:-<not set>}"
+echo "  BRAINBOX_AUTOSTART=${BRAINBOX_AUTOSTART:-<not set>}"
 ```
 
 ### `/reflex:container dashboard`
 
-Open the container-lifecycle dashboard in the default browser.
+Open the brainbox dashboard in the default browser.
 
 ```bash
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-URL_FILE="${CLAUDE_DIR}/reflex/.container-lifecycle-url"
+URL_FILE="${CLAUDE_DIR}/reflex/.brainbox-url"
 
 if [ -f "$URL_FILE" ]; then
   URL=$(cat "$URL_FILE")
   open "$URL" 2>/dev/null || echo "Dashboard URL: $URL"
   echo "Opened dashboard at $URL"
 else
-  echo "Container lifecycle is not connected. Start it first:"
+  echo "Brainbox is not connected. Start it first:"
   echo "  /reflex:container start"
 fi
 ```
@@ -122,10 +122,10 @@ Show or set configuration values. With no extra arguments, show current config. 
 **Show config:**
 ```bash
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-CONFIG_FILE="${CLAUDE_DIR}/reflex/container-lifecycle.json"
+CONFIG_FILE="${CLAUDE_DIR}/reflex/brainbox.json"
 
 if [ -f "$CONFIG_FILE" ]; then
-  echo "## Container Lifecycle Config"
+  echo "## Brainbox Config"
   echo '```json'
   cat "$CONFIG_FILE" | jq .
   echo '```'
@@ -149,7 +149,7 @@ Parse the key=value argument. Read the existing config (or start with defaults),
 
 ```bash
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-CONFIG_FILE="${CLAUDE_DIR}/reflex/container-lifecycle.json"
+CONFIG_FILE="${CLAUDE_DIR}/reflex/brainbox.json"
 mkdir -p "${CLAUDE_DIR}/reflex"
 
 # Read existing or defaults
@@ -174,7 +174,7 @@ If no argument or invalid argument provided, show usage:
 ```
 Usage: /reflex:container <start|stop|status|dashboard|config>
 
-Manage the container-lifecycle API for sandboxed dev environments.
+Manage the brainbox API for sandboxed dev environments.
 
 Commands:
   start      Start the API locally (auto-discovers or auto-starts)
@@ -184,11 +184,11 @@ Commands:
   config     Show/set configuration (url, autostart)
 
 Configuration:
-  Config file: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/reflex/container-lifecycle.json
+  Config file: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/reflex/brainbox.json
 
   Environment variable overrides (highest priority):
-    CONTAINER_LIFECYCLE_URL        API endpoint (local or remote)
-    CONTAINER_LIFECYCLE_AUTOSTART  true/false (default: true)
+    BRAINBOX_URL        API endpoint (local or remote)
+    BRAINBOX_AUTOSTART  true/false (default: true)
 
 Examples:
   /reflex:container start

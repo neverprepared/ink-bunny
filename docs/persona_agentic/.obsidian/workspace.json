@@ -183,8 +183,11 @@
       "bases:Create new base": false
     }
   },
-  "active": "b454b8a9fa02fd12",
+  "active": "f08e5e543373ea7c",
   "lastOpenFiles": [
+    "PHASE_3/arch-brainbox.md",
+    "PHASE_2/arch-brainbox.md",
+    "PHASE_1/arch-brainbox.md",
     "shell-profiler/internal/ui/prompts.go",
     "shell-profiler/internal/ui/colors.go",
     "shell-profiler/internal/profile/manager.go",
@@ -195,7 +198,6 @@
     "shell-profiler/internal/commands/init.go",
     "shell-profiler/internal/commands/git.go",
     "shell-profiler/internal/commands/dotfiles.go",
-    "shell-profiler/internal/commands/delete.go",
     "shell-profiler/docs/index.md",
     "shell-profiler/docs/QUICKSTART.md",
     "shell-profiler/docs/PROJECT-SUMMARY.md",
@@ -211,15 +213,13 @@
     "REFLEX/reflex-overview.md",
     "PHASE_1/arch-orchestration.md",
     "PHASE_1/arch-observability.md",
-    "PHASE_1/arch-container-lifecycle.md",
+    "PHASE_1/arch-brainbox.md",
     "PHASE_1/agentic-architecture.md",
     "PHASE_1/arch-identity-and-trust.md",
     "PHASE_1/arch-secrets-management.md",
     "PHASE_1/phase-roadmap.md",
     "PHASE_1/arch-shared-state.md",
     "PHASE_1/arch-agent-communication.md",
-    "SECOND_PHASE/agentic-architecture.md",
-    "PHASE_3/phase-roadmap.md",
-    "PHASE_3/TODO/security-review-findings.md"
+    "SECOND_PHASE/agentic-architecture.md"
   ]
 }

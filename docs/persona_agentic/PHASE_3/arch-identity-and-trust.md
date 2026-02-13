@@ -278,7 +278,7 @@ Aggressive TTLs limit the damage window from a compromised SVID.
 | **SVID TTL** | 5 minutes | Compromise window bounded — stolen SVID expires before meaningful exfiltration |
 | **Rotation trigger** | 50% of TTL (2.5 minutes) | SPIRE agent requests renewal well before expiry |
 | **Grace period** | 30 seconds after expiry | Allows in-flight requests to complete |
-| **Max container TTL** | Matches [[arch-container-lifecycle]] lifecycle TTL | SVID cannot outlive its container |
+| **Max container TTL** | Matches [[arch-brainbox]] lifecycle TTL | SVID cannot outlive its container |
 
 ### SVID Revocation
 

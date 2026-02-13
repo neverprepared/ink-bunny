@@ -122,7 +122,7 @@ if [ -n "$VOLUME_MOUNT" ]; then
     LIFECYCLE_ARGS="$LIFECYCLE_ARGS --volume $VOLUME_MOUNT"
 fi
 
-OUTPUT=$(uv run python -m container_lifecycle $LIFECYCLE_ARGS 2>&1)
+OUTPUT=$(uv run python -m brainbox $LIFECYCLE_ARGS 2>&1)
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then

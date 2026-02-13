@@ -1,15 +1,15 @@
-name: "CI: Container Lifecycle"
+name: "CI: Brainbox"
 
 on:
   push:
     branches: [main]
-    paths: ["container-lifecycle/**"]
+    paths: ["brainbox/**"]
   pull_request:
-    paths: ["container-lifecycle/**"]
+    paths: ["brainbox/**"]
 
 defaults:
   run:
-    working-directory: container-lifecycle
+    working-directory: brainbox
 
 jobs:
   test:

@@ -6,23 +6,23 @@ Gaps that would need to be addressed to bring Reflex up to full [[PHASE_1/agenti
 
 | Gap | Severity | PHASE_1 Source |
 |---|---|---|
-| Container Lifecycle Management | Critical | [[PHASE_1/arch-container-lifecycle]] |
+| Brainbox Lifecycle Management | Critical | [[PHASE_1/arch-brainbox]] |
 | Agent Identity System | High | [[PHASE_1/arch-orchestration]] |
-| Image Verification | High | [[PHASE_1/arch-container-lifecycle]] |
+| Image Verification | High | [[PHASE_1/arch-brainbox]] |
 | Secrets Delivery Model | Medium | [[PHASE_1/arch-secrets-management]] |
-| Container Hardening Enforcement | High | [[PHASE_1/arch-container-lifecycle]] |
+| Brainbox Hardening Enforcement | High | [[PHASE_1/arch-brainbox]] |
 | Artifact Store | Medium | [[PHASE_1/arch-shared-state]] |
 | Agent-to-Agent Policy | Medium | [[PHASE_1/arch-orchestration]] |
 
 ---
 
-## 1. Container Lifecycle Management
+## 1. Brainbox Lifecycle Management
 
 **What's missing**: The entire container lifecycle — provision, configure, start, monitor, recycle. Reflex has no mechanism to create Docker containers for agents, track their health, enforce timeouts, or clean up state after completion.
 
 **Why it matters**: PHASE_1's security model depends on container isolation. Without containers, agents share Claude's process space with no resource boundaries, no filesystem isolation, and no teardown guarantees. This is the foundational gap — most other gaps (hardening, identity, secrets delivery) depend on containers existing.
 
-**PHASE_1 requirement**: [[PHASE_1/arch-container-lifecycle]] defines a 5-phase lifecycle (Provision → Configure → Start → Monitor → Recycle) with restart policies, orphan reaping, and ephemeral state guarantees.
+**PHASE_1 requirement**: [[PHASE_1/arch-brainbox]] defines a 5-phase lifecycle (Provision → Configure → Start → Monitor → Recycle) with restart policies, orphan reaping, and ephemeral state guarantees.
 
 **Current Reflex state**: Agents are Claude Code sub-processes. Claude's runtime provides basic execution timeouts but no container-level lifecycle management. The `docker-patterns` and `kubernetes-patterns` skills provide guidance for writing Dockerfiles and manifests, but nothing provisions or manages agent containers.
 
@@ -46,7 +46,7 @@ Gaps that would need to be addressed to bring Reflex up to full [[PHASE_1/agenti
 
 **Why it matters**: Without image verification, there is no supply chain integrity guarantee. PHASE_1 requires that only signed images can be provisioned — this prevents tampered or unauthorized agent code from running.
 
-**PHASE_1 requirement**: [[PHASE_1/arch-container-lifecycle]] requires cosign verification at the Provision phase. Unsigned or invalid images are rejected. Later phases add vulnerability scanning and distroless base image requirements.
+**PHASE_1 requirement**: [[PHASE_1/arch-brainbox]] requires cosign verification at the Provision phase. Unsigned or invalid images are rejected. Later phases add vulnerability scanning and distroless base image requirements.
 
 **Current Reflex state**: No container images exist to verify. Agent definitions are markdown files loaded by Claude Code. The plugin itself is installed from a GitHub repository with no signature verification.
 
@@ -64,13 +64,13 @@ Gaps that would need to be addressed to bring Reflex up to full [[PHASE_1/agenti
 
 ---
 
-## 5. Container Hardening Enforcement
+## 5. Brainbox Hardening Enforcement
 
 **What's missing**: Enforced security controls — seccomp profiles, capability dropping, read-only root filesystem, non-root user, privilege escalation prevention. Reflex has skills that *describe* these patterns but nothing that *applies* them.
 
 **Why it matters**: Hardening reduces the blast radius of a compromised agent. Without enforcement, an agent process could access the host filesystem, escalate privileges, or make unrestricted network connections.
 
-**PHASE_1 requirement**: [[PHASE_1/arch-container-lifecycle]] specifies: seccomp default profile, drop NET_RAW/SYS_ADMIN/MKNOD/SYS_CHROOT/NET_ADMIN, read-only rootfs, non-root user (65534), no-new-privileges, tmpfs-only writable mounts.
+**PHASE_1 requirement**: [[PHASE_1/arch-brainbox]] specifies: seccomp default profile, drop NET_RAW/SYS_ADMIN/MKNOD/SYS_CHROOT/NET_ADMIN, read-only rootfs, non-root user (65534), no-new-privileges, tmpfs-only writable mounts.
 
 **Current Reflex state**: The `docker-patterns` skill documents multi-stage builds and security best practices. The `kubernetes-patterns` skill covers pod security contexts. These are informational — a human writing a Dockerfile could follow them, but Reflex does not enforce them when running agents.
 

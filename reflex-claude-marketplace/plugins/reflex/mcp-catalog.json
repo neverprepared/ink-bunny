@@ -202,16 +202,16 @@
         }
       }
     },
-    "container-lifecycle": {
+    "brainbox": {
       "description": "Container session management — isolated dev environments with web terminal",
       "category": "development",
-      "url": "https://github.com/neverprepared/container-lifecycle",
+      "url": "https://github.com/neverprepared/reflex",
       "requires": [],
       "definition": {
-        "command": "container-lifecycle",
+        "command": "brainbox",
         "args": ["mcp"],
         "env": {
-          "CONTAINER_LIFECYCLE_URL": "${CONTAINER_LIFECYCLE_URL:-http://127.0.0.1:8000}"
+          "BRAINBOX_URL": "${BRAINBOX_URL:-http://127.0.0.1:8000}"
         }
       }
     },

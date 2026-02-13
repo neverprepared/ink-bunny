@@ -1,11 +1,11 @@
-"""MCP server exposing container-lifecycle API as tools.
+"""MCP server exposing brainbox API as tools.
 
 Stateless protocol adapter — each tool is an HTTP call to the
-container-lifecycle FastAPI backend.
+brainbox FastAPI backend.
 
 Usage:
-    container-lifecycle mcp                    # stdio transport (default)
-    container-lifecycle mcp --url http://host:8000  # custom API URL
+    brainbox mcp                    # stdio transport (default)
+    brainbox mcp --url http://host:8000  # custom API URL
 """
 
 from __future__ import annotations
@@ -18,15 +18,15 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("container-lifecycle")
+mcp = FastMCP("brainbox")
 
 
 def _api_url() -> str:
-    return os.environ.get("CONTAINER_LIFECYCLE_URL", "http://127.0.0.1:8000")
+    return os.environ.get("BRAINBOX_URL", "http://127.0.0.1:8000")
 
 
 def _request(method: str, path: str, body: dict[str, Any] | None = None) -> Any:
-    """Make an HTTP request to the container-lifecycle API."""
+    """Make an HTTP request to the brainbox API."""
     url = f"{_api_url()}{path}"
     data = json.dumps(body).encode() if body else None
     headers = {"Content-Type": "application/json"} if data else {}

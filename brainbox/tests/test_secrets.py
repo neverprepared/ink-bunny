@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
-from container_lifecycle.config import settings
-from container_lifecycle.secrets import (
+from brainbox.config import settings
+from brainbox.secrets import (
     _to_env_name,
     get_sa_token,
     has_op_integration,
@@ -178,7 +178,7 @@ class TestResolveFromOp:
         monkeypatch.setattr(settings, "op_vault", "")
         mock = _mock_op_run_factory(items_list, items_detail)
 
-        with patch("container_lifecycle.secrets._op_run", side_effect=mock):
+        with patch("brainbox.secrets._op_run", side_effect=mock):
             result = resolve_from_op("fake-token")
 
         assert result == {
@@ -205,7 +205,7 @@ class TestResolveFromOp:
         monkeypatch.setattr(settings, "op_vault", "")
         mock = _mock_op_run_factory(items_list, items_detail)
 
-        with patch("container_lifecycle.secrets._op_run", side_effect=mock):
+        with patch("brainbox.secrets._op_run", side_effect=mock):
             result = resolve_from_op("fake-token")
 
         assert result == {"TEST_ITEM_FILLED": "yes"}
@@ -213,7 +213,7 @@ class TestResolveFromOp:
     def test_empty_vault(self, monkeypatch):
         monkeypatch.setattr(settings, "op_vault", "")
 
-        with patch("container_lifecycle.secrets._op_run", return_value="[]"):
+        with patch("brainbox.secrets._op_run", return_value="[]"):
             result = resolve_from_op("fake-token")
 
         assert result == {}
@@ -227,7 +227,7 @@ class TestResolveFromOp:
             captured_args.append(args)
             return "[]"
 
-        with patch("container_lifecycle.secrets._op_run", side_effect=_capture):
+        with patch("brainbox.secrets._op_run", side_effect=_capture):
             resolve_from_op("fake-token")
 
         assert "--vault" in captured_args[0]
@@ -242,7 +242,7 @@ class TestResolveFromOp:
             captured_args.append(args)
             return "[]"
 
-        with patch("container_lifecycle.secrets._op_run", side_effect=_capture):
+        with patch("brainbox.secrets._op_run", side_effect=_capture):
             resolve_from_op("fake-token")
 
         assert "--vault" not in captured_args[0]
@@ -251,7 +251,7 @@ class TestResolveFromOp:
         monkeypatch.setattr(settings, "op_vault", "")
 
         with patch(
-            "container_lifecycle.secrets._op_run",
+            "brainbox.secrets._op_run",
             side_effect=RuntimeError("op item list failed: auth error"),
         ):
             with pytest.raises(RuntimeError, match="auth error"):
@@ -269,7 +269,7 @@ class TestResolveFromOp:
                 return json.dumps([{"id": "id1", "title": "item"}])
             raise RuntimeError("op item get failed: not found")
 
-        with patch("container_lifecycle.secrets._op_run", side_effect=_mock):
+        with patch("brainbox.secrets._op_run", side_effect=_mock):
             with pytest.raises(RuntimeError, match="not found"):
                 resolve_from_op("fake-token")
 
@@ -299,7 +299,7 @@ class TestResolveFromOp:
         monkeypatch.setattr(settings, "op_vault", "")
         mock = _mock_op_run_factory(items_list, items_detail)
 
-        with patch("container_lifecycle.secrets._op_run", side_effect=mock):
+        with patch("brainbox.secrets._op_run", side_effect=mock):
             result = resolve_from_op("fake-token")
 
         # FOO_BAR_KEY from both — second write wins
@@ -316,7 +316,7 @@ class TestResolveSecrets:
         monkeypatch.setenv("OP_SERVICE_ACCOUNT_TOKEN", "tok")
 
         with patch(
-            "container_lifecycle.secrets.resolve_from_op", return_value={"A": "1"}
+            "brainbox.secrets.resolve_from_op", return_value={"A": "1"}
         ) as mock_op:
             result = resolve_secrets()
 
@@ -342,7 +342,7 @@ class TestDefaultConfigDir:
         monkeypatch.setenv("XDG_CONFIG_HOME", "/xdg/config")
         monkeypatch.setenv("WORKSPACE_HOME", "/ws")
 
-        from container_lifecycle.config import _default_config_dir
+        from brainbox.config import _default_config_dir
 
         assert _default_config_dir() == Path("/xdg/config/developer")
 
@@ -350,7 +350,7 @@ class TestDefaultConfigDir:
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
         monkeypatch.setenv("WORKSPACE_HOME", "/ws")
 
-        from container_lifecycle.config import _default_config_dir
+        from brainbox.config import _default_config_dir
 
         assert _default_config_dir() == Path("/ws/.config/developer")
 
@@ -358,7 +358,7 @@ class TestDefaultConfigDir:
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
         monkeypatch.delenv("WORKSPACE_HOME", raising=False)
 
-        from container_lifecycle.config import _default_config_dir
+        from brainbox.config import _default_config_dir
 
         result = _default_config_dir()
         assert result == Path.home() / ".config" / "developer"

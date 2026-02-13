@@ -1,5 +1,5 @@
 #!/bin/bash
-# Discover and optionally auto-start the container-lifecycle API.
+# Discover and optionally auto-start the brainbox API.
 #
 # Resolution order: env var > config file > defaults
 #
@@ -8,15 +8,15 @@
 #   {"url": "...", "status": "started"}     — auto-started successfully
 #   {"status": "unavailable"}               — not reachable and not auto-started
 #
-# Writes active URL to ${CLAUDE_CONFIG_DIR}/reflex/.container-lifecycle-url
+# Writes active URL to ${CLAUDE_CONFIG_DIR}/reflex/.brainbox-url
 
 set -euo pipefail
 
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
 CONFIG_DIR="${CLAUDE_DIR}/reflex"
-CONFIG_FILE="${CONFIG_DIR}/container-lifecycle.json"
-URL_FILE="${CONFIG_DIR}/.container-lifecycle-url"
-PID_FILE="${CONFIG_DIR}/.container-lifecycle-pid"
+CONFIG_FILE="${CONFIG_DIR}/brainbox.json"
+URL_FILE="${CONFIG_DIR}/.brainbox-url"
+PID_FILE="${CONFIG_DIR}/.brainbox-pid"
 
 # -----------------------------------------------------------------------------
 # Read configuration
@@ -38,8 +38,8 @@ if [[ -f "$CONFIG_FILE" ]]; then
 fi
 
 # Layer env var overrides (highest priority)
-[[ -n "${CONTAINER_LIFECYCLE_URL:-}" ]] && URL="$CONTAINER_LIFECYCLE_URL"
-[[ -n "${CONTAINER_LIFECYCLE_AUTOSTART:-}" ]] && AUTOSTART="$CONTAINER_LIFECYCLE_AUTOSTART"
+[[ -n "${BRAINBOX_URL:-}" ]] && URL="$BRAINBOX_URL"
+[[ -n "${BRAINBOX_AUTOSTART:-}" ]] && AUTOSTART="$BRAINBOX_AUTOSTART"
 
 # Extract port from URL for auto-start
 PORT=$(echo "$URL" | sed -n 's|.*:\([0-9]*\)$|\1|p')
@@ -78,9 +78,9 @@ if [[ "$AUTOSTART" != "true" ]]; then
   exit 0
 fi
 
-if ! command -v container-lifecycle >/dev/null 2>&1; then
+if ! command -v brainbox >/dev/null 2>&1; then
   rm -f "$URL_FILE"
-  echo '{"status": "unavailable", "reason": "container-lifecycle not on PATH"}'
+  echo '{"status": "unavailable", "reason": "brainbox not on PATH"}'
   exit 0
 fi
 
@@ -92,7 +92,7 @@ if [[ "$HOST" != "127.0.0.1" && "$HOST" != "localhost" ]]; then
 fi
 
 mkdir -p "$CONFIG_DIR"
-container-lifecycle api --host "$HOST" --port "$PORT" >/dev/null 2>&1 &
+brainbox api --host "$HOST" --port "$PORT" >/dev/null 2>&1 &
 API_PID=$!
 echo "$API_PID" > "$PID_FILE"
 

@@ -1,4 +1,4 @@
-"""CLI entrypoint: python -m container_lifecycle <command> [options]."""
+"""CLI entrypoint: python -m brainbox <command> [options]."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from .log import setup_logging
 def main() -> None:
     setup_logging()
 
-    parser = argparse.ArgumentParser(prog="container-lifecycle")
+    parser = argparse.ArgumentParser(prog="brainbox")
     sub = parser.add_subparsers(dest="command")
 
     # Common opts
@@ -45,7 +45,7 @@ def main() -> None:
 
     # mcp
     p_mcp = sub.add_parser("mcp")
-    p_mcp.add_argument("--url", default=None, help="API URL (default: $CONTAINER_LIFECYCLE_URL or http://127.0.0.1:8000)")
+    p_mcp.add_argument("--url", default=None, help="API URL (default: $BRAINBOX_URL or http://127.0.0.1:8000)")
 
     args = parser.parse_args()
 
@@ -110,7 +110,7 @@ def _start_mcp(args: argparse.Namespace) -> None:
     import os
 
     if args.url:
-        os.environ["CONTAINER_LIFECYCLE_URL"] = args.url
+        os.environ["BRAINBOX_URL"] = args.url
 
     from .mcp_server import run
     run()
@@ -120,7 +120,7 @@ def _start_api(args: argparse.Namespace) -> None:
     import uvicorn
 
     uvicorn.run(
-        "container_lifecycle.api:app",
+        "brainbox.api:app",
         host=args.host,
         port=args.port,
         reload=args.reload,
