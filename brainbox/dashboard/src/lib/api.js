@@ -1,4 +1,4 @@
-/** API client for container-lifecycle backend. */
+/** API client for brainbox backend. */
 
 export async function fetchSessions() {
   const res = await fetch('/api/sessions');
