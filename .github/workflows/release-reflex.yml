@@ -108,7 +108,7 @@ jobs:
       - name: Update formula
         run: |
           VERSION="${{ steps.ver.outputs.VERSION }}"
-          URL="https://github.com/neverprepared/agentic/releases/download/reflex/v${VERSION}/reflex-${VERSION}.tar.gz"
+          URL="https://github.com/neverprepared/numa/releases/download/reflex/v${VERSION}/reflex-${VERSION}.tar.gz"
           SHA=$(curl -sL "$URL" | sha256sum | awk '{print $1}')
           FORMULA="reflex-claude-marketplace/Formula/reflex.rb"
 

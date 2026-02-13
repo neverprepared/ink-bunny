@@ -83,7 +83,7 @@ jobs:
       - name: Download release archive and compute SHA
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
-          URL="https://github.com/neverprepared/agentic/releases/download/brainbox/v${VERSION}/brainbox-${VERSION}.tar.gz"
+          URL="https://github.com/neverprepared/numa/releases/download/brainbox/v${VERSION}/brainbox-${VERSION}.tar.gz"
           SHA=$(curl -sL "$URL" | sha256sum | awk '{print $1}')
           FORMULA="brainbox/Formula/brainbox.rb"
 

@@ -205,7 +205,7 @@
     "brainbox": {
       "description": "Container session management — isolated dev environments with web terminal",
       "category": "development",
-      "url": "https://github.com/neverprepared/agentic",
+      "url": "https://github.com/neverprepared/numa",
       "requires": [],
       "definition": {
         "command": "brainbox",

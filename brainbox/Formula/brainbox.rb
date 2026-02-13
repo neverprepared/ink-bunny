@@ -2,8 +2,8 @@ class Brainbox < Formula
   include Language::Python::Virtualenv
 
   desc "Sandboxed Docker container orchestration for Claude Code"
-  homepage "https://github.com/neverprepared/agentic"
-  url "https://github.com/neverprepared/agentic/releases/download/brainbox/v0.2.0/brainbox-0.2.0.tar.gz"
+  homepage "https://github.com/neverprepared/numa"
+  url "https://github.com/neverprepared/numa/releases/download/brainbox/v0.2.0/brainbox-0.2.0.tar.gz"
   sha256 "c052e43678e0c7cb81b692909018bf654ab186ef7f374a80e73ebf49fa560101"
   license "MIT"
 
