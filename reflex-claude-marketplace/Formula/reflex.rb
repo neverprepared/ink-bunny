@@ -6,7 +6,7 @@ class Reflex < Formula
   license "MIT"
 
   def install
-    (share/"reflex/plugins/reflex").install Dir["plugins/reflex/*"]
+    (share/"reflex").install Dir["plugins/reflex/*"]
   end
 
   def caveats
@@ -22,6 +22,6 @@ class Reflex < Formula
   end
 
   test do
-    assert_predicate share/"reflex/plugins/reflex/.claude-plugin/plugin.json", :exist?
+    assert_predicate share/"reflex/.claude-plugin/plugin.json", :exist?
   end
 end
