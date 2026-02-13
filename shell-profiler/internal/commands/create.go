@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/neverprepared/shell-profile-manager/internal/ui"
@@ -159,11 +158,6 @@ func CreateProfile(profilesDir string, opts CreateOptions) error {
 		return fmt.Errorf("failed to create .env.example: %w", err)
 	}
 
-	// Create .env.secrets.tpl
-	if err := createSecretsTemplate(profileDir, opts); err != nil {
-		return fmt.Errorf("failed to create .env.secrets.tpl: %w", err)
-	}
-
 	// Initialize git if requested
 	if opts.InitGit {
 		gitOpts := GitOptions{
@@ -266,12 +260,20 @@ fi
 # Tool-specific paths and non-secret config belong in .env, not here
 dotenv_if_exists .env
 
-# Load secrets from 1Password (single CLI call via op inject)
-if [[ -f ".env.secrets.tpl" ]]; then
-    if command -v op &>/dev/null && op account list &>/dev/null 2>&1; then
-        eval "$(op inject -i .env.secrets.tpl)"
-    else
-        log_status "WARNING: op CLI unavailable — secrets not loaded"
+# Load secrets from 1Password vault (auto-discovered from vault items)
+_op_vault="workspace-${WORKSPACE_PROFILE}"
+if command -v op &>/dev/null && command -v jq &>/dev/null; then
+    _op_ids=$(op item list --vault "$_op_vault" --format json 2>/dev/null | jq -r '.[].id' 2>/dev/null)
+    if [ -n "$_op_ids" ]; then
+        for _op_id in $_op_ids; do
+            eval "$(op item get "$_op_id" --format json 2>/dev/null | jq -r '
+                .title as $t |
+                .fields[] |
+                select(.value != "" and .value != null and .label != "" and .label != null and .id != "notesPlain" and .type != "OTP") |
+                "export " + ($t + "_" + .label | gsub("[^A-Za-z0-9]"; "_") | gsub("_+"; "_") | gsub("^_|_$"; "") | ascii_upcase) + "=" + (.value | @sh)
+            ' 2>/dev/null)"
+        done
+        log_status "Loaded secrets from 1Password vault: $_op_vault"
     fi
 fi
 
@@ -294,7 +296,7 @@ func createEnvFile(profileDir string, opts CreateOptions) error {
 #
 # This file is loaded by direnv via dotenv_if_exists in .envrc
 # Add tool-specific paths and non-secret config here (not in .envrc)
-# For secrets, use .env.secrets.tpl with op:// references
+# Secrets are loaded automatically from 1Password vault (workspace-<profile>)
 
 # Git configuration
 GIT_CONFIG_GLOBAL="$WORKSPACE_HOME/.gitconfig"
@@ -600,7 +602,6 @@ func createGitignore(profileDir string) error {
 
 # Environment files with secrets
 .env
-!.env.secrets.tpl
 .envrc.local
 
 # SSH keys and sensitive files
@@ -799,7 +800,7 @@ func createEnvExample(profileDir string) error {
 
 	envExampleContent := `# Example environment variables
 # Copy this to .env and fill in your non-secret config
-# For secrets (API keys, passwords), use .env.secrets.tpl with op:// references
+# Secrets are loaded automatically from 1Password vault (workspace-<profile>)
 
 # AWS credentials
 # AWS_ACCESS_KEY_ID=your-access-key
@@ -838,25 +839,3 @@ func createEnvExample(profileDir string) error {
 	return os.WriteFile(envExamplePath, []byte(envExampleContent), 0644)
 }
 
-func createSecretsTemplate(profileDir string, opts CreateOptions) error {
-	ui.PrintInfo("Creating .env.secrets.tpl...")
-
-	vaultName := "workspace-" + strings.ToLower(opts.ProfileName)
-
-	secretsTplContent := fmt.Sprintf(`# Secrets resolved from 1Password vault "%s" via op inject
-#
-# This file is safe to commit — it contains only op:// references, not actual secrets.
-# Secrets are resolved at runtime by "op inject" in .envrc.
-#
-# To add a new secret:
-#   1. Store it in the 1Password vault "%s"
-#   2. Add an op:// reference below
-#   3. Run "direnv allow" to reload
-
-# Example:
-# export MY_API_KEY="{{ op://%s/my-service/api-key }}"
-`, vaultName, vaultName, vaultName)
-
-	secretsTplPath := filepath.Join(profileDir, ".env.secrets.tpl")
-	return os.WriteFile(secretsTplPath, []byte(secretsTplContent), 0644)
-}

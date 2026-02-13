@@ -108,18 +108,18 @@ func UpdateProfile(profilesDir string, opts UpdateOptions) error {
 		updates = append(updates, "Updated .gitignore with new patterns")
 	}
 
-	// Create .env.secrets.tpl if missing
-	if updated, err := updateSecretsTemplate(profileDir, opts.ProfileName, opts.DryRun); err != nil {
-		return fmt.Errorf("failed to update .env.secrets.tpl: %w", err)
+	// Remove .env.secrets.tpl (replaced by vault discovery in .envrc)
+	if updated, err := removeSecretsTemplate(profileDir, opts.DryRun); err != nil {
+		return fmt.Errorf("failed to remove .env.secrets.tpl: %w", err)
 	} else if updated {
-		updates = append(updates, "Updated .env.secrets.tpl (vault name migration or created new)")
+		updates = append(updates, "Removed .env.secrets.tpl (secrets now auto-discovered from vault)")
 	}
 
-	// Add op inject block to .envrc if missing
-	if updated, err := updateEnvrcOpInject(profileDir, opts.DryRun); err != nil {
-		return fmt.Errorf("failed to update .envrc with op inject: %w", err)
+	// Replace op inject with vault discovery in .envrc
+	if updated, err := updateEnvrcVaultDiscovery(profileDir, opts.ProfileName, opts.DryRun); err != nil {
+		return fmt.Errorf("failed to update .envrc with vault discovery: %w", err)
 	} else if updated {
-		updates = append(updates, "Added op inject block to .envrc for 1Password secrets")
+		updates = append(updates, "Replaced op inject with vault discovery in .envrc")
 	}
 
 	// Summary
@@ -427,7 +427,6 @@ func updateGitignore(profileDir string, dryRun, _force bool) (bool, error) {
 
 # Environment files with secrets
 .env
-!.env.secrets.tpl
 .envrc.local
 
 # SSH keys and sensitive files
@@ -505,6 +504,12 @@ build/
 
 	gitignoreContent := string(content)
 	updated := false
+
+	// Remove obsolete !.env.secrets.tpl negation
+	if strings.Contains(gitignoreContent, "!.env.secrets.tpl") {
+		gitignoreContent = strings.ReplaceAll(gitignoreContent, "!.env.secrets.tpl\n", "")
+		updated = true
+	}
 
 	// Check and add missing patterns
 	requiredPatterns := map[string]string{
@@ -588,55 +593,25 @@ build/
 	return updated, nil
 }
 
-func updateSecretsTemplate(profileDir, profileName string, dryRun bool) (bool, error) {
+func removeSecretsTemplate(profileDir string, dryRun bool) (bool, error) {
 	secretsTplPath := filepath.Join(profileDir, ".env.secrets.tpl")
-	vaultName := "workspace-" + strings.ToLower(profileName)
 
-	// If file exists, migrate vault names to lowercase
-	if data, err := os.ReadFile(secretsTplPath); err == nil {
-		content := string(data)
-		// Match old title-case convention: Workspace-Personal, Workspace-Work, etc.
-		oldVault := "Workspace-" + strings.ToUpper(profileName[:1]) + profileName[1:]
-		if strings.Contains(content, oldVault) {
-			if dryRun {
-				return true, nil
-			}
-			content = strings.ReplaceAll(content, oldVault, vaultName)
-			if err := os.WriteFile(secretsTplPath, []byte(content), 0644); err != nil {
-				return false, fmt.Errorf("failed to update .env.secrets.tpl: %w", err)
-			}
-			return true, nil
-		}
+	if _, err := os.Stat(secretsTplPath); os.IsNotExist(err) {
 		return false, nil
 	}
 
-	// File doesn't exist — create it
 	if dryRun {
 		return true, nil
 	}
 
-	secretsTplContent := fmt.Sprintf(`# Secrets resolved from 1Password vault "%s" via op inject
-#
-# This file is safe to commit — it contains only op:// references, not actual secrets.
-# Secrets are resolved at runtime by "op inject" in .envrc.
-#
-# To add a new secret:
-#   1. Store it in the 1Password vault "%s"
-#   2. Add an op:// reference below
-#   3. Run "direnv allow" to reload
-
-# Example:
-# export MY_API_KEY="{{ op://%s/my-service/api-key }}"
-`, vaultName, vaultName, vaultName)
-
-	if err := os.WriteFile(secretsTplPath, []byte(secretsTplContent), 0644); err != nil {
-		return false, fmt.Errorf("failed to create .env.secrets.tpl: %w", err)
+	if err := os.Remove(secretsTplPath); err != nil {
+		return false, fmt.Errorf("failed to remove .env.secrets.tpl: %w", err)
 	}
 
 	return true, nil
 }
 
-func updateEnvrcOpInject(profileDir string, dryRun bool) (bool, error) {
+func updateEnvrcVaultDiscovery(profileDir, profileName string, dryRun bool) (bool, error) {
 	envrcPath := filepath.Join(profileDir, ".envrc")
 	content, err := os.ReadFile(envrcPath)
 	if err != nil {
@@ -645,49 +620,99 @@ func updateEnvrcOpInject(profileDir string, dryRun bool) (bool, error) {
 
 	envrcContent := string(content)
 
-	// Skip if op inject block already present
-	if strings.Contains(envrcContent, "op inject") {
+	// Already has vault discovery
+	if strings.Contains(envrcContent, "op item list") {
 		return false, nil
 	}
 
-	if dryRun {
-		return true, nil
+	// Check if old op inject block exists and remove it
+	hasOpInject := strings.Contains(envrcContent, "op inject")
+	if hasOpInject {
+		lines := strings.Split(envrcContent, "\n")
+		var cleaned []string
+		inBlock := false
+		blockDepth := 0
+
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+
+			// Detect start of op inject block (comment or the if statement)
+			if !inBlock && (strings.Contains(line, "op inject") || strings.Contains(line, ".env.secrets.tpl")) {
+				// Walk back to remove preceding comment lines
+				for len(cleaned) > 0 {
+					prev := strings.TrimSpace(cleaned[len(cleaned)-1])
+					if strings.HasPrefix(prev, "#") || prev == "" {
+						cleaned = cleaned[:len(cleaned)-1]
+					} else {
+						break
+					}
+				}
+				inBlock = true
+				blockDepth = 0
+			}
+
+			if inBlock {
+				if strings.HasPrefix(trimmed, "if ") || strings.HasPrefix(trimmed, "if [") {
+					blockDepth++
+				}
+				if trimmed == "fi" {
+					blockDepth--
+					if blockDepth <= 0 {
+						inBlock = false
+					}
+				}
+				continue
+			}
+
+			cleaned = append(cleaned, line)
+		}
+
+		envrcContent = strings.Join(cleaned, "\n")
 	}
 
-	opInjectBlock := `
-# Load secrets from 1Password (single CLI call via op inject)
-if [[ -f ".env.secrets.tpl" ]]; then
-    if command -v op &>/dev/null && op account list &>/dev/null 2>&1; then
-        eval "$(op inject -i .env.secrets.tpl)"
-    else
-        log_status "WARNING: op CLI unavailable — secrets not loaded"
+	vaultDiscoveryBlock := fmt.Sprintf(`
+# Load secrets from 1Password vault (auto-discovered from vault items)
+_op_vault="workspace-%s"
+if command -v op &>/dev/null && command -v jq &>/dev/null; then
+    _op_ids=$(op item list --vault "$_op_vault" --format json 2>/dev/null | jq -r '.[].id' 2>/dev/null)
+    if [ -n "$_op_ids" ]; then
+        for _op_id in $_op_ids; do
+            eval "$(op item get "$_op_id" --format json 2>/dev/null | jq -r '
+                .title as $t |
+                .fields[] |
+                select(.value != "" and .value != null and .label != "" and .label != null and .id != "notesPlain" and .type != "OTP") |
+                "export " + ($t + "_" + .label | gsub("[^A-Za-z0-9]"; "_") | gsub("_+"; "_") | gsub("^_|_$"; "") | ascii_upcase) + "=" + (.value | @sh)
+            ' 2>/dev/null)"
+        done
+        log_status "Loaded secrets from 1Password vault: $_op_vault"
     fi
 fi
-`
+`, strings.ToLower(profileName))
 
-	// Insert after "dotenv_if_exists .env" and before "# Load local overrides"
+	// Insert after "dotenv_if_exists .env" line
 	dotenvIdx := strings.Index(envrcContent, "dotenv_if_exists .env")
 	if dotenvIdx == -1 {
-		// No dotenv line found, insert before local overrides or welcome message
 		localIdx := strings.Index(envrcContent, "dotenv_if_exists .envrc.local")
 		if localIdx == -1 {
 			localIdx = strings.Index(envrcContent, "# Welcome message")
 		}
 		if localIdx == -1 {
-			// Append at end
-			envrcContent += opInjectBlock
+			envrcContent += vaultDiscoveryBlock
 		} else {
-			envrcContent = envrcContent[:localIdx] + opInjectBlock + "\n" + envrcContent[localIdx:]
+			envrcContent = envrcContent[:localIdx] + vaultDiscoveryBlock + "\n" + envrcContent[localIdx:]
 		}
 	} else {
-		// Find end of the dotenv_if_exists .env line
 		lineEnd := strings.Index(envrcContent[dotenvIdx:], "\n")
 		if lineEnd == -1 {
-			envrcContent += opInjectBlock
+			envrcContent += vaultDiscoveryBlock
 		} else {
 			insertAt := dotenvIdx + lineEnd + 1
-			envrcContent = envrcContent[:insertAt] + opInjectBlock + envrcContent[insertAt:]
+			envrcContent = envrcContent[:insertAt] + vaultDiscoveryBlock + envrcContent[insertAt:]
 		}
+	}
+
+	if dryRun {
+		return true, nil
 	}
 
 	if err := os.WriteFile(envrcPath, []byte(envrcContent), 0644); err != nil {
