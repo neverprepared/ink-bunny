@@ -16,6 +16,8 @@ Reference skills are available at `~/.claude/skills/`. Read the relevant SKILL.m
 - `~/.claude/skills/docker-patterns/SKILL.md` — Containerization best practices
 - `~/.claude/skills/observability-patterns/SKILL.md` — Metrics, logs, traces (Prometheus, Grafana)
 - `~/.claude/skills/database-migration-patterns/SKILL.md` — Database schema migrations
+- `~/.claude/skills/n8n-patterns/SKILL.md` — Workflow automation with n8n
+- `~/.claude/skills/qdrant-patterns/SKILL.md` — Vector database storage and semantic retrieval
 
 ### Development
 - `~/.claude/skills/agent-builder/SKILL.md` — Build specialized sub-agents

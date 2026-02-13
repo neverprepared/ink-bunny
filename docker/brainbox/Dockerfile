@@ -172,6 +172,8 @@ COPY --chown=developer:developer reflex/plugins/reflex/skills/kubernetes-pattern
 COPY --chown=developer:developer reflex/plugins/reflex/skills/docker-patterns/SKILL.md /home/developer/.claude/skills/docker-patterns/SKILL.md
 COPY --chown=developer:developer reflex/plugins/reflex/skills/observability-patterns/SKILL.md /home/developer/.claude/skills/observability-patterns/SKILL.md
 COPY --chown=developer:developer reflex/plugins/reflex/skills/database-migration-patterns/SKILL.md /home/developer/.claude/skills/database-migration-patterns/SKILL.md
+COPY --chown=developer:developer reflex/plugins/reflex/skills/n8n-patterns/SKILL.md /home/developer/.claude/skills/n8n-patterns/SKILL.md
+COPY --chown=developer:developer reflex/plugins/reflex/skills/qdrant-patterns/SKILL.md /home/developer/.claude/skills/qdrant-patterns/SKILL.md
 
 # Development
 COPY --chown=developer:developer reflex/plugins/reflex/skills/agent-builder/SKILL.md /home/developer/.claude/skills/agent-builder/SKILL.md
