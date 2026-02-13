@@ -3,9 +3,9 @@ name: "CI: Brainbox"
 on:
   push:
     branches: [main]
-    paths: ["brainbox/**"]
+    paths: ["brainbox/**", "docker/brainbox/**"]
   pull_request:
-    paths: ["brainbox/**"]
+    paths: ["brainbox/**", "docker/brainbox/**"]
 
 defaults:
   run:
