@@ -95,7 +95,10 @@ async def submit_task(description: str, agent_name: str) -> Task:
         _emit("task.failed", task)
         raise
 
-    log.info("router.task_started", metadata={"task_id": task_id, "session": session_name, "agent": agent_name})
+    log.info(
+        "router.task_started",
+        metadata={"task_id": task_id, "session": session_name, "agent": agent_name},
+    )
     _emit("task.started", task)
     return task
 

@@ -114,10 +114,14 @@ def submit_task(description: str, agent_name: str = "developer") -> dict[str, An
         description: Task description / instructions for the agent
         agent_name: Agent to assign the task to (default: developer)
     """
-    return _request("POST", "/api/hub/tasks", {
-        "description": description,
-        "agent_name": agent_name,
-    })
+    return _request(
+        "POST",
+        "/api/hub/tasks",
+        {
+            "description": description,
+            "agent_name": agent_name,
+        },
+    )
 
 
 @mcp.tool()

@@ -75,8 +75,12 @@ def _setup_op() -> None:
             return
 
     console.print("[dim]Create a Service Account at:[/dim]")
-    console.print("[dim]  https://my.1password.com/developer-tools/infrastructure-secrets/serviceaccount/[/dim]")
-    console.print("[dim]Scope it to the vault your secrets live in (e.g. Workspace-Personal).[/dim]")
+    console.print(
+        "[dim]  https://my.1password.com/developer-tools/infrastructure-secrets/serviceaccount/[/dim]"
+    )
+    console.print(
+        "[dim]Scope it to the vault your secrets live in (e.g. Workspace-Personal).[/dim]"
+    )
     console.print()
 
     token = questionary.password("Service Account token:").ask()

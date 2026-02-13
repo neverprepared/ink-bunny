@@ -126,9 +126,17 @@ async def lifespan(app: FastAPI):
     await hub_init()
 
     # Forward hub events to SSE
-    on_event(lambda event, data: _broadcast_sse(
-        json.dumps({"hub": True, "event": event, "data": data.model_dump() if hasattr(data, "model_dump") else data})
-    ))
+    on_event(
+        lambda event, data: _broadcast_sse(
+            json.dumps(
+                {
+                    "hub": True,
+                    "event": event,
+                    "data": data.model_dump() if hasattr(data, "model_dump") else data,
+                }
+            )
+        )
+    )
 
     # Start Docker events watcher
     global _docker_events_task
@@ -183,13 +191,15 @@ def _get_sessions_info() -> list[dict[str, Any]]:
             if bind_mounts:
                 volume = ", ".join(bind_mounts)
 
-            sessions.append({
-                "name": name,
-                "port": port,
-                "url": f"http://localhost:{port}" if port else None,
-                "volume": volume,
-                "active": is_running,
-            })
+            sessions.append(
+                {
+                    "name": name,
+                    "port": port,
+                    "url": f"http://localhost:{port}" if port else None,
+                    "volume": volume,
+                    "active": is_running,
+                }
+            )
     except Exception:
         pass
 
@@ -348,15 +358,17 @@ async def api_container_metrics():
                     except (ValueError, TypeError):
                         pass
 
-                results.append({
-                    "name": c.name,
-                    "cpu_percent": round(cpu_pct, 2),
-                    "mem_usage": mem_usage,
-                    "mem_usage_human": _human_bytes(mem_usage),
-                    "mem_limit": mem_limit,
-                    "mem_limit_human": _human_bytes(mem_limit),
-                    "uptime_seconds": round(uptime_seconds),
-                })
+                results.append(
+                    {
+                        "name": c.name,
+                        "cpu_percent": round(cpu_pct, 2),
+                        "mem_usage": mem_usage,
+                        "mem_usage_human": _human_bytes(mem_usage),
+                        "mem_limit": mem_limit,
+                        "mem_limit_human": _human_bytes(mem_limit),
+                        "uptime_seconds": round(uptime_seconds),
+                    }
+                )
             except Exception:
                 pass
     except Exception:
@@ -372,6 +384,7 @@ async def api_container_metrics():
 
 # --- Agents ---
 
+
 @app.get("/api/hub/agents")
 async def hub_list_agents():
     return [a.model_dump() for a in list_agents()]
@@ -386,6 +399,7 @@ async def hub_get_agent(name: str):
 
 
 # --- Tasks ---
+
 
 @app.post("/api/hub/tasks", status_code=201)
 async def hub_submit_task(body: TaskCreate):
@@ -421,17 +435,20 @@ async def hub_cancel_task(task_id: str):
 
 # --- Messages ---
 
+
 @app.post("/api/hub/messages")
 async def hub_route_message(request: Request, token: Token = Depends(require_token)):
     body = await request.json()
 
     try:
-        result = route_message({
-            "sender_token_id": token.token_id,
-            "recipient": body.get("recipient", "hub"),
-            "type": body.get("type"),
-            "payload": body.get("payload"),
-        })
+        result = route_message(
+            {
+                "sender_token_id": token.token_id,
+                "recipient": body.get("recipient", "hub"),
+                "type": body.get("type"),
+                "payload": body.get("payload"),
+            }
+        )
     except ValueError as exc:
         status = 401 if "token" in str(exc).lower() else 400
         raise HTTPException(status_code=status, detail=str(exc))
@@ -457,12 +474,14 @@ async def hub_get_messages(token: Token = Depends(require_token)):
 
 # --- Tokens ---
 
+
 @app.get("/api/hub/tokens")
 async def hub_list_tokens():
     return [t.model_dump() for t in list_tokens()]
 
 
 # --- State ---
+
 
 @app.get("/api/hub/state")
 async def hub_state():

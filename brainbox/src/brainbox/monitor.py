@@ -56,7 +56,9 @@ async def _monitor_loop() -> None:
                 if not is_running:
                     ctx.health_failures += 1
                     slog = get_logger(session_name=name, container_name=ctx.container_name)
-                    slog.warning("monitor.container_not_running", metadata={"failures": ctx.health_failures})
+                    slog.warning(
+                        "monitor.container_not_running", metadata={"failures": ctx.health_failures}
+                    )
                     continue
 
                 # Get stats (non-streaming)
@@ -79,10 +81,14 @@ async def _monitor_loop() -> None:
 
                 # Check TTL
                 import time
+
                 elapsed = (time.time() * 1000 - ctx.created_at) / 1000
                 if ctx.ttl > 0 and elapsed > ctx.ttl:
-                    slog.warning("monitor.ttl_expired", metadata={"elapsed": elapsed, "ttl": ctx.ttl})
+                    slog.warning(
+                        "monitor.ttl_expired", metadata={"elapsed": elapsed, "ttl": ctx.ttl}
+                    )
                     from .models import SessionState
+
                     ctx.state = SessionState.RECYCLING
 
             except NotFound:
@@ -101,7 +107,9 @@ def _calc_cpu(stats: dict) -> float:
     cpu = stats.get("cpu_stats", {})
     precpu = stats.get("precpu_stats", {})
 
-    cpu_delta = cpu.get("cpu_usage", {}).get("total_usage", 0) - precpu.get("cpu_usage", {}).get("total_usage", 0)
+    cpu_delta = cpu.get("cpu_usage", {}).get("total_usage", 0) - precpu.get("cpu_usage", {}).get(
+        "total_usage", 0
+    )
     sys_delta = cpu.get("system_cpu_usage", 0) - precpu.get("system_cpu_usage", 0)
     n_cpus = cpu.get("online_cpus", 1)
 

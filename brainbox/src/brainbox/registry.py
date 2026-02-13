@@ -78,7 +78,12 @@ def issue_token(agent_name: str, task_id: str, ttl: int = 3600) -> Token:
     _tokens[token.token_id] = token
     log.info(
         "registry.token_issued",
-        metadata={"token_id": token.token_id, "agent_name": agent_name, "task_id": task_id, "ttl": ttl},
+        metadata={
+            "token_id": token.token_id,
+            "agent_name": agent_name,
+            "task_id": task_id,
+            "ttl": ttl,
+        },
     )
     return token
 

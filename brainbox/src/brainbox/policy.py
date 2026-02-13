@@ -24,7 +24,9 @@ def evaluate_task_assignment(agent_def: AgentDefinition | None, task: Task) -> P
     return PolicyResult(allowed=True)
 
 
-def evaluate_message(sender_token: Token | None, recipient_name: str, payload: dict) -> PolicyResult:
+def evaluate_message(
+    sender_token: Token | None, recipient_name: str, payload: dict
+) -> PolicyResult:
     """Check whether a message from sender to recipient is allowed."""
     if not sender_token:
         return PolicyResult(allowed=False, reason="No sender token provided")
@@ -34,7 +36,9 @@ def evaluate_message(sender_token: Token | None, recipient_name: str, payload: d
 
     if recipient_name and recipient_name != "hub":
         if not get_agent(recipient_name):
-            return PolicyResult(allowed=False, reason=f"Recipient '{recipient_name}' is not a registered agent")
+            return PolicyResult(
+                allowed=False, reason=f"Recipient '{recipient_name}' is not a registered agent"
+            )
 
     if not payload or "type" not in payload:
         return PolicyResult(allowed=False, reason="Payload must have a type field")
@@ -51,6 +55,8 @@ def evaluate_capability(token: Token | None, required_cap: str) -> PolicyResult:
         return PolicyResult(allowed=False, reason="Token is invalid or expired")
 
     if required_cap not in token.capabilities:
-        return PolicyResult(allowed=False, reason=f"Token lacks required capability '{required_cap}'")
+        return PolicyResult(
+            allowed=False, reason=f"Token lacks required capability '{required_cap}'"
+        )
 
     return PolicyResult(allowed=True)

@@ -227,7 +227,12 @@ async def provision(
     _sessions[session_name] = ctx
     slog.info(
         "container.provisioned",
-        metadata={"image": settings.image, "port": resolved_port, "hardened": hardened, "ttl": resolved_ttl},
+        metadata={
+            "image": settings.image,
+            "port": resolved_port,
+            "hardened": hardened,
+            "ttl": resolved_ttl,
+        },
     )
     return ctx
 
@@ -253,11 +258,13 @@ async def configure(ctx_or_name: SessionContext | str) -> SessionContext:
     if ctx.token:
         ctx.secrets["agent-token"] = ctx.token.model_dump_json()
     else:
-        ctx.secrets["agent-token"] = json.dumps({
-            "stub": True,
-            "issued": _iso_now(),
-            "note": "Use hub API to get a real token",
-        })
+        ctx.secrets["agent-token"] = json.dumps(
+            {
+                "stub": True,
+                "issued": _iso_now(),
+                "note": "Use hub API to get a real token",
+            }
+        )
 
     ctx.state = SessionState.STARTING
     slog = get_logger(session_name=ctx.session_name, container_name=ctx.container_name)
@@ -292,16 +299,26 @@ async def start(ctx_or_name: SessionContext | str) -> SessionContext:
             try:
                 await _run(
                     container.exec_run,
-                    ["sh", "-c", f"echo '{_shell_escape(value)}' > /run/secrets/{name} && chmod 400 /run/secrets/{name}"],
+                    [
+                        "sh",
+                        "-c",
+                        f"echo '{_shell_escape(value)}' > /run/secrets/{name} && chmod 400 /run/secrets/{name}",
+                    ],
                 )
             except Exception as exc:
-                slog.warning("container.secret_write_failed", metadata={"secret": name, "reason": str(exc)})
+                slog.warning(
+                    "container.secret_write_failed", metadata={"secret": name, "reason": str(exc)}
+                )
     else:
         # Legacy: write .env file
         try:
             await _run(
                 container.exec_run,
-                ["sh", "-c", "rm -f /home/developer/.env && touch /home/developer/.env && chmod 600 /home/developer/.env"],
+                [
+                    "sh",
+                    "-c",
+                    "rm -f /home/developer/.env && touch /home/developer/.env && chmod 600 /home/developer/.env",
+                ],
             )
             if ctx.env_content:
                 for line in ctx.env_content.split("\n"):
@@ -318,7 +335,11 @@ async def start(ctx_or_name: SessionContext | str) -> SessionContext:
             try:
                 await _run(
                     container.exec_run,
-                    ["sh", "-c", f"echo '{_shell_escape(ctx.secrets['agent-token'])}' > /home/developer/.agent-token && chmod 400 /home/developer/.agent-token"],
+                    [
+                        "sh",
+                        "-c",
+                        f"echo '{_shell_escape(ctx.secrets['agent-token'])}' > /home/developer/.agent-token && chmod 400 /home/developer/.agent-token",
+                    ],
                 )
             except Exception as exc:
                 slog.warning("container.token_write_failed", metadata={"reason": str(exc)})
@@ -328,7 +349,15 @@ async def start(ctx_or_name: SessionContext | str) -> SessionContext:
         try:
             await _run(
                 container.exec_run,
-                ["ttyd", "-W", "-t", f"titleFixed={title}", "-p", "7681", "/home/developer/ttyd-wrapper.sh"],
+                [
+                    "ttyd",
+                    "-W",
+                    "-t",
+                    f"titleFixed={title}",
+                    "-p",
+                    "7681",
+                    "/home/developer/ttyd-wrapper.sh",
+                ],
                 detach=True,
             )
         except Exception as exc:
@@ -449,9 +478,11 @@ def _shell_escape(s: str) -> str:
 
 def _now_ms() -> int:
     import time
+
     return int(time.time() * 1000)
 
 
 def _iso_now() -> str:
     from datetime import datetime, timezone
+
     return datetime.now(timezone.utc).isoformat()

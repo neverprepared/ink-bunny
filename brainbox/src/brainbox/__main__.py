@@ -45,7 +45,9 @@ def main() -> None:
 
     # mcp
     p_mcp = sub.add_parser("mcp")
-    p_mcp.add_argument("--url", default=None, help="API URL (default: $BRAINBOX_URL or http://127.0.0.1:8000)")
+    p_mcp.add_argument(
+        "--url", default=None, help="API URL (default: $BRAINBOX_URL or http://127.0.0.1:8000)"
+    )
 
     args = parser.parse_args()
 
@@ -92,12 +94,16 @@ async def _run_pipeline(args: argparse.Namespace) -> None:
         ttl=args.ttl,
         volume_mounts=args.volume,
     )
-    print(json.dumps({
-        "ok": True,
-        "session": ctx.session_name,
-        "port": ctx.port,
-        "url": f"http://localhost:{ctx.port}",
-    }))
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "session": ctx.session_name,
+                "port": ctx.port,
+                "url": f"http://localhost:{ctx.port}",
+            }
+        )
+    )
 
 
 async def _recycle(args: argparse.Namespace) -> None:
@@ -113,6 +119,7 @@ def _start_mcp(args: argparse.Namespace) -> None:
         os.environ["BRAINBOX_URL"] = args.url
 
     from .mcp_server import run
+
     run()
 
 
