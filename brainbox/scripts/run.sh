@@ -116,7 +116,7 @@ fi
 
 # === Delegate to lifecycle manager (legacy/dev mode — hardened=false) ===
 
-LIFECYCLE_ARGS="run --session $SESSION_NAME --hardened false"
+LIFECYCLE_ARGS="run --session $SESSION_NAME"
 
 if [ -n "$VOLUME_MOUNT" ]; then
     LIFECYCLE_ARGS="$LIFECYCLE_ARGS --volume $VOLUME_MOUNT"
