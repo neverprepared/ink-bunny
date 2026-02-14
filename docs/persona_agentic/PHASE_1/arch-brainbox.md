@@ -20,7 +20,7 @@ graph LR
 | Phase | What Happens |
 |---|---|
 | **Provision** | Pull agent image, verify signature (cosign), allocate resources from Docker/kind/vcluster |
-| **Configure** | Write secrets to tmpfs via [[arch-secrets-management|1Password + direnv]], inject container token, apply hardening flags |
+| **Configure** | Write secrets to tmpfs via [[arch-secrets-management|1Password + direnv]], apply hardening flags |
 | **Start** | Launch the agent process inside the container |
 | **Monitor** | Continuous health checks, resource usage tracking, heartbeat validation |
 | **Recycle** | Teardown on completion, failure, or timeout — scrub ephemeral state, reclaim resources |

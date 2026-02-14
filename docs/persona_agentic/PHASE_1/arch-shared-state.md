@@ -18,7 +18,7 @@ graph TD
     Agent1 & Agent2 & Agent3 --> VectorDB & ArtifactStore
 ```
 
-Agents access stores directly. Access is attributed by container token but not scoped to namespaces.
+Agents access stores directly. Access is not scoped or authenticated — any container can read/write any store.
 
 ## Stores
 
@@ -31,14 +31,13 @@ Agents access stores directly. Access is attributed by container token but not s
 
 | Rule | Detail |
 |---|---|
-| **Token on every write** | Writes include the container token for attribution |
-| **Attribution** | Every stored object carries: container token ID, task ID, timestamp |
+| **Attribution** | Every stored object carries: task ID, timestamp |
 | **All agents can access all data** | No namespace isolation — any agent can read/write any store |
 
 ## Rules
 
 - Container filesystems are **ephemeral** — anything that must survive a recycle goes here
-- All writes are attributed to the originating container token
+- All writes carry task ID for basic attribution
 - No namespace isolation — all agents share the same data space
 
 ## What's Deferred

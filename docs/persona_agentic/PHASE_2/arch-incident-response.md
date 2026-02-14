@@ -21,7 +21,7 @@ graph LR
 |---|---|---|
 | **Detect** | Alert from OPA policy violation, observability anomaly, or container health check failure | Automated |
 | **Capture** | Forensic snapshot of container state before any destructive action | Automated |
-| **Contain** | Revoke SVID (delete SPIRE registration), recycle container, quarantine is manual | Automated + Operator |
+| **Contain** | Revoke container token, recycle container, quarantine is manual | Automated + Operator |
 | **Investigate** | Analyze captured evidence, trace attack path, assess blast radius | Operator |
 | **Recover** | Rotate affected secrets, verify data integrity, resume operations | Operator |
 
@@ -41,7 +41,7 @@ sequenceDiagram
     Orch->>Container: capture snapshot
     Note over Container: process list, open files,<br/>network connections,<br/>filesystem diff
     Orch->>Evidence: store snapshot (signed, timestamped)
-    Orch->>Container: proceed with containment (delete SPIRE entry, recycle)
+    Orch->>Container: proceed with containment (revoke token, recycle)
 ```
 
 | Captured Data | How | Retention |
@@ -60,10 +60,10 @@ sequenceDiagram
 | Step | Action |
 |---|---|
 | **Capture** | Forensic snapshot before recycle |
-| **Contain** | Delete SPIRE registration entry (SVID expires in ≤5 min), recycle container |
+| **Contain** | Revoke container token (immediate rejection on next API call), recycle container |
 | **Scope** | Check: what secrets did this agent have? What shared state did it write? |
 | **Rotate** | Rotate all secrets the agent had access to |
-| **Verify** | Check signatures on shared state artifacts attributed to this agent's SVID |
+| **Verify** | Review shared state artifacts attributed to this agent's token ID |
 
 ### T2: Malicious Insider
 

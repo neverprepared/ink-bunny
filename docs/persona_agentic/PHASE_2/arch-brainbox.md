@@ -20,7 +20,7 @@ graph LR
 | Phase | What Happens |
 |---|---|
 | **Provision** | Pull agent image, verify signature (cosign), scan for critical CVEs, validate against [[arch-security-tooling#Kyverno\|Kyverno]] admission policies, allocate resources |
-| **Configure** | Write secrets to tmpfs via [[arch-secrets-management|envelope encryption + 1Password]], apply mandatory hardening, attach SPIRE agent sidecar (separate container) |
+| **Configure** | Write secrets to tmpfs via [[arch-secrets-management|envelope encryption + 1Password]], apply mandatory hardening, inject container token |
 | **Start** | Launch the agent process inside the container |
 | **Monitor** | Continuous health checks, resource usage tracking, heartbeat validation |
 | **Recycle** | Teardown on completion, failure, or timeout — scrub ephemeral state, reclaim resources |
@@ -56,8 +56,8 @@ graph LR
 | **No privilege escalation** | `allowPrivilegeEscalation: false` / `--security-opt=no-new-privileges:true` | Blocks setuid/setgid binaries from escalating within the container |
 | **AppArmor** | Custom profile denying `/proc/sys`, `/sys`, mount operations | Mandatory access control on sensitive pseudo-filesystems |
 | **Secrets delivery** | File-based via tmpfs at `/run/secrets/<name>`, mode 0400, owned by agent UID | Eliminates `/proc/*/environ` exposure — see [[arch-secrets-management]] |
-| **SPIRE sidecar** | Separate container, shared only via Unix socket on emptyDir volume | Prevents compromised agent from reading SVID private keys — see [[arch-identity-and-trust]] |
-| **PID namespace** | `shareProcessNamespace: false` | Agent cannot see or signal SPIRE sidecar processes |
+| **Token delivery** | File-based at `/run/secrets/agent-token`, mode 0400 | Token never exposed via env vars — see [[arch-identity-and-trust]] |
+| **PID namespace** | `shareProcessNamespace: false` | Containers cannot see or signal each other's processes |
 
 ### Docker Equivalent
 

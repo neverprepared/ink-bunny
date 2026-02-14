@@ -36,7 +36,7 @@ All data in the system is classified before storage. Classification drives acces
 | **Public** | Non-sensitive, shareable | Agent task names, completion status | No restrictions |
 | **Internal** | Platform operational data | Metrics, resource usage, task throughput | Access scoped to operator |
 | **Confidential** | Business-sensitive agent outputs | Generated reports, embeddings, artifacts | Namespace-scoped, encrypted at rest |
-| **Restricted** | Credentials, PII, cryptographic material | API keys, tokens, SVID private keys | Never logged, redacted on sight |
+| **Restricted** | Credentials, PII, cryptographic material | API keys, container tokens, private keys | Never logged, redacted on sight |
 
 ## Redaction Pipeline
 

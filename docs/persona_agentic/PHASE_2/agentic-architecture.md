@@ -1,6 +1,6 @@
 # Agentic Workflow Architecture
 
-High-level architecture for autonomous agent workflows with security hardening, workload identity, and operational maturity.
+High-level architecture for autonomous agent workflows with security hardening, container token identity, and operational maturity.
 
 **Design maturity: Hardened** — see [[phase-roadmap]] for progression to later phases.
 
@@ -34,7 +34,7 @@ graph TD
 | Layer | Description | Detail |
 |---|---|---|
 | **Orchestration** | Task routing, agent registry, policy evaluation, message routing, state persistence | [[arch-orchestration]] |
-| **Identity & Trust** | SPIFFE/SPIRE workload identity, SVID type policy, image integrity | [[arch-identity-and-trust]] |
+| **Identity & Trust** | Container tokens, capability scoping, image integrity | [[arch-identity-and-trust]] |
 | **Security Guardrails** | Full brainbox hardening, network zones, default-deny | [[arch-security-guardrails]] |
 | **Brainbox Lifecycle** | Provision, configure, start, monitor, recycle — mandatory hardening | [[arch-brainbox]] |
 | **Agent Communication** | Star topology, internal + external delegation, broadcast | [[arch-agent-communication]] |

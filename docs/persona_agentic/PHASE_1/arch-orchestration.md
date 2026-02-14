@@ -1,6 +1,6 @@
 # Orchestration Layer
 
-The orchestration hub handles **task dispatch**, **agent identity**, and **message routing**. There is no separate message broker or identity provider. Runs as a single process.
+The orchestration hub handles **task dispatch** and **message routing**. There is no separate message broker. Runs as a single process.
 
 ## Hub Overview
 
@@ -10,7 +10,7 @@ graph TD
 
     subgraph Orchestration["Orchestration Hub"]
         TaskRouter[Task Router]
-        AgentRegistry[Agent Registry<br/>+ Token Issuer]
+        AgentRegistry[Agent Registry]
         PolicyEngine[Policy Engine<br/>built-in rules]
         MessageRouter[Message Router]
 
@@ -31,39 +31,9 @@ graph TD
 | Component | Responsibility |
 |---|---|
 | **Task Router** | Receives work requests from users, resolves which agent handles them |
-| **Agent Registry** | Catalog of available agents, their capabilities, and container images. Issues container tokens on provisioning. |
+| **Agent Registry** | Catalog of available agents, their capabilities, and container images |
 | **Policy Engine** | Built-in rules for task authorization and message routing |
 | **Message Router** | Routes all inter-agent communication — request/reply and events |
-
-## Container Tokens
-
-The orchestrator is the identity provider. When it spawns a container, it issues a unique token that the agent uses for all communication.
-
-```mermaid
-sequenceDiagram
-    participant User as User
-    participant Orch as Orchestrator
-    participant Container as Agent Container
-
-    User->>Orch: submit task
-    Orch->>Orch: generate container token (agent name, task ID, capabilities, expiry)
-    Orch->>Container: provision container, inject token via /run/secrets/agent-token
-    Container->>Orch: all requests carry container token
-    Orch->>Orch: validate token against registry
-    Orch-->>Container: accept / reject
-```
-
-| Field | Purpose |
-|---|---|
-| **Token ID** | Unique identifier for this container instance |
-| **Agent name** | Which agent image this container is running |
-| **Task ID** | Which specific task this container was spawned for |
-| **Capabilities** | What this agent is allowed to do |
-| **Expiry** | Matches container TTL — token dies with the container |
-
-The orchestrator validates every request by checking the token against its own registry. No external identity infrastructure needed.
-
-> SPIFFE/SPIRE replaces this in PHASE_2 for workload attestation and mTLS.
 
 ## Star Topology
 
@@ -73,14 +43,14 @@ All inter-agent communication flows through the orchestrator. No direct agent-to
 graph TD
     Orch((Orchestrator<br/>Message Router))
 
-    Agent1[Agent A] <-->|"token-authenticated"| Orch
-    Agent2[Agent B] <-->|"token-authenticated"| Orch
-    Agent3[Agent N] <-->|"token-authenticated"| Orch
+    Agent1[Agent A] <-->|"Docker-managed"| Orch
+    Agent2[Agent B] <-->|"Docker-managed"| Orch
+    Agent3[Agent N] <-->|"Docker-managed"| Orch
 
     Agent1 -.->|"no direct path"| Agent2
 ```
 
-Every message passes through the orchestrator, which validates the token, checks policy, logs the exchange, and routes to the recipient.
+Every message passes through the orchestrator, which checks policy, logs the exchange, and routes to the recipient. Identity is implicit — containers are identified by Docker labels, not authenticated tokens.
 
 ## Message Patterns
 
@@ -105,12 +75,12 @@ graph TD
     end
 
     Orch((Orchestrator))
-    Container <-->|"single token"| Orch
+    Container <-->|"single container"| Orch
 ```
 
 | Property | Detail |
 |---|---|
-| **Scope** | Same container, same token, same resource limits |
+| **Scope** | Same container, same resource limits |
 | **Orchestrator visibility** | None — internal sub-processes are opaque |
 | **Secret access** | Shared — sub-processes inherit the parent's `/run/secrets/` mount |
 
@@ -122,7 +92,7 @@ Enforced at the orchestrator on every message.
 
 | Guardrail | How |
 |---|---|
-| **Token required** | Every message must carry a valid container token — unauthenticated messages rejected |
+| **Container identity** | Messages are attributed by Docker container labels — no authenticated tokens in Phase 1 |
 | **Policy check** | Built-in rules evaluate whether this agent can send to that target |
 | **Schema validation** | Message payload must conform to the expected schema |
 | **Logging** | Every routed message is logged to [[arch-observability|Observability]] |

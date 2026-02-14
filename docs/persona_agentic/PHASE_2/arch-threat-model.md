@@ -52,7 +52,7 @@ graph TD
     StealSecrets --> SecretControl2["Mitigated: envelope encryption,<br/>needs both 1Password + KMS"]
     ModifyPolicy --> PolicyControl["Mitigated: version-controlled<br/>policies, change logging"]
     InjectAgent --> ImageControl["Mitigated: cosign verification,<br/>vulnerability scanning"]
-    TamperLogs --> LogControl["Partial: structured logs,<br/>SVID attribution"]
+    TamperLogs --> LogControl["Partial: structured logs,<br/>token attribution"]
 
     style SecretControl2 fill:#cfc
     style PolicyControl fill:#cfc
@@ -93,13 +93,13 @@ graph TD
     External --> DNSExfil["DNS-based<br/>exfiltration"]
     External --> DenialOfService["Denial of<br/>service"]
 
-    ProbeOrch --> OrchControl["Mitigated: mTLS via SVID,<br/>local auth only (CLI)"]
-    MITM --> MITMControl["Mitigated: mTLS between<br/>all components"]
+    ProbeOrch --> OrchControl["Mitigated: token validation,<br/>local auth only (CLI)"]
+    MITM --> MITMControl["Partial: token on every request,<br/>mTLS deferred to PHASE_3"]
     DNSExfil --> DNSControl["Partial: egress allowlist,<br/>no Cilium DNS filtering yet"]
     DenialOfService --> DoSControl["Partial: rate limiting,<br/>resource limits per container"]
 
     style OrchControl fill:#cfc
-    style MITMControl fill:#cfc
+    style MITMControl fill:#ffc
     style DNSControl fill:#ffc
     style DoSControl fill:#ffc
 ```
@@ -135,7 +135,7 @@ quadrantChart
 | **Container Escape** | Full mandatory hardening: custom seccomp, drop ALL caps, AppArmor, non-root, read-only rootfs |
 | **Secret Exfiltration** | Envelope encryption, file-based delivery, scoped vaults, egress allowlist |
 | **Supply Chain** | cosign verification, vulnerability scanning, distroless images |
-| **Agent Impersonation** | SVID on every request, SPIRE attestation, mTLS |
+| **Agent Impersonation** | Container token on every request, orchestrator validation, capability scoping |
 | **Cross-Agent Data Leak** | Namespace isolation, signed writes, authenticated proxy |
 | **Insider Secrets Access** | Envelope encryption (needs both 1Password + KMS) |
 
@@ -143,7 +143,7 @@ quadrantChart
 
 | Gap | Why It Persists | Addressed In |
 |---|---|---|
-| No SVID revocation for active sessions | Short TTL (5 min) bounds exposure, but no immediate revocation | PHASE_3 (deny-list) |
+| No cryptographic identity | Container tokens are bearer tokens, not cryptographic attestation | PHASE_3 (SPIRE/SVID) |
 | No kernel-level network enforcement | Egress allowlist at container level, not eBPF | PHASE_3 (Cilium) |
 | No runtime syscall monitoring | Prevention via seccomp/AppArmor, but no detection | PHASE_3 (Falco) |
 | No tamper-proof audit trail | Structured logs with attribution, but no hash chain or WORM | PHASE_3 |

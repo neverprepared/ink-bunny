@@ -52,7 +52,7 @@ graph TD
 1. Agent sends a message (result, event, delegation request) to the orchestrator
 2. Message Router validates the payload schema
 3. Policy Engine checks scope (can this agent send this message to that target?)
-4. Agent identity token (SVID) is verified
+4. Container token is verified against the internal registry
 5. Message is logged to [[arch-observability|Observability]] and routed to the recipient
 
 See [[arch-agent-communication]] for the full communication model, delegation patterns, and guardrails.

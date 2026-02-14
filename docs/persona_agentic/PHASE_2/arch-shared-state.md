@@ -10,14 +10,14 @@ graph TD
     Agent2[Agent B]
     Agent3[Agent N]
 
-    Proxy[Shared State Proxy<br/>SVID validation<br/>namespace enforcement<br/>write signing]
+    Proxy[Shared State Proxy<br/>token validation<br/>namespace enforcement<br/>write signing]
 
     subgraph Persistence["Shared State"]
         VectorDB[(Vector DB<br/>Semantic Retrieval)]
         MinIO[(MinIO<br/>S3-Compatible<br/>Artifact Store)]
     end
 
-    Agent1 & Agent2 & Agent3 -->|"request + SVID"| Proxy
+    Agent1 & Agent2 & Agent3 -->|"request + token"| Proxy
     Proxy -->|"validated + scoped"| VectorDB & MinIO
     Proxy -.->|"unauthorized → reject"| Reject([Block])
 
@@ -27,7 +27,7 @@ graph TD
     style Reject stroke:#f00,stroke-width:2px
 ```
 
-Agents never access stores directly. All reads and writes go through an authenticated proxy that enforces namespace isolation and validates SVIDs.
+Agents never access stores directly. All reads and writes go through an authenticated proxy that enforces namespace isolation and validates container tokens.
 
 ## Stores
 
@@ -62,8 +62,8 @@ graph LR
         Shared["Namespace: shared<br/>explicitly granted agents only"]
     end
 
-    AgentA[Agent A<br/>SVID] -->|own namespace| NSA
-    AgentB[Agent B<br/>SVID] -->|own namespace| NSB
+    AgentA[Agent A<br/>Token] -->|own namespace| NSA
+    AgentB[Agent B<br/>Token] -->|own namespace| NSB
     AgentA & AgentB -.->|"OPA policy grant"| Shared
     AgentA -.->|"blocked by default"| NSB
 ```
@@ -71,20 +71,20 @@ graph LR
 | Rule | Detail |
 |---|---|
 | **Default: own namespace only** | Agents can read/write only data in their own namespace |
-| **Cross-namespace reads** | Require explicit OPA policy grant based on SVID identity |
+| **Cross-namespace reads** | Require explicit OPA policy grant based on container token identity |
 | **Shared namespace** | Opt-in space for cross-agent data — requires policy approval |
 | **Vector DB tenant isolation** | Collections scoped per namespace — queries cannot cross boundaries without policy |
 | **MinIO path isolation** | Artifacts stored under `artifacts/<namespace>/<task-id>/` — proxy enforces S3 prefix boundaries |
 
 ### Write Integrity
 
-Every write includes a cryptographic signature for tamper detection.
+Every write is attributed to the originating container token for auditability.
 
 | Control | Detail |
 |---|---|
-| **Signed writes** | Each write includes a signature over the content hash using the agent's SVID |
-| **Attribution** | Every stored object carries: originating SVID, task ID, timestamp, content hash |
-| **Verified reads** | Consuming agents verify the signature before processing — unsigned or invalid artifacts are rejected |
+| **Attributed writes** | Each write includes the agent's container token ID for traceability |
+| **Attribution** | Every stored object carries: originating token ID, agent name, task ID, timestamp, content hash |
+| **Verified reads** | Proxy verifies the token is valid before serving data — expired or revoked tokens are rejected |
 
 ## Pipeline Integration
 
@@ -120,8 +120,8 @@ graph LR
 
 - Container filesystems are **ephemeral** — anything that must survive a recycle goes here
 - Agents access stores only through the authenticated proxy, never via direct filesystem mounts
-- All writes are signed and attributed to the originating SVID
-- All reads verify signatures before processing
+- All writes are attributed to the originating container token
+- All reads require a valid container token
 - Cross-namespace access requires explicit OPA policy
 - Data retention and classification governed by [[arch-observability#Data Classification]]
 
@@ -129,7 +129,7 @@ graph LR
 
 | Feature | Phase |
 |---|---|
-| Quarantine (flag compromised SVID data as untrusted) | PHASE_3 |
+| Quarantine (flag compromised agent data as untrusted) | PHASE_3 |
 | Per-namespace encryption at rest | PHASE_3 |
 | Integrity background scans | PHASE_3 |
 | Downstream notification on quarantine | PHASE_3 |

@@ -14,8 +14,8 @@ graph TD
         direction LR
         Hardening[Container Hardening<br/>seccomp, caps, rootfs,<br/>non-root, AppArmor]
         SecretsDelivery[File-Based Secrets<br/>tmpfs, mode 0400<br/>no env vars]
-        SPIRE_Sidecar[SPIRE Sidecar Isolation<br/>separate container<br/>shared socket only]
-        OrchestratorPolicy[Orchestrator Policy<br/>built-in identity validation<br/>rate limiting]
+        TokenValidation[Token Validation<br/>orchestrator-issued<br/>per-request check]
+        OrchestratorPolicy[Orchestrator Policy<br/>built-in authorization<br/>rate limiting]
     end
 ```
 
@@ -23,8 +23,8 @@ graph TD
 |---|---|
 | **Container hardening** | seccomp, drop all caps, read-only rootfs, non-root, no-new-privileges, AppArmor |
 | **File-based secrets** | Secrets on tmpfs, not env vars — eliminates /proc/*/environ exposure |
-| **SPIRE sidecar isolation** | Separate container, Unix socket only, no shared PID namespace |
-| **Orchestrator built-in policy** | Identity validation, rate limiting, container config validation |
+| **Token validation** | Container token verified on every API request — expired or revoked tokens rejected |
+| **Orchestrator built-in policy** | Token-based authorization, rate limiting, container config validation |
 
 See [[arch-brainbox#Mandatory Brainbox Hardening]] for the full hardening spec.
 

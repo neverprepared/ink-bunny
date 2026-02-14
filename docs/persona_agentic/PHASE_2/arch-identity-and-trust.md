@@ -2,9 +2,9 @@
 
 Establishes who or what is making a request at every boundary in the system. Without this layer, any component can impersonate any other.
 
-**New in PHASE_2.** Replaces the orchestrator-issued container tokens from PHASE_1 with cryptographic workload identity via SPIFFE/SPIRE. Agents now receive short-lived SVIDs instead of static tokens, enabling mTLS and workload attestation.
+**New in PHASE_2.** Introduces orchestrator-issued container tokens — the first identity mechanism. Each container receives a unique token at provisioning time, and the orchestrator validates it on every API call. Phase 1 had no identity system (implicit trust via Docker labels).
 
-**Phase 2 scope:** Full SPIRE with SVID type policy, aggressive TTLs, vulnerability scanning. No HSM-backed PKI or deny-list revocation yet.
+**Phase 2 scope:** Container tokens with capability scoping, image verification with vulnerability scanning. No cryptographic workload identity (SPIRE/SVID) or mTLS yet.
 
 ## Trust Boundaries
 
@@ -19,32 +19,27 @@ graph TD
         CI[CI / Automation<br/>OIDC Token]
     end
 
-    Orch((Orchestration<br/>Hub))
-
-    subgraph Platform["Platform → Sandbox"]
-        SPIRE[SPIRE Server<br/>Issues SVIDs]
-    end
+    Orch((Orchestration<br/>Hub<br/>Token Issuer))
 
     subgraph Sandbox["Sandbox → Platform"]
-        AgentA[Agent A<br/>SVID]
-        AgentB[Agent B<br/>SVID]
-        AgentN[Agent N<br/>SVID]
+        AgentA[Agent A<br/>Container Token]
+        AgentB[Agent B<br/>Container Token]
+        AgentN[Agent N<br/>Container Token]
     end
 
     User --> CLI & CI
     CLI -->|"local auth"| Orch
     CI -->|"OIDC token"| Orch
-    Orch -->|"request SVID"| SPIRE
-    SPIRE -->|"issue scoped SVID"| AgentA & AgentB & AgentN
-    AgentA & AgentB & AgentN -->|"present SVID"| Orch
+    Orch -->|"issue scoped token"| AgentA & AgentB & AgentN
+    AgentA & AgentB & AgentN -->|"present token"| Orch
 ```
 
 | Boundary | Who crosses | Credential | Verified by |
 |---|---|---|---|
 | **External → Platform** | User (CLI) | Local OS identity / session | Orchestrator |
 | **External → Platform** | CI pipeline | OIDC identity token (from CI platform) | Orchestrator + 1Password |
-| **Platform → Sandbox** | Orchestrator → Agent | SPIFFE SVID issued by SPIRE | Agent receives at start |
-| **Sandbox → Platform** | Agent → Orchestrator | SPIFFE SVID | Orchestrator validates on every request |
+| **Platform → Sandbox** | Orchestrator → Agent | Container token issued at provisioning | Agent receives at Configure phase |
+| **Sandbox → Platform** | Agent → Orchestrator | Container token | Orchestrator validates on every request |
 
 ---
 
@@ -78,106 +73,88 @@ graph LR
 
 ---
 
-## Agent Identity (SPIFFE / SPIRE)
+## Agent Identity (Container Tokens)
 
-Each agent container receives a SPIFFE SVID at the Configure phase of its lifecycle. Agents never self-issue identity.
+Each agent container receives a unique token at the Configure phase of its lifecycle. Agents never self-issue identity. The orchestrator is the sole token issuer and validator.
 
-### SVID Issuance Flow
+### Token Issuance Flow
 
 ```mermaid
 sequenceDiagram
+    participant User as User
     participant Orch as Orchestrator
-    participant SPIRE as SPIRE Server
-    participant Agent as Agent Container
+    participant Container as Agent Container
 
-    Orch->>SPIRE: register workload (agent name, task ID, capabilities)
-    SPIRE-->>Orch: registration entry created
-    Orch->>Agent: provision container with SPIRE agent sidecar
-    Agent->>SPIRE: workload attestation (prove I am this container)
-    SPIRE-->>Agent: issue SVID (x509 or JWT per policy)
-    Note over Agent: SVID encodes identity + expiry
-    Agent->>Orch: all requests carry SVID
-    Orch->>SPIRE: validate SVID on each request
+    User->>Orch: submit task
+    Orch->>Orch: resolve agent, generate token (agent name, task ID, capabilities, expiry)
+    Orch->>Container: provision container, inject token
+    Container->>Orch: all requests carry container token
+    Orch->>Orch: validate token against internal registry
+    Orch-->>Container: accept / reject
 ```
 
-### SVID Contents
-
-```
-spiffe://agentic-platform/agent/<agent-name>/task/<task-id>
-```
+### Token Contents
 
 | Field | Purpose |
 |---|---|
-| **Trust domain** | `agentic-platform` — scopes all identities to this system |
+| **Token ID** | Unique identifier for this container instance (UUID) |
 | **Agent name** | Which agent image this container is running |
 | **Task ID** | Which specific task this container was spawned for |
-| **Expiry** | Short-lived (5 minutes) — auto-rotated before expiry |
-| **Capabilities** | Encoded in registration entry — what this agent is allowed to do |
+| **Capabilities** | What this agent is allowed to do — scoped per-task |
+| **Issued** | Timestamp when the token was created |
+| **Expiry** | Matches container TTL — token dies with the container |
 
-### SVID Type Policy
+### Token Delivery
 
-Two SVID types exist. Each has different security properties.
+| Mode | Location | Detail |
+|---|---|---|
+| **Hardened** | `/run/secrets/agent-token` | tmpfs mount, mode 0400, not visible in `/proc/*/environ` |
+| **Legacy** | `/home/developer/.agent-token` | File-based, mode 0400 |
+
+### Token Lifecycle
 
 ```mermaid
 graph LR
-    subgraph x509["x509 SVIDs (default)"]
-        mTLS["Agent ↔ Orchestrator<br/>mutual TLS"]
-        StateProxy["Agent ↔ Shared State Proxy<br/>mutual TLS"]
-    end
+    Issue[Issue<br/>Orchestrator generates<br/>token on task dispatch]
+    Inject[Inject<br/>Token written to<br/>container at Configure]
+    Validate[Validate<br/>Orchestrator checks token<br/>on every API call]
+    Expire[Expire<br/>Token expires with<br/>container TTL]
+    Revoke[Revoke<br/>Orchestrator deletes<br/>token on recycle]
 
-    subgraph JWT["JWT SVIDs (restricted)"]
-        ExtAPI["External API calls<br/>where mTLS not supported"]
-    end
-```
-
-| SVID Type | Use Case | Security Properties |
-|---|---|---|
-| **x509** | All agent-to-orchestrator communication, shared state access | Non-replayable (bound to TLS session), enables mTLS |
-| **JWT** | External API calls where mTLS is not practical | Bearer token — must have: audience claim, ≤ 60s TTL, never logged |
-
-### SVID TTL Policy
-
-| Parameter | Value | Rationale |
-|---|---|---|
-| **SVID TTL** | 5 minutes | Limits damage window from compromised SVID |
-| **Rotation trigger** | 50% of TTL (2.5 minutes) | SPIRE agent requests renewal before expiry |
-| **Grace period** | 30 seconds after expiry | Allows in-flight requests to complete |
-| **Max container TTL** | Matches [[arch-brainbox]] lifecycle TTL | SVID cannot outlive its container |
-
-### Why SPIFFE/SPIRE
-
-| Concern | How SPIRE handles it |
-|---|---|
-| **No static secrets** | SVIDs are short-lived and auto-rotated — no long-lived credentials in containers |
-| **Workload attestation** | SPIRE verifies the container via node and workload attestors (Docker, K8s) |
-| **Multi-environment** | SPIRE has attestors for Docker, Kubernetes, and bare metal |
-| **mTLS built in** | x509 SVIDs enable mTLS between agent and orchestrator out of the box |
-| **No agent cooperation needed** | The SPIRE agent sidecar handles attestation — the agent process just uses the SVID |
-
-### Identity Lifecycle
-
-```mermaid
-graph LR
-    Register[Register<br/>Orch registers workload<br/>with SPIRE]
-    Attest[Attest<br/>Container proves identity<br/>to SPIRE agent]
-    Issue[Issue<br/>SPIRE issues SVID<br/>to container]
-    Use[Use<br/>Agent presents SVID<br/>on every request]
-    Rotate[Rotate<br/>SPIRE auto-rotates<br/>before expiry]
-    Expire[Expire<br/>Container recycle<br/>kills SVID]
-
-    Register --> Attest --> Issue --> Use
-    Use --> Rotate --> Use
-    Use -->|"container recycled"| Expire
+    Issue --> Inject --> Validate
+    Validate -->|"container recycled"| Revoke
+    Validate -->|"TTL exceeded"| Expire
 ```
 
 | Phase | What Happens |
 |---|---|
-| **Register** | Orchestrator creates a SPIRE registration entry with agent name, task ID, and allowed capabilities |
-| **Attest** | SPIRE workload attestor verifies the container's identity (Docker PID, K8s pod, etc.) |
-| **Issue** | SPIRE issues an SVID (x509 or JWT per policy) to the verified container |
-| **Use** | Agent includes the SVID in every request to the orchestrator and shared state |
-| **Rotate** | SPIRE auto-rotates the SVID before expiry (at 50% TTL) — no agent involvement needed |
-| **Expire** | On container recycle, the registration entry is deleted and the SVID becomes invalid |
+| **Issue** | Task Router dispatches work, Agent Registry issues a token with capabilities from the agent definition |
+| **Inject** | Token is written to the container during the Configure lifecycle phase |
+| **Validate** | Every API request to the orchestrator includes the token — validated against the internal registry |
+| **Expire** | Token TTL matches container TTL — expired tokens are rejected and cleaned up |
+| **Revoke** | On container recycle, the token is deleted from the registry |
+
+### Capability Scoping
+
+The token's `capabilities` field enables per-task authorization beyond the image-level role scoping.
+
+| Scenario | How It Works |
+|---|---|
+| **Same image, different permissions** | Two developer containers can have different capability grants depending on their task |
+| **Least privilege** | Token capabilities are a subset of the agent definition's full capability list |
+| **Policy enforcement** | Orchestrator checks token capabilities before allowing message routing or task dispatch |
+
+### Why Container Tokens (Not SPIRE)
+
+| Concern | How Container Tokens Handle It |
+|---|---|
+| **No external infrastructure** | Orchestrator is the sole issuer and validator — no SPIRE server, no PKI, no sidecars |
+| **Simple deployment** | Single process handles identity — fits the Phase 2 operational maturity level |
+| **Task attribution** | Every token carries agent name + task ID — sufficient for audit logging |
+| **Capability scoping** | Token capabilities field enables fine-grained authorization |
+| **Expiry** | Tokens are short-lived (container TTL) — no long-lived credentials |
+
+> SPIFFE/SPIRE replaces container tokens in [[../PHASE_3/arch-identity-and-trust|PHASE_3]] for cryptographic workload attestation and mTLS.
 
 ---
 
@@ -210,37 +187,38 @@ graph LR
 
 ## Message Integrity
 
-All messages through the orchestrator carry the sender's SVID. The orchestrator validates identity on every request.
+All messages through the orchestrator carry the sender's container token. The orchestrator validates identity on every request.
 
 ```mermaid
 graph LR
     Agent[Agent A]
-    Msg["Message<br/>+ SVID<br/>+ nonce + timestamp"]
+    Msg["Message<br/>+ Container Token"]
     Orch((Orchestrator))
-    Verify{Validate SVID<br/>+ nonce + timestamp}
+    Verify{Validate Token<br/>+ check capabilities}
     Route[Route to<br/>recipient]
     Reject([Reject])
 
     Agent --> Msg --> Orch --> Verify
     Verify -->|"valid"| Route
-    Verify -.->|"expired / replay / invalid"| Reject
+    Verify -.->|"expired / invalid / unauthorized"| Reject
 
     style Reject stroke:#f00,stroke-width:2px
 ```
 
 | Control | How |
 |---|---|
-| **Identity on every message** | SVID is presented with each request — orchestrator validates against SPIRE |
-| **Replay prevention** | Nonce + timestamp on each message — orchestrator rejects duplicates and expired payloads |
-| **Artifact attribution** | Writes to shared state include the SVID — origin is cryptographically verifiable |
-| **Log attribution** | Observability layer records the SVID claim — unsigned log entries are flagged |
-| **mTLS** | x509 SVIDs enable mutual TLS between agent containers and the orchestrator |
+| **Identity on every message** | Container token is presented with each request — orchestrator validates against internal registry |
+| **Capability check** | Orchestrator verifies the token's capabilities allow the requested action |
+| **Artifact attribution** | Writes to shared state include the token ID — origin is traceable |
+| **Log attribution** | Observability layer records the token's agent name and task ID |
 
 ## What's Deferred
 
 | Feature | Phase |
 |---|---|
+| SPIFFE/SPIRE workload identity (replaces container tokens) | PHASE_3 |
+| mTLS between agents and orchestrator | PHASE_3 |
+| Replay protection (nonce + timestamp + HMAC) | PHASE_3 |
 | HSM-backed root CA, intermediate CA | PHASE_3 |
 | SVID deny-list revocation | PHASE_3 |
-| Detailed replay protection (nonce storage, HMAC binding) | PHASE_3 |
 | Approved base image policy (beyond distroless) | PHASE_3 |

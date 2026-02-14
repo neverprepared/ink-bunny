@@ -2,6 +2,8 @@
 
 Establishes who or what is making a request at every boundary in the system. Without this layer, any component can impersonate any other.
 
+Replaces the orchestrator-issued container tokens from PHASE_2 with cryptographic workload identity via SPIFFE/SPIRE. Agents now receive short-lived SVIDs instead of container tokens, enabling mTLS, workload attestation, and HSM-backed PKI.
+
 ## Trust Boundaries
 
 Three boundaries where identity must be verified. Each crossing requires a different credential.

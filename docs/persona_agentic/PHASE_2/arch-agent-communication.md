@@ -10,15 +10,15 @@ All inter-agent communication flows through the orchestrator. NATS provides the 
 graph TD
     Orch((Orchestrator<br/>Message Router))
 
-    Agent1[Agent A] <-->|"SVID-authenticated"| Orch
-    Agent2[Agent B] <-->|"SVID-authenticated"| Orch
-    Agent3[Agent N] <-->|"SVID-authenticated"| Orch
+    Agent1[Agent A] <-->|"token-authenticated"| Orch
+    Agent2[Agent B] <-->|"token-authenticated"| Orch
+    Agent3[Agent N] <-->|"token-authenticated"| Orch
 
     Agent1 -.->|"no direct path"| Agent2
     Agent2 -.->|"no direct path"| Agent3
 ```
 
-Every message passes through the orchestrator, which validates identity (SVID), checks policy (OPA), logs the exchange, and routes to the recipient.
+Every message passes through the orchestrator, which validates identity (container token), checks policy (OPA), logs the exchange, and routes to the recipient.
 
 ### Why Star Topology
 
@@ -82,34 +82,32 @@ graph TD
     end
 
     Orch((Orchestrator))
-    Container <-->|"single SVID"| Orch
+    Container <-->|"single token"| Orch
 ```
 
 | Property | Detail |
 |---|---|
-| **Scope** | Same container, same SVID, same resource limits |
+| **Scope** | Same container, same token, same resource limits |
 | **Orchestrator visibility** | None — internal sub-processes are opaque |
 | **Secret access** | Shared — sub-processes inherit the parent's `/run/secrets/` mount |
 
 ### External Delegation
 
-An agent requests the orchestrator to provision a new container for a sub-task. The delegated agent gets its own SVID, secrets, and resource limits.
+An agent requests the orchestrator to provision a new container for a sub-task. The delegated agent gets its own container token, secrets, and resource limits.
 
 ```mermaid
 sequenceDiagram
     participant AgentA as Agent A
     participant Orch as Orchestrator
     participant Policy as Policy Engine
-    participant SPIRE as SPIRE
     participant AgentB as Delegated Agent B
     participant MinIO as MinIO
 
     AgentA->>Orch: delegation request (task, required capabilities)
     Orch->>Policy: can Agent A delegate this task?
     Policy-->>Orch: approve (scoped capabilities)
-    Orch->>SPIRE: register new workload for Agent B
-    SPIRE-->>Orch: registration entry created
-    Orch->>AgentB: provision container (own SVID, own secrets, own limits)
+    Orch->>Orch: issue container token for Agent B
+    Orch->>AgentB: provision container (own token, own secrets, own limits)
     AgentB->>MinIO: upload artifacts to artifacts/<agent-b>/<task-id>/
     AgentB->>Orch: results (includes artifact S3 URI)
     Orch->>AgentA: forward results (with artifact S3 URI)
@@ -118,7 +116,7 @@ sequenceDiagram
 
 | Property | Detail |
 |---|---|
-| **Scope** | New container, new SVID, separate resource limits and secrets |
+| **Scope** | New container, new token, separate resource limits and secrets |
 | **Orchestrator visibility** | Full — orchestrator provisions, monitors, and recycles the delegated container |
 | **Capabilities** | Scoped by policy — delegated agent may have fewer capabilities than the parent |
 | **Lifecycle** | Independent — delegated agent follows full [[arch-brainbox|container lifecycle]] |
@@ -152,9 +150,9 @@ Enforced at the orchestrator on every message, **before** publication to NATS. N
 
 | Guardrail | How |
 |---|---|
-| **Identity required** | Every message must carry a valid SVID — unsigned messages rejected |
+| **Identity required** | Every message must carry a valid container token — unauthenticated messages rejected |
 | **Policy check** | OPA evaluates whether this agent can send to that target (falls back to built-in rules if OPA unavailable) |
 | **Schema validation** | Message payload must conform to the expected schema |
-| **Logging** | Every routed message is logged to [[arch-observability|Observability]] with sender SVID, recipient, timestamp |
+| **Logging** | Every routed message is logged to [[arch-observability|Observability]] with sender token ID, recipient, timestamp |
 | **Rate limiting** | Per-agent message quotas enforced at the orchestrator |
 | **Transport isolation** | Agents cannot access NATS directly — daemon subscribes via orchestrator-issued credentials, never publishes |

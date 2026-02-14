@@ -66,7 +66,6 @@ graph TD
 
     subgraph ControlZone["Control Plane Zone"]
         Orch((Orchestrator))
-        SPIRE[SPIRE Server]
         OPA[OPA]
         NATS[(NATS)]
     end
@@ -78,21 +77,21 @@ graph TD
     end
 
     Agent1 & Agent2 & AgentN -->|"allowed: orchestrator, NATS, MinIO"| Orch
-    Orch --> SPIRE & OPA
+    Orch --> OPA
     Orch -->|"publish"| NATS
     NATS -->|"deliver"| Agent1 & Agent2 & AgentN
     Agent1 & Agent2 & AgentN -->|"upload artifacts"| MinIO
     Orch --> VectorDB & MinIO & Observability
 
     Agent1 -.->|"blocked"| Agent2
-    Agent1 -.->|"blocked"| SPIRE
+    Agent1 -.->|"blocked"| OPA
     Agent1 -.->|"blocked"| VectorDB
 ```
 
 | Zone | Contains | Inbound From | Outbound To |
 |---|---|---|---|
 | **Agent Sandbox** | All agent containers | Orchestrator (task dispatch), NATS (message delivery) | Orchestrator (results), NATS (subscribe only), MinIO (artifact upload), allowlisted external APIs |
-| **Control Plane** | Orchestrator, SPIRE Server, OPA, NATS | Agent zone (requests), Data zone (responses) | Data zone (store/query), Agent zone (dispatch), NATS (publish) |
+| **Control Plane** | Orchestrator, OPA, NATS | Agent zone (requests), Data zone (responses) | Data zone (store/query), Agent zone (dispatch), NATS (publish) |
 | **Data Plane** | Vector DB, MinIO, Observability | Control plane (via shared state proxy), Agent zone (MinIO artifact uploads via proxy) | Control plane (query responses), External (MinIO webhook notifications → n8n/Jenkins) |
 
 ### Agent-to-Agent Isolation
@@ -128,7 +127,7 @@ graph TD
 | Privilege escalation | Blocked |
 | AppArmor | Custom deny profile |
 | Secrets | File-based on tmpfs, not env vars |
-| SPIRE sidecar | Separate container, shared Unix socket only |
+| Token delivery | File-based at `/run/secrets/agent-token`, mode 0400 |
 | PID namespace | Not shared between containers |
 
 ## Container Management
