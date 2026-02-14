@@ -565,6 +565,11 @@ async def _artifact_op(operation_fn, *args, **kwargs):
             raise HTTPException(status_code=502, detail=str(exc))
         log.warning("artifact.operation_failed", metadata={"error": str(exc)})
         return None
+    except Exception as exc:
+        if mode == "enforce":
+            raise HTTPException(status_code=502, detail=str(exc))
+        log.warning("artifact.operation_failed", metadata={"error": str(exc)})
+        return None
 
 
 @app.get("/api/artifacts/health")

@@ -491,3 +491,24 @@ class TestArtifactModes:
         ):
             resp = await client.get("/api/artifacts/test/f.txt")
         assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_warn_swallows_connection_errors(self, client, monkeypatch):
+        monkeypatch.setattr(settings.artifact, "mode", "warn")
+        with patch(
+            "brainbox.api.upload_artifact",
+            side_effect=ConnectionError("Connection refused"),
+        ):
+            resp = await client.post("/api/artifacts/test/f.txt", content=b"hello")
+        assert resp.status_code == 201
+        assert resp.json()["stored"] is False
+
+    @pytest.mark.asyncio
+    async def test_enforce_connection_error_returns_502(self, client, monkeypatch):
+        monkeypatch.setattr(settings.artifact, "mode", "enforce")
+        with patch(
+            "brainbox.api.upload_artifact",
+            side_effect=ConnectionError("Connection refused"),
+        ):
+            resp = await client.post("/api/artifacts/test/f.txt", content=b"hello")
+        assert resp.status_code == 502
