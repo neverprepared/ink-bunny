@@ -426,8 +426,12 @@ func TestUpdateDirectories_CreatesMissing(t *testing.T) {
 
 	// Create profile dir with only some subdirs
 	profileDir := tmpDir
-	os.MkdirAll(filepath.Join(profileDir, ".ssh"), 0755)
-	os.MkdirAll(filepath.Join(profileDir, "bin"), 0755)
+	if err := os.MkdirAll(filepath.Join(profileDir, ".ssh"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(profileDir, "bin"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	created, err := updateDirectories(profileDir, false)
 	if err != nil {
@@ -463,7 +467,9 @@ func TestUpdateDirectories_SetsSSHPermissions(t *testing.T) {
 
 	// Create .ssh with wrong permissions
 	sshDir := filepath.Join(tmpDir, ".ssh")
-	os.MkdirAll(sshDir, 0755)
+	if err := os.MkdirAll(sshDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err := updateDirectories(tmpDir, false)
 	if err != nil {

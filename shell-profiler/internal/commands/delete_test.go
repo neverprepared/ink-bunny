@@ -27,9 +27,15 @@ func TestDeleteProfile_ForceDeleteRemoves(t *testing.T) {
 
 	// Create a profile with some files
 	profileDir := filepath.Join(tmpDir, "todelete")
-	os.MkdirAll(filepath.Join(profileDir, ".ssh"), 0755)
-	os.WriteFile(filepath.Join(profileDir, ".envrc"), []byte("test"), 0644)
-	os.WriteFile(filepath.Join(profileDir, ".gitconfig"), []byte("test"), 0644)
+	if err := os.MkdirAll(filepath.Join(profileDir, ".ssh"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(profileDir, ".envrc"), []byte("test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(profileDir, ".gitconfig"), []byte("test"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := DeleteProfile(tmpDir, DeleteOptions{
 		ProfileName: "todelete",
@@ -48,8 +54,12 @@ func TestDeleteProfile_DryRunDoesNotDelete(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	profileDir := filepath.Join(tmpDir, "drytest")
-	os.MkdirAll(profileDir, 0755)
-	os.WriteFile(filepath.Join(profileDir, ".envrc"), []byte("test"), 0644)
+	if err := os.MkdirAll(profileDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(profileDir, ".envrc"), []byte("test"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	err := DeleteProfile(tmpDir, DeleteOptions{
 		ProfileName: "drytest",
