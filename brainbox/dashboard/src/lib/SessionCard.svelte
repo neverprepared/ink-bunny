@@ -139,7 +139,7 @@
     font-size: 10px;
     padding: 2px 6px;
     border-radius: 3px;
-    text-transform: lowercase;
+    text-transform: uppercase;
     letter-spacing: 0.02em;
     font-weight: 500;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;

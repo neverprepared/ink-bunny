@@ -391,11 +391,13 @@ def _get_container_metrics() -> list[dict[str, Any]]:
                     except (ValueError, TypeError):
                         pass
 
+                labels = c.labels or {}
                 results.append(
                     {
                         "name": c.name,
                         "session_name": _extract_session_name(c.name),
                         "role": _extract_role(c),
+                        "llm_provider": labels.get("brainbox.llm_provider", "claude"),
                         "cpu_percent": round(cpu_pct, 2),
                         "mem_usage": mem_usage,
                         "mem_usage_human": _human_bytes(mem_usage),
