@@ -134,8 +134,7 @@ def delete_artifact(key: str) -> None:
 def health_check() -> bool:
     """Check if the artifact store is reachable. Returns True/False."""
     try:
-        client = _s3_client()
-        client.head_bucket(Bucket=settings.artifact.bucket)
+        ensure_bucket()
         return True
     except Exception:
         return False
