@@ -16,7 +16,7 @@ import docker
 from docker.errors import NotFound
 
 from .config import settings
-from .cosign import CosignVerificationError, verify_image
+from .cosign import CosignVerificationError, verify_image, verify_image_keyless
 from .hardening import get_hardening_kwargs, get_legacy_kwargs
 from .log import get_logger
 from .models import SessionContext, SessionState, Token
@@ -77,30 +77,46 @@ def _find_available_port(start: int = 7681) -> int:
 
 
 async def _verify_cosign(image: Any, image_name: str, slog: Any) -> None:
-    """Run cosign signature verification according to configured mode."""
+    """Run cosign signature verification according to configured mode.
+
+    Supports two verification strategies:
+    - **Keyless** (preferred): uses ``certificate_identity`` + ``oidc_issuer``
+      to verify against Sigstore Fulcio/Rekor transparency log.
+    - **Key-based** (fallback): uses a local PEM public key file.
+    """
     mode = settings.cosign.mode
     key_path = settings.cosign.key
+    cert_identity = settings.cosign.certificate_identity
+    oidc_issuer = settings.cosign.oidc_issuer
 
     if mode == "off":
         slog.info("container.cosign_skipped", metadata={"reason": "mode is off"})
         return
 
-    # No key configured
-    if not key_path:
+    # Determine verification strategy
+    use_keyless = bool(cert_identity and oidc_issuer)
+    use_key = bool(key_path)
+
+    if not use_keyless and not use_key:
         if mode == "enforce":
-            raise ValueError("Cosign enforce mode requires a key — set CL_COSIGN__KEY")
-        slog.warning("container.cosign_skipped", metadata={"reason": "no key configured"})
+            raise ValueError(
+                "Cosign enforce mode requires either keyless config "
+                "(CL_COSIGN__CERTIFICATE_IDENTITY + CL_COSIGN__OIDC_ISSUER) "
+                "or a key (CL_COSIGN__KEY)"
+            )
+        slog.warning("container.cosign_skipped", metadata={"reason": "no verification configured"})
         return
 
-    # Key file missing on disk
-    if not os.path.isfile(key_path):
-        if mode == "enforce":
-            raise FileNotFoundError(f"Cosign public key not found: {key_path}")
-        slog.warning(
-            "container.cosign_skipped",
-            metadata={"reason": f"key file not found: {key_path}"},
-        )
-        return
+    # Key-based: verify key file exists on disk
+    if not use_keyless and use_key:
+        if not os.path.isfile(key_path):
+            if mode == "enforce":
+                raise FileNotFoundError(f"Cosign public key not found: {key_path}")
+            slog.warning(
+                "container.cosign_skipped",
+                metadata={"reason": f"key file not found: {key_path}"},
+            )
+            return
 
     # Resolve repo digests from the pulled image
     repo_digests: list[str] = image.attrs.get("RepoDigests", [])
@@ -118,12 +134,17 @@ async def _verify_cosign(image: Any, image_name: str, slog: Any) -> None:
         return
 
     # Run cosign verify
-    result = await _run(verify_image, image_name, key_path, repo_digests)
+    if use_keyless:
+        result = await _run(
+            verify_image_keyless, image_name, cert_identity, oidc_issuer, repo_digests
+        )
+    else:
+        result = await _run(verify_image, image_name, key_path, repo_digests)
 
     if result.verified:
         slog.info(
             "container.cosign_verified",
-            metadata={"image_ref": result.image_ref},
+            metadata={"image_ref": result.image_ref, "method": "keyless" if use_keyless else "key"},
         )
         return
 

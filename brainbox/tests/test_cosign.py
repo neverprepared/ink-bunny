@@ -14,6 +14,7 @@ from brainbox.cosign import (
     CosignVerificationError,
     _cosign_run,
     verify_image,
+    verify_image_keyless,
 )
 
 
@@ -139,6 +140,75 @@ class TestVerifyImage:
 
 
 # ---------------------------------------------------------------------------
+# verify_image_keyless
+# ---------------------------------------------------------------------------
+
+
+class TestVerifyImageKeyless:
+    def test_success(self):
+        fake = subprocess.CompletedProcess(
+            args=["cosign"], returncode=0, stdout="Verification OK", stderr=""
+        )
+        with patch("brainbox.cosign._cosign_run", return_value=fake) as mock_run:
+            result = verify_image_keyless(
+                "myimg:latest",
+                "https://github.com/owner/repo/.*",
+                "https://token.actions.githubusercontent.com",
+                ["myimg@sha256:abc123"],
+            )
+
+        assert result.verified is True
+        assert result.image_ref == "myimg@sha256:abc123"
+        mock_run.assert_called_once_with(
+            [
+                "verify",
+                "--certificate-identity-regexp",
+                "https://github.com/owner/repo/.*",
+                "--certificate-oidc-issuer",
+                "https://token.actions.githubusercontent.com",
+                "myimg@sha256:abc123",
+            ]
+        )
+
+    def test_failure(self):
+        fake = subprocess.CompletedProcess(
+            args=["cosign"], returncode=1, stdout="", stderr="no matching sig"
+        )
+        with patch("brainbox.cosign._cosign_run", return_value=fake):
+            result = verify_image_keyless(
+                "myimg:latest",
+                "https://github.com/owner/repo/.*",
+                "https://token.actions.githubusercontent.com",
+                ["myimg@sha256:abc123"],
+            )
+
+        assert result.verified is False
+        assert result.stderr == "no matching sig"
+
+    def test_uses_first_digest(self):
+        fake = subprocess.CompletedProcess(args=["cosign"], returncode=0, stdout="ok", stderr="")
+        with patch("brainbox.cosign._cosign_run", return_value=fake) as mock_run:
+            verify_image_keyless(
+                "myimg:latest",
+                "https://github.com/owner/repo/.*",
+                "https://token.actions.githubusercontent.com",
+                ["first@sha256:aaa", "second@sha256:bbb"],
+            )
+
+        args = mock_run.call_args[0][0]
+        assert args[-1] == "first@sha256:aaa"
+
+    def test_empty_repo_digests_raises(self):
+        with pytest.raises(ValueError, match="no repo digests"):
+            verify_image_keyless(
+                "myimg:latest",
+                "https://github.com/owner/repo/.*",
+                "https://token.actions.githubusercontent.com",
+                [],
+            )
+
+
+# ---------------------------------------------------------------------------
 # CosignSettings
 # ---------------------------------------------------------------------------
 
@@ -148,11 +218,22 @@ class TestCosignSettings:
         s = CosignSettings()
         assert s.mode == "warn"
         assert s.key == ""
+        assert s.certificate_identity == ""
+        assert s.oidc_issuer == ""
 
     def test_explicit_values(self):
         s = CosignSettings(mode="enforce", key="/path/to/key.pub")
         assert s.mode == "enforce"
         assert s.key == "/path/to/key.pub"
+
+    def test_keyless_values(self):
+        s = CosignSettings(
+            mode="enforce",
+            certificate_identity="https://github.com/owner/repo/.*",
+            oidc_issuer="https://token.actions.githubusercontent.com",
+        )
+        assert s.certificate_identity == "https://github.com/owner/repo/.*"
+        assert s.oidc_issuer == "https://token.actions.githubusercontent.com"
 
     def test_invalid_mode_rejected(self):
         with pytest.raises(Exception):
@@ -241,12 +322,14 @@ class TestProvisionCosignIntegration:
     async def test_mode_enforce_no_key_raises(self, mock_docker, monkeypatch):
         monkeypatch.setattr(settings.cosign, "mode", "enforce")
         monkeypatch.setattr(settings.cosign, "key", "")
+        monkeypatch.setattr(settings.cosign, "certificate_identity", "")
+        monkeypatch.setattr(settings.cosign, "oidc_issuer", "")
 
         from brainbox.lifecycle import provision
 
         mock_docker[0].images.get.return_value = mock_docker[1]
 
-        with pytest.raises(ValueError, match="requires a key"):
+        with pytest.raises(ValueError, match="requires either keyless config"):
             await provision(session_name="test-enforce-nokey")
 
     @pytest.mark.asyncio
@@ -322,3 +405,88 @@ class TestProvisionCosignIntegration:
 
         with pytest.raises(ValueError, match="no repo digests"):
             await provision(session_name="test-enforce-local")
+
+    @pytest.mark.asyncio
+    async def test_keyless_mode_warn_success(self, mock_docker, monkeypatch):
+        monkeypatch.setattr(settings.cosign, "mode", "warn")
+        monkeypatch.setattr(settings.cosign, "key", "")
+        monkeypatch.setattr(
+            settings.cosign, "certificate_identity", "https://github.com/owner/repo/.*"
+        )
+        monkeypatch.setattr(
+            settings.cosign, "oidc_issuer", "https://token.actions.githubusercontent.com"
+        )
+
+        mock_docker[0].containers.get.side_effect = [
+            mock_docker[1],
+            NotFound("not found"),
+        ]
+        mock_docker[0].images.get.return_value = mock_docker[1]
+
+        ok_result = CosignResult(
+            verified=True, image_ref="test-image@sha256:abc123", stdout="ok", stderr=""
+        )
+
+        from brainbox.lifecycle import provision
+
+        with patch("brainbox.lifecycle.verify_image_keyless", return_value=ok_result) as mock_kl:
+            ctx = await provision(session_name="test-keyless-warn-ok")
+            mock_kl.assert_called_once()
+            assert ctx.state.value == "configuring"
+
+    @pytest.mark.asyncio
+    async def test_keyless_mode_enforce_failure_raises(self, mock_docker, monkeypatch):
+        monkeypatch.setattr(settings.cosign, "mode", "enforce")
+        monkeypatch.setattr(settings.cosign, "key", "")
+        monkeypatch.setattr(
+            settings.cosign, "certificate_identity", "https://github.com/owner/repo/.*"
+        )
+        monkeypatch.setattr(
+            settings.cosign, "oidc_issuer", "https://token.actions.githubusercontent.com"
+        )
+
+        mock_docker[0].images.get.return_value = mock_docker[1]
+
+        failed_result = CosignResult(
+            verified=False, image_ref="test-image@sha256:abc123", stdout="", stderr="no sig"
+        )
+
+        from brainbox.lifecycle import provision
+
+        with patch("brainbox.lifecycle.verify_image_keyless", return_value=failed_result):
+            with pytest.raises(CosignVerificationError, match="test-image@sha256:abc123"):
+                await provision(session_name="test-keyless-enforce-fail")
+
+    @pytest.mark.asyncio
+    async def test_keyless_preferred_over_key(self, mock_docker, monkeypatch, tmp_path):
+        key_file = tmp_path / "cosign.pub"
+        key_file.write_text("fake-key")
+        monkeypatch.setattr(settings.cosign, "mode", "warn")
+        monkeypatch.setattr(settings.cosign, "key", str(key_file))
+        monkeypatch.setattr(
+            settings.cosign, "certificate_identity", "https://github.com/owner/repo/.*"
+        )
+        monkeypatch.setattr(
+            settings.cosign, "oidc_issuer", "https://token.actions.githubusercontent.com"
+        )
+
+        mock_docker[0].containers.get.side_effect = [
+            mock_docker[1],
+            NotFound("not found"),
+        ]
+        mock_docker[0].images.get.return_value = mock_docker[1]
+
+        ok_result = CosignResult(
+            verified=True, image_ref="test-image@sha256:abc123", stdout="ok", stderr=""
+        )
+
+        from brainbox.lifecycle import provision
+
+        with (
+            patch("brainbox.lifecycle.verify_image_keyless", return_value=ok_result) as mock_kl,
+            patch("brainbox.lifecycle.verify_image") as mock_key,
+        ):
+            ctx = await provision(session_name="test-keyless-preferred")
+            mock_kl.assert_called_once()
+            mock_key.assert_not_called()
+            assert ctx.state.value == "configuring"

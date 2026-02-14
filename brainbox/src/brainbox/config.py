@@ -41,6 +41,8 @@ class HardeningSettings(BaseSettings):
 class CosignSettings(BaseSettings):
     mode: Literal["off", "warn", "enforce"] = "warn"
     key: str = ""  # path to PEM public key file
+    certificate_identity: str = ""  # signer identity pattern (regexp) for keyless verification
+    oidc_issuer: str = ""  # OIDC issuer URL for keyless verification
 
 
 class OllamaSettings(BaseSettings):

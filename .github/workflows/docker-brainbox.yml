@@ -15,6 +15,7 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write
 
 env:
   REGISTRY: ghcr.io
@@ -28,6 +29,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: docker/setup-buildx-action@v3
+
+      - uses: sigstore/cosign-installer@v3
 
       - name: Log in to GHCR
         if: github.event_name == 'push'
@@ -47,6 +50,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push base
+        id: build-base
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -56,6 +60,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=brainbox-base
           cache-to: type=gha,mode=max,scope=brainbox-base
+
+      - name: Sign base image
+        if: github.event_name == 'push'
+        run: cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_BASE }}@${{ steps.build-base.outputs.digest }}
 
   build-roles:
     name: Build ${{ matrix.role }}
@@ -68,6 +76,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: docker/setup-buildx-action@v3
+
+      - uses: sigstore/cosign-installer@v3
 
       - name: Log in to GHCR
         if: github.event_name == 'push'
@@ -98,6 +108,7 @@ jobs:
           cache-from: type=gha,scope=brainbox-base
 
       - name: Build and push ${{ matrix.role }}
+        id: build-role
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -107,3 +118,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=brainbox-${{ matrix.role }}
           cache-to: type=gha,mode=max,scope=brainbox-${{ matrix.role }}
+
+      - name: Sign ${{ matrix.role }} image
+        if: github.event_name == 'push'
+        run: cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository_owner }}/brainbox-${{ matrix.role }}@${{ steps.build-role.outputs.digest }}

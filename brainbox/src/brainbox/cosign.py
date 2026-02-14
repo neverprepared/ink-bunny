@@ -52,6 +52,46 @@ def _cosign_run(args: list[str]) -> subprocess.CompletedProcess[str]:
         ) from None
 
 
+def verify_image_keyless(
+    image_ref: str,
+    certificate_identity: str,
+    oidc_issuer: str,
+    repo_digests: list[str],
+) -> CosignResult:
+    """Verify an image using keyless/OIDC identity (Sigstore Fulcio + Rekor).
+
+    *certificate_identity* is matched as a regexp against the certificate's
+    subject identity.  *oidc_issuer* must match the OIDC issuer that minted
+    the signing certificate (e.g. ``https://token.actions.githubusercontent.com``).
+
+    Raises ``ValueError`` when *repo_digests* is empty.
+    """
+    if not repo_digests:
+        raise ValueError(
+            f"Image '{image_ref}' has no repo digests — "
+            "it appears to be a local-only image that was never pushed to a registry"
+        )
+
+    digest_ref = repo_digests[0]
+    result = _cosign_run(
+        [
+            "verify",
+            "--certificate-identity-regexp",
+            certificate_identity,
+            "--certificate-oidc-issuer",
+            oidc_issuer,
+            digest_ref,
+        ]
+    )
+
+    return CosignResult(
+        verified=result.returncode == 0,
+        image_ref=digest_ref,
+        stdout=result.stdout,
+        stderr=result.stderr,
+    )
+
+
 def verify_image(
     image_ref: str,
     key_path: str,
