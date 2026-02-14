@@ -9,7 +9,11 @@ import pytest
 from docker.errors import NotFound
 
 from brainbox.config import ProfileSettings, Settings
-from brainbox.lifecycle import _resolve_profile_env, _resolve_profile_mounts
+from brainbox.lifecycle import (
+    _resolve_oauth_account,
+    _resolve_profile_env,
+    _resolve_profile_mounts,
+)
 from brainbox.models import SessionContext
 
 
@@ -390,6 +394,27 @@ class TestResolveProfileEnv:
         assert len(lines) == 3
         assert lines[2] == "REAL_VAR=value"
 
+    def test_strips_claude_config_dir(self, tmp_path):
+        cache_dir = tmp_path / "sp-profiles" / "personal"
+        cache_dir.mkdir(parents=True)
+        env_file = cache_dir / ".env"
+        env_file.write_text(
+            "CLAUDE_CONFIG_DIR=$WORKSPACE_HOME/.claude\n"
+            "GEMINI_CONFIG_DIR=$WORKSPACE_HOME/.config/gemini\n"
+            "GOOD_VAR=keep\n"
+        )
+        with patch.dict(
+            "os.environ",
+            {"WORKSPACE_PROFILE": "personal", "TMPDIR": str(tmp_path)},
+            clear=True,
+        ):
+            result = _resolve_profile_env()
+
+        assert result is not None
+        assert "CLAUDE_CONFIG_DIR" not in result
+        assert "GEMINI_CONFIG_DIR" not in result
+        assert "GOOD_VAR=keep" in result
+
     def test_handles_export_prefix(self, tmp_path):
         cache_dir = tmp_path / "sp-profiles" / "work"
         cache_dir.mkdir(parents=True)
@@ -408,6 +433,58 @@ class TestResolveProfileEnv:
         home_lines = [l for l in lines if l.startswith("export HOME=") or l == "HOME=/bad"]
         assert home_lines == []  # stripped as host-only
         assert "export MY_VAR=good" in result
+
+
+# ---------------------------------------------------------------------------
+# _resolve_oauth_account() — host Claude auth
+# ---------------------------------------------------------------------------
+
+
+class TestResolveOauthAccount:
+    def test_reads_oauth_account_from_host(self, tmp_path):
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        claude_json = claude_dir / ".claude.json"
+        claude_json.write_text(
+            '{"oauthAccount": {"accountUuid": "abc-123", "emailAddress": "test@example.com", "organizationUuid": "org-456"}}'
+        )
+        with patch.dict("os.environ", {"CLAUDE_CONFIG_DIR": str(claude_dir)}, clear=False):
+            result = _resolve_oauth_account()
+        assert result is not None
+        assert result["accountUuid"] == "abc-123"
+        assert result["emailAddress"] == "test@example.com"
+
+    def test_returns_none_when_no_config_file(self, tmp_path):
+        with patch.dict("os.environ", {"CLAUDE_CONFIG_DIR": str(tmp_path)}, clear=False):
+            result = _resolve_oauth_account()
+        assert result is None
+
+    def test_returns_none_when_no_oauth_account(self, tmp_path):
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        claude_json = claude_dir / ".claude.json"
+        claude_json.write_text('{"hasCompletedOnboarding": true}')
+        with patch.dict("os.environ", {"CLAUDE_CONFIG_DIR": str(claude_dir)}, clear=False):
+            result = _resolve_oauth_account()
+        assert result is None
+
+    def test_returns_none_on_malformed_json(self, tmp_path):
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        claude_json = claude_dir / ".claude.json"
+        claude_json.write_text("not valid json")
+        with patch.dict("os.environ", {"CLAUDE_CONFIG_DIR": str(claude_dir)}, clear=False):
+            result = _resolve_oauth_account()
+        assert result is None
+
+    def test_returns_none_when_oauth_missing_account_uuid(self, tmp_path):
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        claude_json = claude_dir / ".claude.json"
+        claude_json.write_text('{"oauthAccount": {"emailAddress": "test@example.com"}}')
+        with patch.dict("os.environ", {"CLAUDE_CONFIG_DIR": str(claude_dir)}, clear=False):
+            result = _resolve_oauth_account()
+        assert result is None
 
 
 # ---------------------------------------------------------------------------
@@ -557,10 +634,16 @@ class TestStartProfileEnv:
             for c in calls
             if any("/run/profile/.env" in str(arg) for arg in c.args + tuple(c.kwargs.values()))
         ]
-        assert len(profile_env_calls) >= 1
+        # Expect: write file, source from .bashrc, source from .env
+        assert len(profile_env_calls) >= 3
+        # First call writes the file
         cmd_str = str(profile_env_calls[0])
         assert "WORKSPACE_PROFILE=testing" in cmd_str
-        assert "set -a" in cmd_str
+        # Subsequent calls hook it into .bashrc and .env
+        hook_strs = " ".join(str(c) for c in profile_env_calls[1:])
+        assert "set -a" in hook_strs
+        assert ".bashrc" in hook_strs
+        assert ".env" in hook_strs
 
     @pytest.mark.asyncio
     async def test_skips_profile_env_when_no_cache(self, ctx_without_profile):

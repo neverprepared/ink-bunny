@@ -148,6 +148,10 @@ _HOST_ONLY_VARS = frozenset(
         "OLDPWD",
         "SHLVL",
         "XDG_CONFIG_HOME",
+        # Container has its own config dirs; the host paths would conflict
+        # with build-time defaults and cause Claude to miss settings.
+        "CLAUDE_CONFIG_DIR",
+        "GEMINI_CONFIG_DIR",
     }
 )
 
@@ -190,6 +194,22 @@ def _resolve_profile_env() -> str | None:
         return None
 
     return "\n".join(lines)
+
+
+def _resolve_oauth_account() -> dict[str, str] | None:
+    """Read oauthAccount from the host's .claude.json for container auth."""
+    config_dir = os.environ.get("CLAUDE_CONFIG_DIR", str(Path.home() / ".claude"))
+    claude_json = Path(config_dir) / ".claude.json"
+    if not claude_json.is_file():
+        return None
+    try:
+        data = json.loads(claude_json.read_text())
+        acct = data.get("oauthAccount")
+        if isinstance(acct, dict) and "accountUuid" in acct:
+            return acct
+    except (OSError, json.JSONDecodeError):
+        pass
+    return None
 
 
 def _find_available_port(start: int = 7681) -> int:
@@ -552,6 +572,54 @@ async def start(ctx_or_name: SessionContext | str) -> SessionContext:
             except Exception as exc:
                 slog.warning("container.token_write_failed", metadata={"reason": str(exc)})
 
+        # Pre-populate Claude Code onboarding + auth state so the first-run
+        # wizard is skipped.  Must run before ttyd launches Claude Code.
+        claude_json_patch: dict[str, Any] = {
+            "hasCompletedOnboarding": True,
+            "bypassPermissionsModeAccepted": True,
+        }
+        oauth_account = _resolve_oauth_account()
+        if oauth_account:
+            claude_json_patch["oauthAccount"] = oauth_account
+
+        try:
+            patch_json = json.dumps(claude_json_patch)
+            await _run(
+                container.exec_run,
+                [
+                    "sh",
+                    "-c",
+                    f"echo '{_shell_escape(patch_json)}' | python3 -c \""
+                    "import json, pathlib, sys; "
+                    "p = pathlib.Path('/home/developer/.claude.json'); "
+                    "d = json.loads(p.read_text()) if p.exists() else {}; "
+                    "d.update(json.load(sys.stdin)); "
+                    "p.write_text(json.dumps(d, indent=2))"
+                    '"',
+                ],
+            )
+        except Exception as exc:
+            slog.warning("container.onboarding_patch_failed", metadata={"reason": str(exc)})
+
+        # Ensure bypassPermissions is set in settings.json
+        try:
+            await _run(
+                container.exec_run,
+                [
+                    "sh",
+                    "-c",
+                    'python3 -c "'
+                    "import json, pathlib; "
+                    "p = pathlib.Path('/home/developer/.claude/settings.json'); "
+                    "d = json.loads(p.read_text()) if p.exists() else {}; "
+                    "d['bypassPermissions'] = True; "
+                    "p.write_text(json.dumps(d, indent=2))"
+                    '"',
+                ],
+            )
+        except Exception as exc:
+            slog.warning("container.settings_patch_failed", metadata={"reason": str(exc)})
+
         # Launch ttyd + tmux
         title = f"{ctx.role.capitalize()} - {ctx.session_name}"
         try:
@@ -588,11 +656,21 @@ async def start(ctx_or_name: SessionContext | str) -> SessionContext:
                     "sh",
                     "-c",
                     f"echo '{_shell_escape(profile_env)}' > /run/profile/.env"
-                    " && chmod 644 /run/profile/.env"
-                    " && grep -q /run/profile/.env /home/developer/.profile 2>/dev/null"
-                    " || echo 'set -a && . /run/profile/.env && set +a' >> /home/developer/.profile",
+                    " && chmod 644 /run/profile/.env",
                 ],
             )
+            # Source from .bashrc (interactive shells) AND append to
+            # /home/developer/.env (BASH_ENV target used by tmux/non-interactive)
+            for rc_file in ("/home/developer/.bashrc", "/home/developer/.env"):
+                await _run(
+                    container.exec_run,
+                    [
+                        "sh",
+                        "-c",
+                        f"grep -q /run/profile/.env {rc_file} 2>/dev/null"
+                        f" || echo '[ -f /run/profile/.env ] && set -a && . /run/profile/.env && set +a' >> {rc_file}",
+                    ],
+                )
         except Exception as exc:
             slog.warning("container.profile_env_write_failed", metadata={"reason": str(exc)})
 
