@@ -1,7 +1,7 @@
 ---
 description: Manage the brainbox API and sandboxed dev environments
 allowed-tools: Bash(curl:*), Bash(brainbox:*), Bash(open:*), Bash(kill:*), Bash(cat:*), Bash(mkdir:*), Bash(echo:*), Bash(jq:*)
-argument-hint: <start|stop|status|dashboard|config>
+argument-hint: <start|stop|status|create|dashboard|config>
 ---
 
 # Brainbox
@@ -115,6 +115,44 @@ else
 fi
 ```
 
+### `/reflex:container create`
+
+Create a new sandboxed container. Auto-detects the caller's workspace profile and home from environment variables (`WORKSPACE_PROFILE`, `WORKSPACE_HOME`). An optional name can be provided as an argument; defaults to the profile name.
+
+```bash
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+URL_FILE="${CLAUDE_DIR}/reflex/.brainbox-url"
+
+if [ ! -f "$URL_FILE" ]; then
+  echo "Brainbox is not connected. Start it first:"
+  echo "  /reflex:container start"
+  exit 1
+fi
+
+URL=$(cat "$URL_FILE")
+PROFILE="${WORKSPACE_PROFILE:-}"
+WS_HOME="${WORKSPACE_HOME:-}"
+# NAME is the argument after "create", or falls back to the profile name
+NAME="${ARG:-${PROFILE:-default}}"
+
+PAYLOAD="{\"name\":\"${NAME}\",\"role\":\"developer\""
+if [ -n "$PROFILE" ]; then
+  PAYLOAD="${PAYLOAD},\"workspace_profile\":\"${PROFILE}\""
+fi
+if [ -n "$WS_HOME" ]; then
+  PAYLOAD="${PAYLOAD},\"workspace_home\":\"${WS_HOME}\""
+fi
+PAYLOAD="${PAYLOAD}}"
+
+RESULT=$(curl -sf -X POST "${URL}/api/create" \
+  -H 'Content-Type: application/json' \
+  -d "$PAYLOAD" --max-time 60 2>&1)
+
+echo "$RESULT"
+```
+
+Parse the `$ARG` from the user's argument (text after `create`). Show the result: on success report the container URL and detected profile. On failure show the error.
+
 ### `/reflex:container config`
 
 Show or set configuration values. With no extra arguments, show current config. With key=value pairs, update the config file.
@@ -172,7 +210,7 @@ cat "$CONFIG_FILE" | jq .
 If no argument or invalid argument provided, show usage:
 
 ```
-Usage: /reflex:container <start|stop|status|dashboard|config>
+Usage: /reflex:container <start|stop|status|create|dashboard|config>
 
 Manage the brainbox API for sandboxed dev environments.
 
@@ -180,6 +218,7 @@ Commands:
   start      Start the API locally (auto-discovers or auto-starts)
   stop       Stop a locally auto-started API
   status     Show connection info and running containers
+  create     Create a container (auto-detects profile from env)
   dashboard  Open the dashboard in browser
   config     Show/set configuration (url, autostart)
 
@@ -192,6 +231,8 @@ Configuration:
 
 Examples:
   /reflex:container start
+  /reflex:container create
+  /reflex:container create myproject
   /reflex:container status
   /reflex:container config url=http://remote:8080
   /reflex:container config autostart=false
