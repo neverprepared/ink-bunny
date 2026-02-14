@@ -370,6 +370,34 @@ async def api_create_session(request: Request):
         return {"success": False, "error": str(exc)}
 
 
+@app.post("/api/sessions/{name}/exec")
+async def api_exec_session(name: str, request: Request):
+    """Execute a command inside a running container."""
+    body = await request.json()
+    command = body.get("command", "").strip()
+    if not command:
+        raise HTTPException(status_code=400, detail="command is required")
+
+    prefix = settings.resolved_prefix
+    container_name = f"{prefix}{name}"
+
+    try:
+        client = docker.from_env()
+        container = client.containers.get(container_name)
+    except docker.errors.NotFound:
+        raise HTTPException(status_code=404, detail=f"Container '{name}' not found")
+
+    loop = asyncio.get_running_loop()
+    exit_code, output = await loop.run_in_executor(
+        None, lambda: container.exec_run(["sh", "-c", command])
+    )
+    return {
+        "success": exit_code == 0,
+        "exit_code": exit_code,
+        "output": output.decode(errors="replace"),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Container metrics
 # ---------------------------------------------------------------------------
