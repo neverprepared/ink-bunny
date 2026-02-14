@@ -106,6 +106,17 @@ graph TD
     Decision -->|"yes — different scope"| External
 ```
 
+## Agent Daemon Integration
+
+The [[arch-orchestration#Agent Daemon|agent daemon]] inside each container is the concrete implementation of the star topology's agent-side endpoint. Each daemon:
+
+1. Authenticates with the orchestrator using its container token
+2. Polls for inbound messages and task assignments
+3. Executes work via Claude Code CLI (respecting the container's LLM provider — Claude API or Ollama)
+4. Posts results back through the message router
+
+This means all four message patterns (request/reply, event, broadcast, delegation) flow through the daemon rather than requiring manual operator interaction in the container terminal.
+
 ## Communication Guardrails
 
 Enforced at the orchestrator on every message.
