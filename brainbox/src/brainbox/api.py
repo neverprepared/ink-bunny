@@ -208,6 +208,10 @@ def _get_sessions_info() -> list[dict[str, Any]]:
             if bind_mounts:
                 volume = ", ".join(bind_mounts)
 
+            labels = c.labels or {}
+            llm_provider = labels.get("brainbox.llm_provider", "claude")
+            llm_model = labels.get("brainbox.llm_model", "")
+
             sessions.append(
                 {
                     "name": name,
@@ -217,6 +221,8 @@ def _get_sessions_info() -> list[dict[str, Any]]:
                     "url": f"http://localhost:{port}" if port else None,
                     "volume": volume,
                     "active": is_running,
+                    "llm_provider": llm_provider,
+                    "llm_model": llm_model,
                 }
             )
     except Exception:
@@ -338,12 +344,18 @@ async def api_create_session(request: Request):
     name = body.get("name")
     role = body.get("role")
     volume = body.get("volume")
+    llm_provider = body.get("llm_provider", "claude")
+    llm_model = body.get("llm_model") or None
+    ollama_host = body.get("ollama_host") or None
     try:
         ctx = await run_pipeline(
             session_name=name or "default",
             role=role,
             hardened=False,
             volume_mounts=[volume] if volume else [],
+            llm_provider=llm_provider,
+            llm_model=llm_model,
+            ollama_host=ollama_host,
         )
         return {"success": True, "url": f"http://localhost:{ctx.port}"}
     except Exception as exc:

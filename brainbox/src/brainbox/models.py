@@ -64,6 +64,9 @@ class SessionContext(BaseModel):
     health_failures: int = 0
     token: Token | None = None
     env_content: str | None = None  # legacy mode .env body
+    llm_provider: str = "claude"  # "claude" or "ollama"
+    llm_model: str | None = None  # e.g. "qwen3-coder"
+    ollama_host: str | None = None  # per-session override
 
 
 # ---------------------------------------------------------------------------

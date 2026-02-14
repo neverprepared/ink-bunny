@@ -43,6 +43,11 @@ class CosignSettings(BaseSettings):
     key: str = ""  # path to PEM public key file
 
 
+class OllamaSettings(BaseSettings):
+    host: str = "http://host.docker.internal:11434"
+    model: str = "qwen3-coder"
+
+
 class HubSettings(BaseSettings):
     flush_interval: int = 30  # seconds
     prune_completed_after: int = 3600  # seconds
@@ -68,6 +73,7 @@ class Settings(BaseSettings):
     hardening: HardeningSettings = Field(default_factory=HardeningSettings)
     cosign: CosignSettings = Field(default_factory=CosignSettings)
     hub: HubSettings = Field(default_factory=HubSettings)
+    ollama: OllamaSettings = Field(default_factory=OllamaSettings)
 
     model_config = {"env_prefix": "CL_", "env_nested_delimiter": "__"}
 

@@ -7,6 +7,9 @@
   let role = $state('developer');
   let volume = $state('');
   let query = $state('');
+  let llmProvider = $state('claude');
+  let llmModel = $state('');
+  let ollamaHost = $state('');
   let openTab = $state(false);
   let error = $state('');
 
@@ -31,7 +34,16 @@
       error = `session "${sanitized}" already seems to exist`;
       return;
     }
-    const data = await createSession({ name: sanitized, role, volume, query, openTab });
+    const data = await createSession({
+      name: sanitized,
+      role,
+      volume,
+      query,
+      openTab,
+      llm_provider: llmProvider,
+      llm_model: llmProvider === 'ollama' ? llmModel : '',
+      ollama_host: llmProvider === 'ollama' ? ollamaHost : '',
+    });
     if (data.success) {
       if (openTab && data.url) window.open(data.url, '_blank');
       onClose();
@@ -89,6 +101,35 @@
         {/if}
       </p>
     </div>
+
+    <div class="modal-field">
+      <label for="session-provider">llm provider</label>
+      <select id="session-provider" bind:value={llmProvider}>
+        <option value="claude">claude (anthropic api)</option>
+        <option value="ollama">ollama (local)</option>
+      </select>
+      <p class="modal-hint">
+        {#if llmProvider === 'claude'}
+          uses Anthropic API — requires valid API key
+        {:else}
+          uses a local Ollama instance — data stays on your network
+        {/if}
+      </p>
+    </div>
+
+    {#if llmProvider === 'ollama'}
+      <div class="modal-field">
+        <label for="session-model">model</label>
+        <input type="text" id="session-model" placeholder="qwen3-coder (default)" bind:value={llmModel} />
+        <p class="modal-hint">recommended: qwen3-coder, glm-4.7, deepseek-r1</p>
+      </div>
+
+      <div class="modal-field">
+        <label for="session-ollama-host">ollama host</label>
+        <input type="text" id="session-ollama-host" placeholder="http://host.docker.internal:11434 (default)" bind:value={ollamaHost} />
+        <p class="modal-hint">override if Ollama runs on a different host</p>
+      </div>
+    {/if}
 
     <div class="modal-field">
       <label for="session-volume">volume mount</label>

@@ -32,11 +32,11 @@ export async function startSession(name) {
   return res.json();
 }
 
-export async function createSession({ name, role, volume, query, openTab }) {
+export async function createSession({ name, role, volume, query, openTab, llm_provider, llm_model, ollama_host }) {
   const res = await fetch('/api/create', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, role, volume, query, openTab }),
+    body: JSON.stringify({ name, role, volume, query, openTab, llm_provider, llm_model, ollama_host }),
   });
   return res.json();
 }

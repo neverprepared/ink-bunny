@@ -150,6 +150,9 @@ async def provision(
     ttl: int | None = None,
     volume_mounts: list[str] | None = None,
     token: Token | None = None,
+    llm_provider: str = "claude",
+    llm_model: str | None = None,
+    ollama_host: str | None = None,
 ) -> SessionContext:
     resolved_role = role or settings.role
     resolved_prefix = settings.container_prefix or f"{resolved_role}-"
@@ -169,6 +172,9 @@ async def provision(
         hardened=hardened,
         volume_mounts=volume_mounts or [],
         token=token,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        ollama_host=ollama_host,
     )
 
     slog = get_logger(session_name=session_name, container_name=container_name)
@@ -197,7 +203,12 @@ async def provision(
         "name": container_name,
         "command": ["sleep", "infinity"],
         "ports": {"7681/tcp": ("127.0.0.1", resolved_port)},
-        "labels": {"brainbox.managed": "true", "brainbox.role": resolved_role},
+        "labels": {
+            "brainbox.managed": "true",
+            "brainbox.role": resolved_role,
+            "brainbox.llm_provider": llm_provider,
+            "brainbox.llm_model": llm_model or "",
+        },
         "detach": True,
     }
 
@@ -257,6 +268,14 @@ async def configure(ctx_or_name: SessionContext | str) -> SessionContext:
     from .secrets import resolve_secrets, has_op_integration
 
     resolved = resolve_secrets()
+
+    # Inject Ollama env vars when provider is ollama
+    if ctx.llm_provider == "ollama":
+        resolved["ANTHROPIC_AUTH_TOKEN"] = "ollama"
+        resolved["ANTHROPIC_API_KEY"] = ""
+        resolved["ANTHROPIC_BASE_URL"] = ctx.ollama_host or settings.ollama.host
+        resolved["CLAUDE_MODEL"] = ctx.llm_model or settings.ollama.model
+
     ctx.secrets.update(resolved)
     if not ctx.hardened:
         ctx.env_content = "\n".join(f"export {k}={v}" for k, v in resolved.items())
@@ -438,6 +457,9 @@ async def run_pipeline(
     ttl: int | None = None,
     volume_mounts: list[str] | None = None,
     token: Token | None = None,
+    llm_provider: str = "claude",
+    llm_model: str | None = None,
+    ollama_host: str | None = None,
 ) -> SessionContext:
     ctx = await provision(
         session_name=session_name,
@@ -447,6 +469,9 @@ async def run_pipeline(
         ttl=ttl,
         volume_mounts=volume_mounts,
         token=token,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        ollama_host=ollama_host,
     )
     await configure(ctx)
     await start(ctx)

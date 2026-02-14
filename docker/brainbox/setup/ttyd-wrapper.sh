@@ -11,6 +11,10 @@ else
     tmux set -t main mouse on
 
     # Start claude (env vars are loaded via BASH_ENV -> .bashrc -> .env)
-    tmux send-keys -t main 'claude --dangerously-skip-permissions' Enter
+    CLAUDE_CMD="claude --dangerously-skip-permissions"
+    if [ -n "$CLAUDE_MODEL" ]; then
+        CLAUDE_CMD="$CLAUDE_CMD --model $CLAUDE_MODEL"
+    fi
+    tmux send-keys -t main "$CLAUDE_CMD" Enter
     exec tmux attach -t main
 fi
