@@ -363,6 +363,47 @@ class TestResolveProfileMounts:
         assert str(ws / ".aws") in result
         assert str(wrong_aws) not in result
 
+    def test_workspace_home_adds_real_sso_cache_mount(self, tmp_path):
+        """When workspace_home is set, real $HOME/.aws/sso/cache/ is nested-mounted."""
+        ws = tmp_path / "firebuild"
+        (ws / ".aws").mkdir(parents=True)
+
+        real_home = tmp_path / "realhome"
+        sso_cache = real_home / ".aws" / "sso" / "cache"
+        sso_cache.mkdir(parents=True)
+        (sso_cache / "token.json").write_text("{}")
+
+        with (
+            patch("brainbox.lifecycle.Path.home", return_value=real_home),
+            patch.dict("os.environ", {}, clear=True),
+            patch("brainbox.lifecycle.settings") as mock_settings,
+        ):
+            mock_settings.profile = ProfileSettings()
+            result = _resolve_profile_mounts(workspace_home=str(ws))
+
+        # Profile .aws is mounted
+        assert str(ws / ".aws") in result
+        # Real home SSO cache is nested-mounted on top
+        assert str(sso_cache) in result
+        assert result[str(sso_cache)]["bind"] == "/home/developer/.aws/sso/cache"
+
+    def test_no_sso_overlay_without_workspace_home(self, tmp_path):
+        """Without workspace_home, no extra SSO cache mount is added."""
+        home = tmp_path / "home"
+        (home / ".aws" / "sso" / "cache").mkdir(parents=True)
+
+        with (
+            patch("brainbox.lifecycle.Path.home", return_value=home),
+            patch.dict("os.environ", {"WORKSPACE_HOME": ""}, clear=True),
+            patch("brainbox.lifecycle.settings") as mock_settings,
+        ):
+            mock_settings.profile = ProfileSettings()
+            result = _resolve_profile_mounts()
+
+        # .aws is mounted from home, SSO cache is already inside it — no overlay
+        sso_path = str(home / ".aws" / "sso" / "cache")
+        assert sso_path not in result
+
 
 # ---------------------------------------------------------------------------
 # _resolve_profile_env() — reads volatile .env cache

@@ -154,6 +154,17 @@ def _resolve_profile_mounts(
             if host_dir is not None:
                 mounts[str(host_dir)] = {"bind": container_targets[name], "mode": "rw"}
 
+    # When workspace_home differs from the real home, AWS SSO tokens live in
+    # the real $HOME/.aws/sso/cache/ (aws sso login always writes there).
+    # Add a nested bind mount so the container sees live tokens.
+    if workspace_home and p.mount_aws:
+        real_sso_cache = Path.home() / ".aws" / "sso" / "cache"
+        if real_sso_cache.is_dir():
+            mounts[str(real_sso_cache)] = {
+                "bind": "/home/developer/.aws/sso/cache",
+                "mode": "rw",
+            }
+
     return mounts
 
 
