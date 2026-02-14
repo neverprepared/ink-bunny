@@ -30,6 +30,9 @@ bb-docker-build:
 bb-docker-start *ARGS:
     cd brainbox && ./scripts/run.sh {{ ARGS }}
 
+bb-minio:
+    cd docker/minio && docker compose up -d
+
 # === Shell Profiler (Go) ===
 
 sp-build:

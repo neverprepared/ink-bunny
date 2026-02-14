@@ -45,6 +45,15 @@ class CosignSettings(BaseSettings):
     oidc_issuer: str = ""  # OIDC issuer URL for keyless verification
 
 
+class ArtifactSettings(BaseSettings):
+    mode: Literal["off", "warn", "enforce"] = "warn"
+    endpoint: str = "http://localhost:9000"
+    access_key: str = ""
+    secret_key: str = ""
+    bucket: str = "artifacts"
+    region: str = "us-east-1"
+
+
 class OllamaSettings(BaseSettings):
     host: str = "http://host.docker.internal:11434"
     model: str = "qwen3-coder"
@@ -74,6 +83,7 @@ class Settings(BaseSettings):
     resources: ResourceSettings = Field(default_factory=ResourceSettings)
     hardening: HardeningSettings = Field(default_factory=HardeningSettings)
     cosign: CosignSettings = Field(default_factory=CosignSettings)
+    artifact: ArtifactSettings = Field(default_factory=ArtifactSettings)
     hub: HubSettings = Field(default_factory=HubSettings)
     ollama: OllamaSettings = Field(default_factory=OllamaSettings)
 

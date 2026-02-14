@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any
 
 import docker
-from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 
@@ -37,6 +37,14 @@ from .router import (
     list_tasks,
     on_event,
     submit_task,
+)
+from .artifacts import (
+    ArtifactError,
+    delete_artifact,
+    download_artifact,
+    health_check as artifact_health_check,
+    list_artifacts,
+    upload_artifact,
 )
 from .messages import get_message_log, get_messages, route as route_message
 
@@ -535,6 +543,83 @@ async def hub_state():
         "tokens": [t.model_dump() for t in list_tokens()],
         "messages": get_message_log(),
     }
+
+
+# ---------------------------------------------------------------------------
+# Artifact store
+# ---------------------------------------------------------------------------
+
+
+async def _artifact_op(operation_fn, *args, **kwargs):
+    """Run an artifact operation respecting the configured mode."""
+    mode = settings.artifact.mode
+    if mode == "off":
+        raise HTTPException(status_code=503, detail="Artifact store is disabled")
+    try:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, lambda: operation_fn(*args, **kwargs))
+    except ArtifactError as exc:
+        if mode == "enforce":
+            raise HTTPException(status_code=502, detail=str(exc))
+        log.warning("artifact.operation_failed", metadata={"error": str(exc)})
+        return None
+
+
+@app.get("/api/artifacts/health")
+async def api_artifact_health():
+    """Check artifact store connectivity."""
+    mode = settings.artifact.mode
+    if mode == "off":
+        return {"healthy": False, "mode": "off", "detail": "Artifact store is disabled"}
+    loop = asyncio.get_running_loop()
+    healthy = await loop.run_in_executor(None, artifact_health_check)
+    return {"healthy": healthy, "mode": mode}
+
+
+@app.get("/api/artifacts")
+async def api_list_artifacts(prefix: str = Query(default="")):
+    """List artifacts, optionally filtered by key prefix."""
+    result = await _artifact_op(list_artifacts, prefix)
+    if result is None:
+        return []
+    return [
+        {"key": a.key, "size": a.size, "etag": a.etag, "timestamp": a.timestamp} for a in result
+    ]
+
+
+@app.post("/api/artifacts/{key:path}", status_code=201)
+async def api_upload_artifact(key: str, request: Request):
+    """Upload an artifact (raw bytes in request body)."""
+    data = await request.body()
+    content_type = request.headers.get("content-type", "application/octet-stream")
+    metadata = {"content_type": content_type}
+
+    task_id = request.headers.get("x-task-id")
+    if task_id:
+        metadata["task_id"] = task_id
+
+    result = await _artifact_op(upload_artifact, key, data, metadata)
+    if result is None:
+        return {"stored": False, "key": key}
+    return {"stored": True, "key": result.key, "size": result.size, "etag": result.etag}
+
+
+@app.get("/api/artifacts/{key:path}")
+async def api_download_artifact(key: str):
+    """Download an artifact by key."""
+    result = await _artifact_op(download_artifact, key)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Artifact not available")
+    body, metadata = result
+    content_type = metadata.get("content_type", "application/octet-stream")
+    return Response(content=body, media_type=content_type)
+
+
+@app.delete("/api/artifacts/{key:path}")
+async def api_delete_artifact(key: str):
+    """Delete an artifact by key."""
+    await _artifact_op(delete_artifact, key)
+    return {"deleted": True, "key": key}
 
 
 # ---------------------------------------------------------------------------

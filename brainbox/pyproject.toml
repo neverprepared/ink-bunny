@@ -13,6 +13,7 @@ dependencies = [
     "sse-starlette>=2.1",
     "questionary>=2.0",
     "rich>=13.9",
+    "boto3>=1.26",
 ]
 
 [project.scripts]
