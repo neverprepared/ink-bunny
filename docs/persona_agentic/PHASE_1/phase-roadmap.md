@@ -12,9 +12,9 @@ Three design maturity phases. Each phase is a self-contained architecture — no
 
 | Topic | PHASE_1 | PHASE_2 | PHASE_3 |
 |---|---|---|---|
-| **Brainbox Runtime** | Docker + kind/vcluster | Docker + kind/vcluster | Docker + vcluster + kind |
+| **Brainbox Runtime** | Docker | Docker | Docker + kind/vcluster |
 | **Brainbox Hardening** | Basic (seccomp default, drop dangerous caps, read-only rootfs, non-root) | Full mandatory baseline (custom seccomp, drop ALL caps, AppArmor, PID isolation) | Full mandatory baseline |
-| **Image Policy** | cosign verification, allow dev images with debugging tools | Distroless required, vulnerability scanning | Distroless required, approved base image policy, static binaries |
+| **Image Policy** | cosign keyless signing (CI) + keyless/key-based verification (brainbox), dev images with debugging tools | Distroless required, vulnerability scanning | Distroless required, approved base image policy, static binaries |
 | **Identity** | No identity system — implicit trust, containers identified by Docker labels | Orchestrator-issued container tokens (agent name, task ID, capabilities, expiry) | Full SPIRE, SVID type policy (x509/JWT), aggressive TTLs, HSM root CA, deny-list revocation, replay protection |
 | **Secrets** | 1Password + direnv, file-based tmpfs delivery | Envelope encryption (KEK/DEK), OIDC federation for CI | Full envelope encryption, break-glass procedure |
 | **Orchestrator** | Single process: task dispatch, agent registry, built-in policy, message routing | State persistence, degraded mode | Resilience (watchdog, safe mode, dead-man switch) |
