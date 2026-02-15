@@ -1,83 +1,148 @@
 /** API client for brainbox backend. */
 
+/**
+ * Helper to handle fetch responses with proper error handling.
+ * @param {string} url - API endpoint URL
+ * @param {RequestInit} options - Fetch options
+ * @returns {Promise<any>} Parsed JSON response
+ * @throws {Error} If request fails or returns non-OK status
+ */
+async function fetchJSON(url, options = {}) {
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => res.statusText);
+      throw new Error(`HTTP ${res.status}: ${errorText}`);
+    }
+    return await res.json();
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('HTTP')) {
+      throw err; // Re-throw HTTP errors as-is
+    }
+    // Network error or other fetch failure
+    throw new Error(`Network error: ${err.message || 'Unable to connect to server'}`);
+  }
+}
+
 export async function fetchSessions() {
-  const res = await fetch('/api/sessions');
-  return res.json();
+  return fetchJSON('/api/sessions');
 }
 
 export async function stopSession(name) {
-  const res = await fetch('/api/stop', {
+  return fetchJSON('/api/stop', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
   });
-  return res.json();
 }
 
 export async function deleteSession(name) {
-  const res = await fetch('/api/delete', {
+  return fetchJSON('/api/delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
   });
-  return res.json();
 }
 
 export async function startSession(name) {
-  const res = await fetch('/api/start', {
+  return fetchJSON('/api/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
   });
-  return res.json();
 }
 
 export async function createSession({ name, role, volume, query, openTab, llm_provider, llm_model, ollama_host }) {
-  const res = await fetch('/api/create', {
+  return fetchJSON('/api/create', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, role, volume, query, openTab, llm_provider, llm_model, ollama_host }),
   });
-  return res.json();
 }
 
 export async function fetchContainerMetrics() {
-  const res = await fetch('/api/metrics/containers');
-  return res.json();
+  return fetchJSON('/api/metrics/containers');
 }
 
 export async function fetchHubState() {
-  const res = await fetch('/api/hub/state');
-  return res.json();
+  return fetchJSON('/api/hub/state');
 }
 
 export async function fetchLangfuseHealth() {
-  const res = await fetch('/api/langfuse/health');
-  return res.json();
+  return fetchJSON('/api/langfuse/health');
 }
 
 export async function fetchSessionTraces(sessionName, limit = 50) {
-  const res = await fetch(`/api/langfuse/sessions/${encodeURIComponent(sessionName)}/traces?limit=${limit}`);
-  return res.json();
+  return fetchJSON(`/api/langfuse/sessions/${encodeURIComponent(sessionName)}/traces?limit=${limit}`);
 }
 
 export async function fetchSessionSummary(sessionName) {
-  const res = await fetch(`/api/langfuse/sessions/${encodeURIComponent(sessionName)}/summary`);
-  return res.json();
+  return fetchJSON(`/api/langfuse/sessions/${encodeURIComponent(sessionName)}/summary`);
 }
 
 export async function fetchTraceDetail(traceId) {
-  const res = await fetch(`/api/langfuse/traces/${encodeURIComponent(traceId)}`);
-  return res.json();
+  return fetchJSON(`/api/langfuse/traces/${encodeURIComponent(traceId)}`);
 }
 
 /**
- * Connect to the SSE event stream.
- * Returns the EventSource instance (caller can close it).
+ * Connect to the SSE event stream with automatic reconnection.
+ * Returns an object with a close() method.
  * Calls `onEvent(data)` for each message.
+ * Calls `onError(error)` on errors (optional).
+ * Calls `onReconnect(attemptNumber)` when reconnecting (optional).
  */
-export function connectSSE(onEvent) {
-  const es = new EventSource('/api/events');
-  es.onmessage = (e) => onEvent(e.data);
-  return es;
+export function connectSSE(onEvent, onError = null, onReconnect = null) {
+  let es = null;
+  let reconnectTimeout = null;
+  let reconnectAttempts = 0;
+  const maxReconnectDelay = 30000; // 30s max delay
+  let isClosed = false;
+
+  function connect() {
+    if (isClosed) return;
+
+    es = new EventSource('/api/events');
+
+    es.onmessage = (e) => {
+      reconnectAttempts = 0; // Reset on successful message
+      onEvent(e.data);
+    };
+
+    es.onerror = (err) => {
+      if (onError) onError(err);
+
+      // Don't reconnect if explicitly closed
+      if (isClosed) return;
+
+      es.close();
+
+      // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), maxReconnectDelay);
+      reconnectAttempts++;
+
+      console.log(`SSE connection lost. Reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
+
+      if (onReconnect) onReconnect(reconnectAttempts);
+
+      reconnectTimeout = setTimeout(() => {
+        connect();
+      }, delay);
+    };
+  }
+
+  connect();
+
+  return {
+    close: () => {
+      isClosed = true;
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+        reconnectTimeout = null;
+      }
+      if (es) {
+        es.close();
+        es = null;
+      }
+    }
+  };
 }

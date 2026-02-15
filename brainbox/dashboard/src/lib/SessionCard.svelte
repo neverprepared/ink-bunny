@@ -1,30 +1,44 @@
 <script>
   import { stopSession, deleteSession, startSession } from './api.js';
+  import { notifications } from './notifications.svelte.js';
 
   let { session, onUpdate, onInfo } = $props();
 
   let confirmAction = $state(null); // 'stop' | 'delete' | null
   let confirmTimeout = null;
+  let isStarting = $state(false);
 
   function resetConfirm() {
     if (confirmTimeout) clearTimeout(confirmTimeout);
     confirmAction = null;
   }
 
-  function handleStop() {
+  async function handleStop() {
     if (confirmAction === 'stop') {
       resetConfirm();
-      stopSession(session.name).then(onUpdate);
+      try {
+        await stopSession(session.name);
+        notifications.success(`Stopped session: ${session.session_name || session.name}`);
+        onUpdate();
+      } catch (err) {
+        notifications.error(`Failed to stop session: ${err.message}`);
+      }
       return;
     }
     confirmAction = 'stop';
     confirmTimeout = setTimeout(resetConfirm, 3000);
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (confirmAction === 'delete') {
       resetConfirm();
-      deleteSession(session.name).then(onUpdate);
+      try {
+        await deleteSession(session.name);
+        notifications.success(`Deleted session: ${session.session_name || session.name}`);
+        onUpdate();
+      } catch (err) {
+        notifications.error(`Failed to delete session: ${err.message}`);
+      }
       return;
     }
     confirmAction = 'delete';
@@ -32,8 +46,20 @@
   }
 
   async function handleStart() {
-    const data = await startSession(session.name);
-    if (data.success) onUpdate();
+    isStarting = true;
+    try {
+      const data = await startSession(session.name);
+      if (data.success) {
+        notifications.success(`Started session: ${session.session_name || session.name}`);
+        onUpdate();
+      } else {
+        notifications.error('Failed to start session');
+      }
+    } catch (err) {
+      notifications.error(`Failed to start session: ${err.message}`);
+    } finally {
+      isStarting = false;
+    }
   }
 
   let displayName = $derived(session.session_name || session.name);
@@ -65,7 +91,9 @@
     {#if session.active}
       <a href={session.url} target="_blank">{displayUrl}</a>
     {:else}
-      <button class="start-btn" onclick={handleStart}>start</button>
+      <button class="start-btn" onclick={handleStart} disabled={isStarting}>
+        {isStarting ? 'starting...' : 'start'}
+      </button>
     {/if}
   </div>
 

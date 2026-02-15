@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shlex
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -654,7 +655,7 @@ async def start(ctx_or_name: SessionContext | str) -> SessionContext:
                     [
                         "sh",
                         "-c",
-                        f"echo '{_shell_escape(value)}' > /run/secrets/{name} && chmod 400 /run/secrets/{name}",
+                        f"echo {shlex.quote(value)} > /run/secrets/{name} && chmod 400 /run/secrets/{name}",
                     ],
                 )
             except Exception as exc:
@@ -664,12 +665,13 @@ async def start(ctx_or_name: SessionContext | str) -> SessionContext:
     else:
         # Legacy: write .env file
         try:
+            # Create .env with secure permissions atomically (no race condition)
             await _run(
                 container.exec_run,
                 [
                     "sh",
                     "-c",
-                    "rm -f /home/developer/.env && touch /home/developer/.env && chmod 600 /home/developer/.env",
+                    "rm -f /home/developer/.env && umask 077 && touch /home/developer/.env",
                 ],
             )
             if ctx.env_content:
@@ -677,12 +679,13 @@ async def start(ctx_or_name: SessionContext | str) -> SessionContext:
                     if line:
                         await _run(
                             container.exec_run,
-                            ["sh", "-c", f"echo '{_shell_escape(line)}' >> /home/developer/.env"],
+                            ["sh", "-c", f"echo {shlex.quote(line)} >> /home/developer/.env"],
                         )
         except Exception as exc:
-            slog.warning("container.env_write_failed", metadata={"reason": str(exc)})
+            slog.error("container.env_write_failed", metadata={"reason": str(exc)})
+            raise
 
-        # Write agent-token file
+        # Write agent-token file with secure permissions atomically
         if "agent-token" in ctx.secrets:
             try:
                 await _run(
@@ -690,11 +693,12 @@ async def start(ctx_or_name: SessionContext | str) -> SessionContext:
                     [
                         "sh",
                         "-c",
-                        f"echo '{_shell_escape(ctx.secrets['agent-token'])}' > /home/developer/.agent-token && chmod 400 /home/developer/.agent-token",
+                        f"umask 077 && echo {shlex.quote(ctx.secrets['agent-token'])} > /home/developer/.agent-token && chmod 400 /home/developer/.agent-token",
                     ],
                 )
             except Exception as exc:
-                slog.warning("container.token_write_failed", metadata={"reason": str(exc)})
+                slog.error("container.token_write_failed", metadata={"reason": str(exc)})
+                raise
 
         # Pre-populate Claude Code onboarding + auth state so the first-run
         # wizard is skipped.  Must run before ttyd launches Claude Code.
@@ -713,7 +717,7 @@ async def start(ctx_or_name: SessionContext | str) -> SessionContext:
                 [
                     "sh",
                     "-c",
-                    f"echo '{_shell_escape(patch_json)}' | python3 -c \""
+                    f"echo {shlex.quote(patch_json)} | python3 -c \""
                     "import json, pathlib, sys; "
                     "p = pathlib.Path('/home/developer/.claude.json'); "
                     "d = json.loads(p.read_text()) if p.exists() else {}; "
@@ -779,7 +783,7 @@ async def start(ctx_or_name: SessionContext | str) -> SessionContext:
                 [
                     "sh",
                     "-c",
-                    f"echo '{_shell_escape(profile_env)}' > /run/profile/.env"
+                    f"echo {shlex.quote(profile_env)} > /run/profile/.env"
                     " && chmod 644 /run/profile/.env",
                 ],
             )
@@ -806,7 +810,7 @@ async def start(ctx_or_name: SessionContext | str) -> SessionContext:
             [
                 "sh",
                 "-c",
-                f"echo '{_shell_escape(langfuse_line)}' >> /home/developer/.env",
+                f"echo {shlex.quote(langfuse_line)} >> /home/developer/.env",
             ],
         )
     except Exception as exc:
@@ -931,10 +935,6 @@ def list_sessions() -> list[SessionContext]:
 # ---------------------------------------------------------------------------
 # Utilities
 # ---------------------------------------------------------------------------
-
-
-def _shell_escape(s: str) -> str:
-    return s.replace("'", "'\\''")
 
 
 def _now_ms() -> int:

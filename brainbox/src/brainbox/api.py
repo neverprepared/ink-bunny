@@ -28,6 +28,13 @@ from .lifecycle import (
     start as lifecycle_start,
     monitor as lifecycle_monitor,
 )
+from .validation import (
+    validate_session_name,
+    validate_volume_mount,
+    validate_role,
+    validate_artifact_key,
+    ValidationError,
+)
 from .log import get_logger, setup_logging
 from .models import TaskCreate, Token
 from .registry import get_agent, list_agents, list_tokens, validate_token
@@ -293,15 +300,29 @@ async def api_stop_session(request: Request):
     try:
         await recycle(session_name, reason="dashboard_stop")
         return {"success": True}
-    except Exception:
+    except Exception as exc:
         # Fallback to direct Docker stop
+        log.warning(
+            "session.recycle_failed",
+            metadata={"session": session_name, "error": str(exc), "fallback": "direct_docker_stop"},
+        )
         try:
             client = docker.from_env()
             container = client.containers.get(name)
             container.stop(timeout=1)
             return {"success": True}
-        except Exception:
-            return {"success": False}
+        except docker.errors.NotFound:
+            log.error("session.stop_failed.not_found", metadata={"container": name})
+            raise HTTPException(status_code=404, detail=f"Container not found: {name}")
+        except docker.errors.DockerException as docker_exc:
+            log.error(
+                "session.stop_failed.docker_error",
+                metadata={"container": name, "error": str(docker_exc)},
+            )
+            raise HTTPException(status_code=500, detail=f"Docker error: {docker_exc}")
+        except Exception as fallback_exc:
+            log.exception("session.stop_failed.unexpected")
+            raise HTTPException(status_code=500, detail=f"Failed to stop session: {fallback_exc}")
 
 
 @app.post("/api/delete")
@@ -312,14 +333,32 @@ async def api_delete_session(request: Request):
     try:
         await recycle(session_name, reason="dashboard_delete")
         return {"success": True}
-    except Exception:
+    except Exception as exc:
+        log.warning(
+            "session.recycle_failed",
+            metadata={
+                "session": session_name,
+                "error": str(exc),
+                "fallback": "direct_docker_remove",
+            },
+        )
         try:
             client = docker.from_env()
             container = client.containers.get(name)
             container.remove()
             return {"success": True}
-        except Exception:
-            return {"success": False}
+        except docker.errors.NotFound:
+            log.error("session.delete_failed.not_found", metadata={"container": name})
+            raise HTTPException(status_code=404, detail=f"Container not found: {name}")
+        except docker.errors.DockerException as docker_exc:
+            log.error(
+                "session.delete_failed.docker_error",
+                metadata={"container": name, "error": str(docker_exc)},
+            )
+            raise HTTPException(status_code=500, detail=f"Docker error: {docker_exc}")
+        except Exception as fallback_exc:
+            log.exception("session.delete_failed.unexpected")
+            raise HTTPException(status_code=500, detail=f"Failed to delete session: {fallback_exc}")
 
 
 @app.post("/api/start")
@@ -333,7 +372,10 @@ async def api_start_session(request: Request):
         await lifecycle_start(ctx)
         await lifecycle_monitor(ctx)
         return {"success": True, "url": f"http://localhost:{ctx.port}"}
-    except Exception:
+    except Exception as exc:
+        log.error(
+            "session.start_failed.lifecycle", metadata={"session": session_name, "error": str(exc)}
+        )
         # Fallback to direct Docker start
         try:
             client = docker.from_env()
@@ -352,8 +394,18 @@ async def api_start_session(request: Request):
                             break
 
             return {"success": True, "url": f"http://localhost:{port}"}
-        except Exception:
-            return {"success": False}
+        except docker.errors.NotFound:
+            log.error("session.start_failed.not_found", metadata={"container": name})
+            raise HTTPException(status_code=404, detail=f"Container not found: {name}")
+        except docker.errors.DockerException as docker_exc:
+            log.error(
+                "session.start_failed.docker_error",
+                metadata={"container": name, "error": str(docker_exc)},
+            )
+            raise HTTPException(status_code=500, detail=f"Docker error: {docker_exc}")
+        except Exception as fallback_exc:
+            log.exception("session.start_failed.unexpected")
+            raise HTTPException(status_code=500, detail=f"Failed to start session: {fallback_exc}")
 
 
 @app.post("/api/create")
@@ -375,12 +427,28 @@ async def api_create_session(request: Request):
     ollama_host = body.get("ollama_host") or None
     workspace_profile = body.get("workspace_profile") or None
     workspace_home = body.get("workspace_home") or None
+
+    # Validate inputs
+    try:
+        validated_name = validate_session_name(name or "default")
+        validated_role = validate_role(role) if role else "developer"
+
+        # Validate volume mounts
+        validated_volumes = []
+        for vol in volumes:
+            if vol and vol != "-":  # Skip empty or placeholder volumes
+                host, container, mode = validate_volume_mount(vol)
+                validated_volumes.append(f"{host}:{container}:{mode}")
+    except ValidationError as val_err:
+        log.error("session.create.validation_failed", metadata={"error": str(val_err)})
+        raise HTTPException(status_code=400, detail=str(val_err))
+
     try:
         ctx = await run_pipeline(
-            session_name=name or "default",
-            role=role,
+            session_name=validated_name,
+            role=validated_role,
             hardened=False,
-            volume_mounts=volumes,
+            volume_mounts=validated_volumes,
             llm_provider=llm_provider,
             llm_model=llm_model,
             ollama_host=ollama_host,
@@ -389,6 +457,7 @@ async def api_create_session(request: Request):
         )
         return {"success": True, "url": f"http://localhost:{ctx.port}"}
     except Exception as exc:
+        log.error("session.create.failed", metadata={"error": str(exc)})
         return {"success": False, "error": str(exc)}
 
 
@@ -675,6 +744,13 @@ async def api_list_artifacts(prefix: str = Query(default="")):
 @app.post("/api/artifacts/{key:path}", status_code=201)
 async def api_upload_artifact(key: str, request: Request):
     """Upload an artifact (raw bytes in request body)."""
+    # Validate artifact key to prevent path traversal
+    try:
+        validated_key = validate_artifact_key(key)
+    except ValidationError as val_err:
+        log.error("artifact.upload.validation_failed", metadata={"key": key, "error": str(val_err)})
+        raise HTTPException(status_code=400, detail=str(val_err))
+
     data = await request.body()
     content_type = request.headers.get("content-type", "application/octet-stream")
     metadata = {"content_type": content_type}
@@ -683,16 +759,23 @@ async def api_upload_artifact(key: str, request: Request):
     if task_id:
         metadata["task_id"] = task_id
 
-    result = await _artifact_op(upload_artifact, key, data, metadata)
+    result = await _artifact_op(upload_artifact, validated_key, data, metadata)
     if result is None:
-        return {"stored": False, "key": key}
+        return {"stored": False, "key": validated_key}
     return {"stored": True, "key": result.key, "size": result.size, "etag": result.etag}
 
 
 @app.get("/api/artifacts/{key:path}")
 async def api_download_artifact(key: str):
     """Download an artifact by key."""
-    result = await _artifact_op(download_artifact, key)
+    # Validate artifact key to prevent path traversal
+    try:
+        validated_key = validate_artifact_key(key)
+    except ValidationError as val_err:
+        log.error("artifact.download.validation_failed", metadata={"key": key, "error": str(val_err)})
+        raise HTTPException(status_code=400, detail=str(val_err))
+
+    result = await _artifact_op(download_artifact, validated_key)
     if result is None:
         raise HTTPException(status_code=404, detail="Artifact not available")
     body, metadata = result

@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { fetchSessions, connectSSE } from './api.js';
+  import { notifications } from './notifications.svelte.js';
   import StatsGrid from './StatsGrid.svelte';
   import SessionCard from './SessionCard.svelte';
   import TerminalFrame from './TerminalFrame.svelte';
@@ -22,7 +23,12 @@
   const tip = TIPS[Math.floor(Math.random() * TIPS.length)];
 
   async function refresh() {
-    sessions = await fetchSessions();
+    try {
+      sessions = await fetchSessions();
+    } catch (err) {
+      // Only show error on explicit user actions, not on background SSE refreshes
+      console.error('Failed to fetch sessions:', err);
+    }
   }
 
   function handleSessionUpdate() {

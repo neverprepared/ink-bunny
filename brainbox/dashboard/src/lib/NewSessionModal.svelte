@@ -1,5 +1,6 @@
 <script>
   import { createSession } from './api.js';
+  import { notifications } from './notifications.svelte.js';
 
   let { existingNames, onClose, onCreate } = $props();
 
@@ -12,6 +13,7 @@
   let ollamaHost = $state('');
   let openTab = $state(false);
   let error = $state('');
+  let isCreating = $state(false);
 
   let sanitized = $derived(name.replace(/ /g, '-').toLowerCase().trim() || 'default');
   let nameExists = $derived(existingNames.includes(sanitized));
@@ -34,22 +36,34 @@
       error = `session "${sanitized}" already seems to exist`;
       return;
     }
-    const data = await createSession({
-      name: sanitized,
-      role,
-      volume,
-      query,
-      openTab,
-      llm_provider: llmProvider,
-      llm_model: llmProvider === 'ollama' ? llmModel : '',
-      ollama_host: llmProvider === 'ollama' ? ollamaHost : '',
-    });
-    if (data.success) {
-      if (openTab && data.url) window.open(data.url, '_blank');
-      onClose();
-      onCreate();
-    } else {
-      error = data.error || 'Failed to create session';
+
+    isCreating = true;
+    try {
+      const data = await createSession({
+        name: sanitized,
+        role,
+        volume,
+        query,
+        openTab,
+        llm_provider: llmProvider,
+        llm_model: llmProvider === 'ollama' ? llmModel : '',
+        ollama_host: llmProvider === 'ollama' ? ollamaHost : '',
+      });
+
+      if (data.success) {
+        notifications.success(`Created session: ${sanitized}`);
+        if (openTab && data.url) window.open(data.url, '_blank');
+        onClose();
+        onCreate();
+      } else {
+        error = data.error || 'Failed to create session';
+        notifications.error(`Failed to create session: ${error}`);
+      }
+    } catch (err) {
+      error = err.message;
+      notifications.error(`Failed to create session: ${err.message}`);
+    } finally {
+      isCreating = false;
     }
   }
 </script>
@@ -147,8 +161,10 @@
     </div>
 
     <div class="modal-actions">
-      <button class="modal-cancel" onclick={onClose}>cancel</button>
-      <button class="modal-submit" onclick={handleSubmit}>create</button>
+      <button class="modal-cancel" onclick={onClose} disabled={isCreating}>cancel</button>
+      <button class="modal-submit" onclick={handleSubmit} disabled={isCreating}>
+        {isCreating ? 'creating...' : 'create'}
+      </button>
     </div>
   </div>
 </div>

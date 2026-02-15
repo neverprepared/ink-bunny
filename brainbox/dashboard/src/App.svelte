@@ -1,8 +1,10 @@
 <script>
   import AppShell from './lib/AppShell.svelte';
+  import Notifications from './lib/Notifications.svelte';
 </script>
 
 <AppShell />
+<Notifications />
 
 <style>
   :global(*) { box-sizing: border-box; margin: 0; padding: 0; }
