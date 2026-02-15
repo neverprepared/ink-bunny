@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 
 import docker
-import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -609,7 +608,7 @@ async def api_query_session(request: Request, name: str, body: QuerySessionReque
         )
         raise HTTPException(
             status_code=503,
-            detail=f"Claude tmux session not found in container. Is Claude running?",
+            detail="Claude tmux session not found in container. Is Claude running?",
         )
 
     try:
@@ -632,7 +631,6 @@ async def api_query_session(request: Request, name: str, body: QuerySessionReque
         exit_code, before_output = await loop.run_in_executor(
             None, lambda: container.exec_run(["tmux", "capture-pane", "-t", "main", "-p"])
         )
-        before_line_count = len(before_output.decode("utf-8", errors="replace").splitlines())
 
         # Send prompt to tmux session
         await loop.run_in_executor(
