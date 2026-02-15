@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0](https://github.com/neverprepared/ink-bunny/compare/reflex/v1.10.0...reflex-v1.11.0) (2026-02-15)
+
+
+### Features
+
+* add automatic Qdrant storage for WebSearch results ([868334b](https://github.com/neverprepared/ink-bunny/commit/868334b949658024f2cc7b739169fa48cd4b6da2))
+* add support for multiple volume mounts in brainbox containers ([8dc8cb3](https://github.com/neverprepared/ink-bunny/commit/8dc8cb33bde69ac6ac46832fae151f7d5b41b264))
+
+
+### Documentation
+
+* document WebSearch auto-storage container issue ([646a9fc](https://github.com/neverprepared/ink-bunny/commit/646a9fc7e021b7146702aa52546e08316d9045e4))
+
 ## [1.8.0](https://github.com/neverprepared/ink-bunny/compare/reflex/v1.7.3...reflex-v1.8.0) (2026-02-14)
 
 
