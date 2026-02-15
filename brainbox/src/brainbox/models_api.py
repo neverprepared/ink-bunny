@@ -106,3 +106,27 @@ class ExecSessionRequest(BaseModel):
         if not stripped:
             raise ValueError("command is required")
         return stripped
+
+
+class QuerySessionRequest(BaseModel):
+    """Request model for POST /api/sessions/{name}/query endpoint."""
+
+    prompt: str = Field(..., description="Prompt to send to Claude Code in the container")
+    working_dir: str | None = Field(
+        None, description="Working directory for Claude Code execution"
+    )
+    timeout: int = Field(
+        300, description="Timeout in seconds for query execution", ge=10, le=3600
+    )
+    fork_session: bool = Field(
+        False, description="Fork a new conversation thread instead of using main session"
+    )
+
+    @field_validator("prompt")
+    @classmethod
+    def validate_prompt_not_empty(cls, v: str) -> str:
+        """Ensure prompt is not empty after stripping."""
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("prompt is required")
+        return stripped

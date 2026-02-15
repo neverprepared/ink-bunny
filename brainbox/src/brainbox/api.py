@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import docker
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -41,6 +42,7 @@ from .models_api import (
     CreateSessionRequest,
     DeleteSessionRequest,
     ExecSessionRequest,
+    QuerySessionRequest,
     StartSessionRequest,
     StopSessionRequest,
 )
@@ -567,6 +569,180 @@ async def api_exec_session(request: Request, name: str, body: ExecSessionRequest
         "exit_code": exit_code,
         "output": output.decode(errors="replace"),
     }
+
+
+@app.post("/api/sessions/{name}/query")
+@limiter.limit("5/minute")
+async def api_query_session(request: Request, name: str, body: QuerySessionRequest):
+    """Send a prompt to Claude Code running in the container via tmux.
+
+    This endpoint sends the prompt directly to the running Claude instance
+    in the tmux session using docker exec and tmux commands.
+    """
+    prefix = settings.resolved_prefix
+    container_name = f"{prefix}{name}"
+    start_time = time.time()
+
+    # Verify container exists and is running
+    try:
+        client = docker.from_env()
+        container = client.containers.get(container_name)
+        if container.status != "running":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Container '{name}' is not running (status: {container.status})",
+            )
+    except docker.errors.NotFound:
+        _audit_log(request, "session.query", session_name=name, success=False, error="not_found")
+        raise HTTPException(status_code=404, detail=f"Container '{name}' not found")
+
+    # Check if tmux session exists
+    loop = asyncio.get_running_loop()
+    exit_code, _ = await loop.run_in_executor(
+        None, lambda: container.exec_run(["tmux", "has-session", "-t", "main"])
+    )
+
+    if exit_code != 0:
+        _audit_log(request, "session.query", session_name=name, success=False, error="no_tmux_session")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Claude tmux session not found in container. Is Claude running?",
+        )
+
+    try:
+        # Clear any existing input
+        await loop.run_in_executor(
+            None, lambda: container.exec_run(["tmux", "send-keys", "-t", "main", "C-c"])
+        )
+        await asyncio.sleep(0.5)
+
+        # Change to working directory if specified
+        if body.working_dir:
+            cd_cmd = f"cd {body.working_dir}"
+            await loop.run_in_executor(
+                None, lambda: container.exec_run(["tmux", "send-keys", "-t", "main", cd_cmd, "Enter"])
+            )
+            await asyncio.sleep(0.5)
+
+        # Capture pane before sending prompt
+        exit_code, before_output = await loop.run_in_executor(
+            None, lambda: container.exec_run(["tmux", "capture-pane", "-t", "main", "-p"])
+        )
+        before_line_count = len(before_output.decode("utf-8", errors="replace").splitlines())
+
+        # Send prompt to tmux session
+        await loop.run_in_executor(
+            None, lambda: container.exec_run(["tmux", "send-keys", "-t", "main", body.prompt, "Enter"])
+        )
+
+        # Wait a moment for Claude to show the permission prompt
+        await asyncio.sleep(2)
+
+        # Auto-approve permissions by pressing Enter (bypass is already on)
+        await loop.run_in_executor(
+            None, lambda: container.exec_run(["tmux", "send-keys", "-t", "main", "Enter"])
+        )
+
+        # Wait for Claude to complete - detect completion markers
+        max_wait = body.timeout
+        waited = 0
+        poll_interval = 0.5
+        last_output = ""
+        stable_count = 0
+
+        while waited < max_wait:
+            await asyncio.sleep(poll_interval)
+            waited += poll_interval
+
+            # Capture current pane content
+            exit_code, current_output = await loop.run_in_executor(
+                None, lambda: container.exec_run(["tmux", "capture-pane", "-t", "main", "-p"])
+            )
+            output_text = current_output.decode("utf-8", errors="replace")
+
+            # Check for completion markers that indicate Claude is done
+            completion_markers = [
+                "● Done",           # Claude's done marker
+                "● Complete",       # Alternative completion
+                "● Error",          # Error completion
+                "● Failed",         # Failure completion
+            ]
+
+            # Also check if prompt is back (lines with ❯ that aren't in the permission UI)
+            lines = output_text.splitlines()
+            prompt_back = False
+            for i, line in enumerate(lines):
+                # Look for prompt line that's not followed by permission UI
+                if line.strip().startswith("❯") and len(line.strip()) == 1:
+                    # Check next few lines don't have permission UI
+                    if i + 1 < len(lines):
+                        next_line = lines[i + 1] if i + 1 < len(lines) else ""
+                        if "bypass permissions" not in next_line and "⏵" not in next_line:
+                            prompt_back = True
+                            break
+
+            # Check if any completion marker is present
+            has_completion_marker = any(marker in output_text for marker in completion_markers)
+
+            # If output hasn't changed for 2 polls and we see completion, we're done
+            if output_text == last_output:
+                if has_completion_marker or prompt_back:
+                    stable_count += 1
+                    if stable_count >= 2:  # Stable for 1 second with completion
+                        break
+            else:
+                stable_count = 0
+
+            last_output = output_text
+
+        if waited >= max_wait:
+            _audit_log(request, "session.query", session_name=name, success=False, error="timeout")
+            raise HTTPException(
+                status_code=408,
+                detail=f"Query execution timed out after {body.timeout}s",
+            )
+
+        # Capture final output
+        exit_code, final_output = await loop.run_in_executor(
+            None, lambda: container.exec_run(["tmux", "capture-pane", "-t", "main", "-p", "-S", "-100"])
+        )
+        output = final_output.decode("utf-8", errors="replace")
+
+        # Calculate duration
+        duration = time.time() - start_time
+
+        # Extract response (everything after the prompt line)
+        lines = output.splitlines()
+        response_lines = []
+        found_prompt = False
+
+        for line in lines:
+            if body.prompt in line and "❯" in line:
+                found_prompt = True
+                continue
+            if found_prompt:
+                response_lines.append(line)
+
+        cleaned_output = "\n".join(response_lines).strip()
+
+        _audit_log(request, "session.query", session_name=name, success=True)
+
+        return {
+            "success": True,
+            "conversation_id": f"{name}-{int(time.time())}",
+            "output": cleaned_output or output,
+            "error": None,
+            "exit_code": 0,
+            "duration_seconds": duration,
+            "files_modified": [],  # TODO: Implement git-based detection
+        }
+
+    except Exception as e:
+        _audit_log(request, "session.query", session_name=name, success=False, error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Query execution failed: {e}",
+        )
 
 
 # ---------------------------------------------------------------------------
