@@ -25,6 +25,7 @@ from .rate_limit import limiter, rate_limit_exceeded_handler
 from .hub import init as hub_init, shutdown as hub_shutdown
 from .monitor import _calc_cpu, _human_bytes
 from .lifecycle import (
+    _docker,
     provision,
     configure,
     recycle,
@@ -133,7 +134,7 @@ async def _watch_docker_events() -> None:
     def _blocking_watch():
         """Run in thread — blocks on Docker event stream."""
         try:
-            client = docker.from_env()
+            client = _docker()
             for event in client.events(filters={"label": "brainbox.managed=true"}, decode=True):
                 action = event.get("Action", "")
                 if action in ("create", "start", "stop", "die", "destroy"):
@@ -245,7 +246,7 @@ def _get_sessions_info() -> list[dict[str, Any]]:
     """Get session info from Docker."""
     sessions = []
     try:
-        client = docker.from_env()
+        client = _docker()
         containers = client.containers.list(all=True, filters={"label": "brainbox.managed=true"})
 
         for c in containers:
@@ -351,7 +352,7 @@ async def api_stop_session(request: Request, body: StopSessionRequest):
             metadata={"session": session_name, "error": str(exc), "fallback": "direct_docker_stop"},
         )
         try:
-            client = docker.from_env()
+            client = _docker()
             container = client.containers.get(name)
             container.stop(timeout=1)
             _audit_log(request, "session.stop", session_name=session_name, success=True)
@@ -406,7 +407,7 @@ async def api_delete_session(request: Request, body: DeleteSessionRequest):
             },
         )
         try:
-            client = docker.from_env()
+            client = _docker()
             container = client.containers.get(name)
             container.remove()
             _audit_log(request, "session.delete", session_name=session_name, success=True)
@@ -464,7 +465,7 @@ async def api_start_session(request: Request, body: StartSessionRequest):
         )
         # Fallback to direct Docker start
         try:
-            client = docker.from_env()
+            client = _docker()
             container = client.containers.get(name)
             container.start()
 
@@ -547,7 +548,7 @@ async def api_exec_session(request: Request, name: str, body: ExecSessionRequest
     container_name = f"{prefix}{name}"
 
     try:
-        client = docker.from_env()
+        client = _docker()
         container = client.containers.get(container_name)
     except docker.errors.NotFound:
         _audit_log(request, "session.exec", session_name=name, success=False, error="not_found")
@@ -585,7 +586,7 @@ async def api_query_session(request: Request, name: str, body: QuerySessionReque
 
     # Verify container exists and is running
     try:
-        client = docker.from_env()
+        client = _docker()
         container = client.containers.get(container_name)
         if container.status != "running":
             raise HTTPException(
@@ -603,7 +604,9 @@ async def api_query_session(request: Request, name: str, body: QuerySessionReque
     )
 
     if exit_code != 0:
-        _audit_log(request, "session.query", session_name=name, success=False, error="no_tmux_session")
+        _audit_log(
+            request, "session.query", session_name=name, success=False, error="no_tmux_session"
+        )
         raise HTTPException(
             status_code=503,
             detail=f"Claude tmux session not found in container. Is Claude running?",
@@ -620,7 +623,8 @@ async def api_query_session(request: Request, name: str, body: QuerySessionReque
         if body.working_dir:
             cd_cmd = f"cd {body.working_dir}"
             await loop.run_in_executor(
-                None, lambda: container.exec_run(["tmux", "send-keys", "-t", "main", cd_cmd, "Enter"])
+                None,
+                lambda: container.exec_run(["tmux", "send-keys", "-t", "main", cd_cmd, "Enter"]),
             )
             await asyncio.sleep(0.5)
 
@@ -632,7 +636,8 @@ async def api_query_session(request: Request, name: str, body: QuerySessionReque
 
         # Send prompt to tmux session
         await loop.run_in_executor(
-            None, lambda: container.exec_run(["tmux", "send-keys", "-t", "main", body.prompt, "Enter"])
+            None,
+            lambda: container.exec_run(["tmux", "send-keys", "-t", "main", body.prompt, "Enter"]),
         )
 
         # Wait a moment for Claude to show the permission prompt
@@ -662,10 +667,10 @@ async def api_query_session(request: Request, name: str, body: QuerySessionReque
 
             # Check for completion markers that indicate Claude is done
             completion_markers = [
-                "● Done",           # Claude's done marker
-                "● Complete",       # Alternative completion
-                "● Error",          # Error completion
-                "● Failed",         # Failure completion
+                "● Done",  # Claude's done marker
+                "● Complete",  # Alternative completion
+                "● Error",  # Error completion
+                "● Failed",  # Failure completion
             ]
 
             # Also check if prompt is back (lines with ❯ that aren't in the permission UI)
@@ -704,7 +709,8 @@ async def api_query_session(request: Request, name: str, body: QuerySessionReque
 
         # Capture final output
         exit_code, final_output = await loop.run_in_executor(
-            None, lambda: container.exec_run(["tmux", "capture-pane", "-t", "main", "-p", "-S", "-100"])
+            None,
+            lambda: container.exec_run(["tmux", "capture-pane", "-t", "main", "-p", "-S", "-100"]),
         )
         output = final_output.decode("utf-8", errors="replace")
 
@@ -777,7 +783,7 @@ def _get_container_metrics() -> list[dict[str, Any]]:
     """Collect per-container CPU %, memory usage, and uptime (blocking)."""
     results = []
     try:
-        client = docker.from_env()
+        client = _docker()
         containers = client.containers.list(filters={"label": "brainbox.managed=true"})
         for c in containers:
             try:

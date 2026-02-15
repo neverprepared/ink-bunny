@@ -23,8 +23,11 @@ class TestExecEndpoint:
         mock_container = MagicMock()
         mock_container.exec_run.return_value = (0, b"hello world\n")
 
-        with patch("brainbox.api.docker") as mock_docker:
-            mock_docker.from_env.return_value.containers.get.return_value = mock_container
+        mock_docker_client = MagicMock()
+        mock_docker_client.containers.get.return_value = mock_container
+
+        with patch("brainbox.api._docker") as mock_docker_fn:
+            mock_docker_fn.return_value = mock_docker_client
             resp = await client.post(
                 "/api/sessions/test-1/exec",
                 json={"command": "echo hello world"},
@@ -43,8 +46,11 @@ class TestExecEndpoint:
         mock_container = MagicMock()
         mock_container.exec_run.return_value = (1, b"not found\n")
 
-        with patch("brainbox.api.docker") as mock_docker:
-            mock_docker.from_env.return_value.containers.get.return_value = mock_container
+        mock_docker_client = MagicMock()
+        mock_docker_client.containers.get.return_value = mock_container
+
+        with patch("brainbox.api._docker") as mock_docker_fn:
+            mock_docker_fn.return_value = mock_docker_client
             resp = await client.post(
                 "/api/sessions/test-1/exec",
                 json={"command": "ls /nonexistent"},
@@ -57,11 +63,11 @@ class TestExecEndpoint:
 
     @pytest.mark.asyncio
     async def test_container_not_found(self, client):
-        with patch("brainbox.api.docker") as mock_docker:
-            mock_docker.from_env.return_value.containers.get.side_effect = docker.errors.NotFound(
-                "not found"
-            )
-            mock_docker.errors = docker.errors
+        mock_docker_client = MagicMock()
+        mock_docker_client.containers.get.side_effect = docker.errors.NotFound("not found")
+
+        with patch("brainbox.api._docker") as mock_docker_fn:
+            mock_docker_fn.return_value = mock_docker_client
             resp = await client.post(
                 "/api/sessions/nope/exec",
                 json={"command": "echo hi"},
@@ -90,12 +96,15 @@ class TestExecEndpoint:
         mock_container = MagicMock()
         mock_container.exec_run.return_value = (0, b"ok\n")
 
-        with patch("brainbox.api.docker") as mock_docker:
-            mock_docker.from_env.return_value.containers.get.return_value = mock_container
+        mock_docker_client = MagicMock()
+        mock_docker_client.containers.get.return_value = mock_container
+
+        with patch("brainbox.api._docker") as mock_docker_fn:
+            mock_docker_fn.return_value = mock_docker_client
             await client.post(
                 "/api/sessions/mybox/exec",
                 json={"command": "echo ok"},
             )
 
         expected_name = f"{settings.resolved_prefix}mybox"
-        mock_docker.from_env.return_value.containers.get.assert_called_once_with(expected_name)
+        mock_docker_client.containers.get.assert_called_once_with(expected_name)

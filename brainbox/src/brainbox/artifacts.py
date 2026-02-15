@@ -10,6 +10,12 @@ from botocore.exceptions import ClientError
 
 from .config import settings
 
+# ---------------------------------------------------------------------------
+# Cached Boto3 S3 client for connection pooling
+# ---------------------------------------------------------------------------
+
+_s3_client_cached = None
+
 
 @dataclass(frozen=True)
 class ArtifactResult:
@@ -28,14 +34,17 @@ class ArtifactError(RuntimeError):
 
 
 def _s3_client():
-    """Create a boto3 S3 client from current settings. Per-request, not cached."""
-    return boto3.client(
-        "s3",
-        endpoint_url=settings.artifact.endpoint,
-        aws_access_key_id=settings.artifact.access_key,
-        aws_secret_access_key=settings.artifact.secret_key,
-        region_name=settings.artifact.region,
-    )
+    """Get cached boto3 S3 client with connection pooling."""
+    global _s3_client_cached
+    if _s3_client_cached is None:
+        _s3_client_cached = boto3.client(
+            "s3",
+            endpoint_url=settings.artifact.endpoint,
+            aws_access_key_id=settings.artifact.access_key,
+            aws_secret_access_key=settings.artifact.secret_key,
+            region_name=settings.artifact.region,
+        )
+    return _s3_client_cached
 
 
 def ensure_bucket() -> None:

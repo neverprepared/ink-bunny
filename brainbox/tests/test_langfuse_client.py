@@ -147,31 +147,25 @@ class TestAuthHeader:
 class TestHealthCheck:
     @patch("brainbox.langfuse_client._client")
     def test_healthy(self, mock_client_fn):
-        mock_cm = MagicMock()
-        mock_cm.__enter__ = MagicMock(return_value=mock_cm)
-        mock_cm.__exit__ = MagicMock(return_value=False)
-        mock_cm.get.return_value = MagicMock(status_code=200)
-        mock_client_fn.return_value = mock_cm
+        mock_client = MagicMock()
+        mock_client.get.return_value = MagicMock(status_code=200)
+        mock_client_fn.return_value = mock_client
 
         assert health_check() is True
 
     @patch("brainbox.langfuse_client._client")
     def test_unhealthy(self, mock_client_fn):
-        mock_cm = MagicMock()
-        mock_cm.__enter__ = MagicMock(return_value=mock_cm)
-        mock_cm.__exit__ = MagicMock(return_value=False)
-        mock_cm.get.side_effect = httpx.ConnectError("refused")
-        mock_client_fn.return_value = mock_cm
+        mock_client = MagicMock()
+        mock_client.get.side_effect = httpx.ConnectError("refused")
+        mock_client_fn.return_value = mock_client
 
         assert health_check() is False
 
     @patch("brainbox.langfuse_client._client")
     def test_non_200(self, mock_client_fn):
-        mock_cm = MagicMock()
-        mock_cm.__enter__ = MagicMock(return_value=mock_cm)
-        mock_cm.__exit__ = MagicMock(return_value=False)
-        mock_cm.get.return_value = MagicMock(status_code=503)
-        mock_client_fn.return_value = mock_cm
+        mock_client = MagicMock()
+        mock_client.get.return_value = MagicMock(status_code=503)
+        mock_client_fn.return_value = mock_client
 
         assert health_check() is False
 
@@ -184,9 +178,7 @@ class TestHealthCheck:
 class TestListTraces:
     @patch("brainbox.langfuse_client._client")
     def test_success(self, mock_client_fn):
-        mock_cm = MagicMock()
-        mock_cm.__enter__ = MagicMock(return_value=mock_cm)
-        mock_cm.__exit__ = MagicMock(return_value=False)
+        mock_client = MagicMock()
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
             "data": [
@@ -209,8 +201,8 @@ class TestListTraces:
             ]
         }
         mock_resp.raise_for_status = MagicMock()
-        mock_cm.get.return_value = mock_resp
-        mock_client_fn.return_value = mock_cm
+        mock_client.get.return_value = mock_resp
+        mock_client_fn.return_value = mock_client
 
         results = list_traces("s1")
 
@@ -222,25 +214,21 @@ class TestListTraces:
 
     @patch("brainbox.langfuse_client._client")
     def test_empty(self, mock_client_fn):
-        mock_cm = MagicMock()
-        mock_cm.__enter__ = MagicMock(return_value=mock_cm)
-        mock_cm.__exit__ = MagicMock(return_value=False)
+        mock_client = MagicMock()
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"data": []}
         mock_resp.raise_for_status = MagicMock()
-        mock_cm.get.return_value = mock_resp
-        mock_client_fn.return_value = mock_cm
+        mock_client.get.return_value = mock_resp
+        mock_client_fn.return_value = mock_client
 
         results = list_traces("s1")
         assert results == []
 
     @patch("brainbox.langfuse_client._client")
     def test_http_error_raises(self, mock_client_fn):
-        mock_cm = MagicMock()
-        mock_cm.__enter__ = MagicMock(return_value=mock_cm)
-        mock_cm.__exit__ = MagicMock(return_value=False)
-        mock_cm.get.side_effect = httpx.ConnectError("refused")
-        mock_client_fn.return_value = mock_cm
+        mock_client = MagicMock()
+        mock_client.get.side_effect = httpx.ConnectError("refused")
+        mock_client_fn.return_value = mock_client
 
         with pytest.raises(LangfuseError, match="list_traces"):
             list_traces("s1")
@@ -254,9 +242,7 @@ class TestListTraces:
 class TestGetTrace:
     @patch("brainbox.langfuse_client._client")
     def test_success(self, mock_client_fn):
-        mock_cm = MagicMock()
-        mock_cm.__enter__ = MagicMock(return_value=mock_cm)
-        mock_cm.__exit__ = MagicMock(return_value=False)
+        mock_client = MagicMock()
 
         trace_resp = MagicMock()
         trace_resp.json.return_value = {
@@ -285,8 +271,8 @@ class TestGetTrace:
         }
         obs_resp.raise_for_status = MagicMock()
 
-        mock_cm.get.side_effect = [trace_resp, obs_resp]
-        mock_client_fn.return_value = mock_cm
+        mock_client.get.side_effect = [trace_resp, obs_resp]
+        mock_client_fn.return_value = mock_client
 
         trace, observations = get_trace("t1")
 
@@ -309,29 +295,21 @@ class TestGetSessionTracesSummary:
             TraceResult(id="t2", name="b", session_id="s1", timestamp="ts", status="error"),
         ]
 
-        mock_cm = MagicMock()
-        mock_cm.__enter__ = MagicMock(return_value=mock_cm)
-        mock_cm.__exit__ = MagicMock(return_value=False)
+        mock_client = MagicMock()
 
-        obs_resp_1 = MagicMock()
-        obs_resp_1.json.return_value = {
+        # Optimized code now makes a SINGLE batch call for all observations
+        batch_obs_resp = MagicMock()
+        batch_obs_resp.json.return_value = {
             "data": [
-                {"name": "Read", "level": "DEFAULT"},
-                {"name": "Write", "level": "DEFAULT"},
+                {"traceId": "t1", "name": "Read", "level": "DEFAULT"},
+                {"traceId": "t1", "name": "Write", "level": "DEFAULT"},
+                {"traceId": "t2", "name": "Read", "level": "ERROR"},
             ]
         }
-        obs_resp_1.raise_for_status = MagicMock()
+        batch_obs_resp.raise_for_status = MagicMock()
 
-        obs_resp_2 = MagicMock()
-        obs_resp_2.json.return_value = {
-            "data": [
-                {"name": "Read", "level": "ERROR"},
-            ]
-        }
-        obs_resp_2.raise_for_status = MagicMock()
-
-        mock_cm.get.side_effect = [obs_resp_1, obs_resp_2]
-        mock_client_fn.return_value = mock_cm
+        mock_client.get.return_value = batch_obs_resp
+        mock_client_fn.return_value = mock_client
 
         summary = get_session_traces_summary("s1")
 
@@ -342,6 +320,11 @@ class TestGetSessionTracesSummary:
         assert summary.error_count == 2
         assert summary.tool_counts["Read"] == 2
         assert summary.tool_counts["Write"] == 1
+
+        # Verify it made a single batch call with sessionId parameter
+        mock_client.get.assert_called_once()
+        call_args = mock_client.get.call_args
+        assert call_args[1]["params"]["sessionId"] == "s1"
 
 
 # ---------------------------------------------------------------------------

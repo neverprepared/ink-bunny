@@ -9,6 +9,12 @@ import httpx
 
 from .config import settings
 
+# ---------------------------------------------------------------------------
+# Cached HTTPx client for connection pooling
+# ---------------------------------------------------------------------------
+
+_httpx_client: httpx.Client | None = None
+
 
 @dataclass(frozen=True)
 class TraceResult:
@@ -57,20 +63,23 @@ def _auth_header() -> str:
 
 
 def _client() -> httpx.Client:
-    """Create an httpx client with auth and base URL. Per-request, not cached."""
-    return httpx.Client(
-        base_url=settings.langfuse.base_url,
-        headers={"Authorization": _auth_header()},
-        timeout=10.0,
-    )
+    """Get cached httpx client with connection pooling and auth."""
+    global _httpx_client
+    if _httpx_client is None:
+        _httpx_client = httpx.Client(
+            base_url=settings.langfuse.base_url,
+            headers={"Authorization": _auth_header()},
+            timeout=10.0,
+        )
+    return _httpx_client
 
 
 def health_check() -> bool:
     """Check if LangFuse is reachable."""
     try:
-        with _client() as c:
-            resp = c.get("/api/public/health")
-            return resp.status_code == 200
+        c = _client()
+        resp = c.get("/api/public/health")
+        return resp.status_code == 200
     except Exception:
         return False
 
@@ -78,13 +87,13 @@ def health_check() -> bool:
 def list_traces(session_id: str, limit: int = 50) -> list[TraceResult]:
     """List traces for a session."""
     try:
-        with _client() as c:
-            resp = c.get(
-                "/api/public/traces",
-                params={"sessionId": session_id, "limit": limit},
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        c = _client()
+        resp = c.get(
+            "/api/public/traces",
+            params={"sessionId": session_id, "limit": limit},
+        )
+        resp.raise_for_status()
+        data = resp.json()
 
         results = []
         for t in data.get("data", []):
@@ -109,17 +118,17 @@ def list_traces(session_id: str, limit: int = 50) -> list[TraceResult]:
 def get_trace(trace_id: str) -> tuple[TraceResult, list[ObservationResult]]:
     """Get a single trace with its observations."""
     try:
-        with _client() as c:
-            trace_resp = c.get(f"/api/public/traces/{trace_id}")
-            trace_resp.raise_for_status()
-            t = trace_resp.json()
+        c = _client()
+        trace_resp = c.get(f"/api/public/traces/{trace_id}")
+        trace_resp.raise_for_status()
+        t = trace_resp.json()
 
-            obs_resp = c.get(
-                "/api/public/observations",
-                params={"traceId": trace_id, "limit": 100},
-            )
-            obs_resp.raise_for_status()
-            obs_data = obs_resp.json()
+        obs_resp = c.get(
+            "/api/public/observations",
+            params={"traceId": trace_id, "limit": 100},
+        )
+        obs_resp.raise_for_status()
+        obs_data = obs_resp.json()
 
         status = "error" if t.get("level") == "ERROR" else "ok"
         trace = TraceResult(
@@ -152,33 +161,45 @@ def get_trace(trace_id: str) -> tuple[TraceResult, list[ObservationResult]]:
 
 
 def get_session_traces_summary(session_id: str) -> SessionSummary:
-    """Aggregate trace/observation counts for a session."""
+    """Aggregate trace/observation counts for a session.
+
+    Optimized to batch-fetch all observations in a single API call instead of
+    N+1 queries (one per trace).
+    """
     try:
         traces = list_traces(session_id, limit=100)
         total_traces = len(traces)
         error_count = sum(1 for t in traces if t.status == "error")
 
-        # Fetch observations for each trace to get tool breakdown
+        # Build a set of trace IDs for filtering observations
+        trace_ids = {t.id for t in traces}
+
+        # Batch-fetch ALL observations for the session in a single API call
         tool_counts: dict[str, int] = {}
         total_observations = 0
 
-        with _client() as c:
-            for t in traces:
-                try:
-                    obs_resp = c.get(
-                        "/api/public/observations",
-                        params={"traceId": t.id, "limit": 100},
-                    )
-                    obs_resp.raise_for_status()
-                    obs_data = obs_resp.json()
-                    for o in obs_data.get("data", []):
-                        total_observations += 1
-                        name = o.get("name", "unknown")
-                        tool_counts[name] = tool_counts.get(name, 0) + 1
-                        if o.get("level") == "ERROR":
-                            error_count += 1
-                except Exception:
-                    pass
+        c = _client()
+        try:
+            # Fetch all observations for this session (single API call)
+            obs_resp = c.get(
+                "/api/public/observations",
+                params={"sessionId": session_id, "limit": 1000},
+            )
+            obs_resp.raise_for_status()
+            obs_data = obs_resp.json()
+
+            # Process observations, filtering to only those in our trace set
+            for o in obs_data.get("data", []):
+                # Only count observations that belong to the traces we fetched
+                if o.get("traceId") in trace_ids:
+                    total_observations += 1
+                    name = o.get("name", "unknown")
+                    tool_counts[name] = tool_counts.get(name, 0) + 1
+                    if o.get("level") == "ERROR":
+                        error_count += 1
+        except Exception:
+            # If batch fetch fails, return partial data from traces
+            pass
 
         return SessionSummary(
             session_id=session_id,
