@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/neverprepared/shell-profile-manager/internal/templates"
 	"github.com/neverprepared/shell-profile-manager/internal/ui"
 )
 
@@ -350,65 +351,87 @@ func updateEnvrc(profileDir, _profileName string, dryRun, _force bool) (bool, er
 
 func updateEnvFile(profileDir, profileName string, dryRun bool) (bool, error) {
 	envPath := filepath.Join(profileDir, ".env")
-	var envContent string
 
-	if data, err := os.ReadFile(envPath); err == nil {
-		envContent = string(data)
+	// Check if .env already exists
+	if _, err := os.Stat(envPath); os.IsNotExist(err) {
+		// Create new .env file from template
+		if !dryRun {
+			// Determine template type from .envrc or default to "basic"
+			templateType := "basic"
+			envrcPath := filepath.Join(profileDir, ".envrc")
+			if data, err := os.ReadFile(envrcPath); err == nil {
+				lines := strings.Split(string(data), "\n")
+				for _, line := range lines {
+					if strings.HasPrefix(line, "# Template:") {
+						parts := strings.SplitN(line, ":", 2)
+						if len(parts) == 2 {
+							templateType = strings.TrimSpace(parts[1])
+							break
+						}
+					}
+				}
+			}
+
+			envContent, err := templates.RenderEnv(profileName, templateType)
+			if err != nil {
+				return false, fmt.Errorf("failed to render .env template: %w", err)
+			}
+
+			if err := os.WriteFile(envPath, []byte(envContent), 0644); err != nil {
+				return false, fmt.Errorf("failed to write .env: %w", err)
+			}
+		}
+		return true, nil
 	}
 
+	// File exists - ADDITIVE ONLY: check for missing variables and append them
+	envContent, err := os.ReadFile(envPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to read .env: %w", err)
+	}
+
+	content := string(envContent)
 	updated := false
 
-	// Define tool-specific variables that should be in .env
-	requiredVars := []struct {
-		name    string
-		value   string
-		comment string
-	}{
-		{"GIT_CONFIG_GLOBAL", `"$WORKSPACE_HOME/.gitconfig"`, "# Git configuration"},
-		{"GIT_SSH_COMMAND", `"ssh -F $WORKSPACE_HOME/.ssh/config"`, "# SSH configuration\n# Use workspace-specific SSH config instead of $HOME/.ssh/config"},
-		{"XDG_CONFIG_HOME", `"$WORKSPACE_HOME/.config"`, "# XDG Base Directory specification\n# Point all XDG-compliant tools to workspace-specific config"},
-		{"SSH_AUTH_SOCK", `"$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"`, "# 1Password SSH Agent\n# Point to 1Password SSH agent socket for SSH key management"},
-		{"AWS_CONFIG_FILE", `"$WORKSPACE_HOME/.aws/config"`, "# AWS configuration\n# Point AWS CLI and SDKs to workspace-specific config and credentials"},
-		{"AWS_SHARED_CREDENTIALS_FILE", `"$WORKSPACE_HOME/.aws/credentials"`, ""},
-		{"KUBECONFIG", `"$WORKSPACE_HOME/.kube/config"`, "# Kubernetes configuration\n# Point kubectl to workspace-specific kubeconfig"},
-		{"TF_CLI_CONFIG_FILE", `"$WORKSPACE_HOME/.terraformrc"`, "# Terraform configuration\n# Use workspace-specific Terraform CLI config"},
-		{"AZURE_CONFIG_DIR", `"$WORKSPACE_HOME/.azure"`, "# Azure CLI configuration\n# Point Azure CLI to workspace-specific config directory"},
-		{"CLOUDSDK_CONFIG", `"$WORKSPACE_HOME/.gcloud"`, "# Google Cloud SDK configuration\n# Point gcloud CLI to workspace-specific config directory"},
-		{"CLAUDE_CONFIG_DIR", `"$WORKSPACE_HOME/.config/claude"`, "# Claude Code configuration\n# Point Claude Code to workspace-specific config directory"},
-		{"GEMINI_CONFIG_DIR", `"$WORKSPACE_HOME/.config/gemini"`, "# Gemini CLI configuration\n# Point Gemini CLI to workspace-specific config directory"},
+	// Required variables with their values (from template)
+	requiredVars := map[string]string{
+		"GIT_CONFIG_GLOBAL":           `"$WORKSPACE_HOME/.gitconfig"`,
+		"GIT_SSH_COMMAND":             `"ssh -F $WORKSPACE_HOME/.ssh/config"`,
+		"XDG_CONFIG_HOME":             `"$WORKSPACE_HOME/.config"`,
+		"SSH_AUTH_SOCK":               `"$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"`,
+		"AWS_CONFIG_FILE":             `"$WORKSPACE_HOME/.aws/config"`,
+		"AWS_SHARED_CREDENTIALS_FILE": `"$WORKSPACE_HOME/.aws/credentials"`,
+		"KUBECONFIG":                  `"$WORKSPACE_HOME/.kube/config"`,
+		"TF_CLI_CONFIG_FILE":          `"$WORKSPACE_HOME/.terraformrc"`,
+		"AZURE_CONFIG_DIR":            `"$WORKSPACE_HOME/.azure"`,
+		"CLOUDSDK_CONFIG":             `"$WORKSPACE_HOME/.gcloud"`,
+		"CLAUDE_CONFIG_DIR":           `"$WORKSPACE_HOME/.config/claude"`,
+		"GEMINI_CONFIG_DIR":           `"$WORKSPACE_HOME/.config/gemini"`,
 	}
 
-	if envContent == "" {
-		// Create new .env file with all vars
-		envContent = fmt.Sprintf("# Environment variables for workspace profile: %s\n", profileName)
-		envContent += "# This file is loaded by direnv via dotenv_if_exists in .envrc\n"
-		envContent += "# Add tool-specific paths and non-secret config here (not in .envrc)\n"
-		envContent += "# For secrets, use .env.secrets.tpl with op:// references\n"
-
-		for _, v := range requiredVars {
-			if v.comment != "" {
-				envContent += "\n" + v.comment + "\n"
-			}
-			envContent += v.name + "=" + v.value + "\n"
-		}
-		updated = true
-	} else {
-		// Add missing variables
-		for _, v := range requiredVars {
-			if !strings.Contains(envContent, v.name+"=") {
-				addition := ""
-				if v.comment != "" {
-					addition += "\n" + v.comment + "\n"
-				}
-				addition += v.name + "=" + v.value + "\n"
-				envContent += addition
-				updated = true
-			}
+	// Find missing variables
+	var missingVars []string
+	for varName := range requiredVars {
+		if !strings.Contains(content, varName+"=") {
+			missingVars = append(missingVars, varName)
+			updated = true
 		}
 	}
 
 	if updated && !dryRun {
-		if err := os.WriteFile(envPath, []byte(envContent), 0644); err != nil {
+		// APPEND missing variables only - preserve existing content
+		appendContent := ""
+		if !strings.HasSuffix(content, "\n") {
+			appendContent = "\n"
+		}
+		appendContent += "\n# Added by shell-profiler update\n"
+
+		for _, varName := range missingVars {
+			appendContent += varName + "=" + requiredVars[varName] + "\n"
+		}
+
+		newContent := content + appendContent
+		if err := os.WriteFile(envPath, []byte(newContent), 0644); err != nil {
 			return false, fmt.Errorf("failed to write .env: %w", err)
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/neverprepared/shell-profile-manager/internal/templates"
 	"github.com/neverprepared/shell-profile-manager/internal/ui"
 )
 
@@ -230,107 +231,10 @@ func interactiveSetup(opts *CreateOptions) error {
 func createEnvrc(profileDir string, opts CreateOptions) error {
 	ui.PrintInfo("Creating .envrc...")
 
-	created := time.Now().UTC().Format("2006-01-02 15:04:05 UTC")
-
-	envrcContent := fmt.Sprintf(`#!/usr/bin/env bash
-# Workspace profile: %s
-# Template: %s
-# Created: %s
-
-# Workspace identification
-export WORKSPACE_PROFILE="%s"
-export WORKSPACE_HOME="$PWD"
-
-# Add custom bin directory to PATH (before system paths)
-# The bin/ssh wrapper uses the profile-specific SSH config
-# Git will automatically use bin/ssh since it's first in PATH
-PATH_add bin
-
-# Load global profile settings (exports only)
-# Environment variables work with direnv, aliases and functions do not
-GLOBAL_DIR="$(cd "$(dirname "$PWD")/.global" 2>/dev/null && pwd)"
-if [[ -d "$GLOBAL_DIR" ]]; then
-    # Source exports (environment variables work with direnv)
-    if [[ -f "$GLOBAL_DIR/exports.sh" && -r "$GLOBAL_DIR/exports.sh" ]]; then
-        source "$GLOBAL_DIR/exports.sh"
-    fi
-fi
-
-# Resolve profile environment (template .env + 1Password secrets)
-# Cached in volatile storage with configurable expiration
-_sp_cache="${TMPDIR:-/tmp}/sp-profiles/${WORKSPACE_PROFILE}"
-_sp_env="${_sp_cache}/.env"
-_sp_cache_hours="${SP_CACHE_HOURS:-2}"  # Default: 2 hours
-
-# Check if cache exists and is fresh
-_refresh_cache=false
-if [ ! -f "$_sp_env" ]; then
-    _refresh_cache=true
-elif command -v stat &>/dev/null; then
-    # Check cache age (in hours)
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS: stat -f %%m gives modification time in seconds since epoch
-        _cache_mtime=$(stat -f %%m "$_sp_env" 2>/dev/null || echo 0)
-    else
-        # Linux: stat -c %%Y gives modification time in seconds since epoch
-        _cache_mtime=$(stat -c %%Y "$_sp_env" 2>/dev/null || echo 0)
-    fi
-    _current_time=$(date +%%s)
-    _cache_age_hours=$(( (_current_time - _cache_mtime) / 3600 ))
-    if [ "$_cache_age_hours" -ge "$_sp_cache_hours" ]; then
-        _refresh_cache=true
-        log_status "Cache expired (${_cache_age_hours}h old, max ${_sp_cache_hours}h)"
-    fi
-fi
-
-if [ "$_refresh_cache" = true ]; then
-    mkdir -p "$_sp_cache" && chmod 700 "$_sp_cache"
-    # Start with template (tool paths, non-secret config)
-    cp .env "$_sp_env"
-    # Append 1Password secrets
-    _op_vault="workspace-${WORKSPACE_PROFILE}"
-    if command -v op &>/dev/null && command -v jq &>/dev/null; then
-        _op_ids=$(op item list --vault "$_op_vault" --format json 2>/dev/null | jq -r '.[].id' 2>/dev/null)
-        if [ -n "$_op_ids" ]; then
-            # Start progress indicator (background process that prints dots)
-            (
-                while true; do
-                    printf "." >&2
-                    sleep 1
-                done
-            ) &
-            _progress_pid=$!
-
-            echo "" >> "$_sp_env"
-            for _op_id in $_op_ids; do
-                op item get "$_op_id" --format json 2>/dev/null | jq -r '
-                    .title as $t |
-                    .fields[] |
-                    select(.value != "" and .value != null and .label != "" and .label != null and .id != "notesPlain" and .type != "OTP") |
-                    ($t + "_" + .label | gsub("[^A-Za-z0-9]"; "_") | gsub("_+"; "_") | gsub("^_|_$"; "") | ascii_upcase) + "=" + (.value | @sh)
-                ' >> "$_sp_env" 2>/dev/null
-            done
-
-            # Stop progress indicator
-            kill $_progress_pid 2>/dev/null
-            wait $_progress_pid 2>/dev/null
-            printf "\n" >&2
-
-            log_status "Loaded secrets from 1Password vault: $_op_vault"
-        fi
-    fi
-    chmod 600 "$_sp_env"
-fi
-
-# Load the resolved environment (template + secrets)
-dotenv_if_exists "$_sp_env"
-
-# Load local overrides
-dotenv_if_exists .envrc.local
-
-# Welcome message
-log_status "Loaded workspace profile: $WORKSPACE_PROFILE"
-`, opts.ProfileName, opts.Template, created, opts.ProfileName)
+	envrcContent, err := templates.RenderEnvrc(opts.ProfileName, opts.Template)
+	if err != nil {
+		return fmt.Errorf("failed to render .envrc template: %w", err)
+	}
 
 	envrcPath := filepath.Join(profileDir, ".envrc")
 	return os.WriteFile(envrcPath, []byte(envrcContent), 0644)
@@ -339,59 +243,10 @@ log_status "Loaded workspace profile: $WORKSPACE_PROFILE"
 func createEnvFile(profileDir string, opts CreateOptions) error {
 	ui.PrintInfo("Creating .env...")
 
-	envContent := fmt.Sprintf(`# Environment variables for workspace profile: %s
-# Template: %s
-#
-# This file is loaded by direnv via dotenv_if_exists in .envrc
-# Add tool-specific paths and non-secret config here (not in .envrc)
-# Secrets are loaded automatically from 1Password vault (workspace-<profile>)
-
-# Git configuration
-GIT_CONFIG_GLOBAL="$WORKSPACE_HOME/.gitconfig"
-
-# SSH configuration
-# Use workspace-specific SSH config instead of $HOME/.ssh/config
-GIT_SSH_COMMAND="ssh -F $WORKSPACE_HOME/.ssh/config"
-
-# XDG Base Directory specification
-# Point all XDG-compliant tools to workspace-specific config
-XDG_CONFIG_HOME="$WORKSPACE_HOME/.config"
-
-# 1Password SSH Agent
-# Point to 1Password SSH agent socket for SSH key management
-SSH_AUTH_SOCK="$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
-
-# AWS configuration
-# Point AWS CLI and SDKs to workspace-specific config and credentials
-AWS_CONFIG_FILE="$WORKSPACE_HOME/.aws/config"
-AWS_SHARED_CREDENTIALS_FILE="$WORKSPACE_HOME/.aws/credentials"
-
-# Kubernetes configuration
-# Point kubectl to workspace-specific kubeconfig
-KUBECONFIG="$WORKSPACE_HOME/.kube/config"
-
-# Terraform configuration
-# Use workspace-specific Terraform CLI config
-TF_CLI_CONFIG_FILE="$WORKSPACE_HOME/.terraformrc"
-# Optionally set workspace-specific plugin cache
-# TF_PLUGIN_CACHE_DIR="$WORKSPACE_HOME/.terraform.d/plugin-cache"
-
-# Azure CLI configuration
-# Point Azure CLI to workspace-specific config directory
-AZURE_CONFIG_DIR="$WORKSPACE_HOME/.azure"
-
-# Google Cloud SDK configuration
-# Point gcloud CLI to workspace-specific config directory
-CLOUDSDK_CONFIG="$WORKSPACE_HOME/.gcloud"
-
-# Claude Code configuration
-# Point Claude Code to workspace-specific config directory
-CLAUDE_CONFIG_DIR="$WORKSPACE_HOME/.config/claude"
-
-# Gemini CLI configuration
-# Point Gemini CLI to workspace-specific config directory
-GEMINI_CONFIG_DIR="$WORKSPACE_HOME/.config/gemini"
-`, opts.ProfileName, opts.Template)
+	envContent, err := templates.RenderEnv(opts.ProfileName, opts.Template)
+	if err != nil {
+		return fmt.Errorf("failed to render .env template: %w", err)
+	}
 
 	envPath := filepath.Join(profileDir, ".env")
 	return os.WriteFile(envPath, []byte(envContent), 0644)
@@ -400,104 +255,9 @@ GEMINI_CONFIG_DIR="$WORKSPACE_HOME/.config/gemini"
 func createGitconfig(profileDir string, opts CreateOptions) error {
 	ui.PrintInfo("Creating .gitconfig...")
 
-	gitName := opts.GitName
-	if gitName == "" {
-		gitName = "Your Name"
-	}
-
-	gitEmail := opts.GitEmail
-	if gitEmail == "" {
-		gitEmail = "your.email@example.com"
-	}
-
-	gitconfigContent := fmt.Sprintf(`# Git configuration for workspace profile: %s
-# Template: %s
-
-[user]
-    name = %s
-    email = %s
-
-[core]
-    editor = vim
-    autocrlf = input
-    whitespace = trailing-space,space-before-tab
-
-[init]
-    defaultBranch = main
-
-[push]
-    default = current
-    autoSetupRemote = true
-
-[pull]
-    rebase = false
-
-[fetch]
-    prune = true
-
-[merge]
-    conflictstyle = diff3
-
-[rebase]
-    autoStash = true
-    autoSquash = true
-
-[diff]
-    algorithm = histogram
-    colorMoved = default
-
-[log]
-    abbrevCommit = true
-    date = iso
-
-[color]
-    ui = auto
-
-[alias]
-    st = status -sb
-    lg = log --graph --pretty=format:'%%Cred%%h%%Creset -%%C(yellow)%%d%%Creset %%s %%Cgreen(%%cr) %%C(bold blue)<%%an>%%Creset' --abbrev-commit
-    br = branch -v
-    co = checkout
-    ci = commit
-    cm = commit -m
-    amend = commit --amend --no-edit
-    last = log -1 HEAD --stat
-    undo = reset HEAD~1 --mixed
-    aliases = config --get-regexp alias
-`, opts.ProfileName, opts.Template, gitName, gitEmail)
-
-	// Add template-specific configuration
-	switch opts.Template {
-	case "personal":
-		gitconfigContent += `
-# Personal project settings
-[commit]
-    verbose = true
-
-[credential]
-    helper = cache --timeout=3600
-`
-	case "work":
-		gitconfigContent += `
-# Work project settings
-[commit]
-    verbose = true
-    # Uncomment to enable GPG signing
-    # gpgsign = true
-
-[credential]
-    helper = cache --timeout=7200
-`
-	case "client":
-		gitconfigContent += `
-# Client project settings
-[commit]
-    verbose = true
-    # gpgsign = true
-
-[credential]
-    helper = cache --timeout=3600
-`
+	gitconfigContent, err := templates.RenderGitconfig(opts.ProfileName, opts.Template, opts.GitName, opts.GitEmail)
+	if err != nil {
+		return fmt.Errorf("failed to render .gitconfig template: %w", err)
 	}
 
 	gitconfigPath := filepath.Join(profileDir, ".gitconfig")
