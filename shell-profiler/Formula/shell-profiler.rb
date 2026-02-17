@@ -1,27 +1,27 @@
 class ShellProfiler < Formula
   desc "Workspace profile manager using direnv for environment-specific configurations"
   homepage "https://github.com/neverprepared/ink-bunny"
-  version "0.3.0"
+  version "0.4.0"
 
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/neverprepared/ink-bunny/releases/download/shell-profiler/v#{version}/shell-profiler-v#{version}-darwin-arm64.tar.gz"
-      sha256 "6f71d9bb511f87542da6dc435db513125c3f78c65e388e1e5d871cd6bbc57cdc" # darwin-arm64
+      sha256 "fb5cdec889ee6e734afc4127ba76017eacc4e67ad3456d1ae3249c7ac5c9495f" # darwin-arm64
     end
     if Hardware::CPU.intel?
       url "https://github.com/neverprepared/ink-bunny/releases/download/shell-profiler/v#{version}/shell-profiler-v#{version}-darwin-amd64.tar.gz"
-      sha256 "a795c361c6b1d6f5312b90b9fb3fc6bbd3d873b33f69ecc05c12ce32fd202546" # darwin-amd64
+      sha256 "3c517a811d390481c5284e97edc90b8efc4331a344d1dae9f1719405792d4a60" # darwin-amd64
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
       url "https://github.com/neverprepared/ink-bunny/releases/download/shell-profiler/v#{version}/shell-profiler-v#{version}-linux-arm64.tar.gz"
-      sha256 "8bbc77e6ae3d0ef8980bd47262d7dc745085c09cfd7da6e7e269adaa1f346551" # linux-arm64
+      sha256 "b77bc06277a9b9a387f1b65a9a8fd33ffb553104120a3656db4029a4fa6ae5bd" # linux-arm64
     end
     if Hardware::CPU.intel?
       url "https://github.com/neverprepared/ink-bunny/releases/download/shell-profiler/v#{version}/shell-profiler-v#{version}-linux-amd64.tar.gz"
-      sha256 "5a70e164a9d93ba8e7e1f0a0c69d6216c5d0b9b195ffa1655be05f8573cfc471" # linux-amd64
+      sha256 "7ae90ad6eaaf70dac86db7c3f41ce57086668a49ccafce6070fc3f84df4c604b" # linux-amd64
     end
   end
 
