@@ -671,44 +671,108 @@ func updateEnvrcVaultDiscovery(profileDir, profileName string, dryRun bool) (boo
 	}
 
 	vaultDiscoveryBlock := fmt.Sprintf(`
-# Load secrets from 1Password vault (auto-discovered from vault items)
-_op_vault="workspace-%s"
-if command -v op &>/dev/null && command -v jq &>/dev/null; then
-    _op_ids=$(op item list --vault "$_op_vault" --format json 2>/dev/null | jq -r '.[].id' 2>/dev/null)
-    if [ -n "$_op_ids" ]; then
-        for _op_id in $_op_ids; do
-            eval "$(op item get "$_op_id" --format json 2>/dev/null | jq -r '
-                .title as $t |
-                .fields[] |
-                select(.value != "" and .value != null and .label != "" and .label != null and .id != "notesPlain" and .type != "OTP") |
-                "export " + ($t + "_" + .label | gsub("[^A-Za-z0-9]"; "_") | gsub("_+"; "_") | gsub("^_|_$"; "") | ascii_upcase) + "=" + (.value | @sh)
-            ' 2>/dev/null)"
-        done
-        log_status "Loaded secrets from 1Password vault: $_op_vault"
+# Resolve profile environment (template .env + 1Password secrets)
+# Cached in volatile storage with configurable expiration
+_sp_cache="${TMPDIR:-/tmp}/sp-profiles/${WORKSPACE_PROFILE}"
+_sp_env="${_sp_cache}/.env"
+_sp_cache_hours="${SP_CACHE_HOURS:-2}"  # Default: 2 hours
+
+# Check if cache exists and is fresh
+_refresh_cache=false
+if [ ! -f "$_sp_env" ]; then
+    _refresh_cache=true
+elif command -v stat &>/dev/null; then
+    # Check cache age (in hours)
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS: stat -f %%m gives modification time in seconds since epoch
+        _cache_mtime=$(stat -f %%m "$_sp_env" 2>/dev/null || echo 0)
+    else
+        # Linux: stat -c %%Y gives modification time in seconds since epoch
+        _cache_mtime=$(stat -c %%Y "$_sp_env" 2>/dev/null || echo 0)
+    fi
+    _current_time=$(date +%%s)
+    _cache_age_hours=$(( (_current_time - _cache_mtime) / 3600 ))
+    if [ "$_cache_age_hours" -ge "$_sp_cache_hours" ]; then
+        _refresh_cache=true
+        log_status "Cache expired (${_cache_age_hours}h old, max ${_sp_cache_hours}h)"
     fi
 fi
+
+if [ "$_refresh_cache" = true ]; then
+    mkdir -p "$_sp_cache" && chmod 700 "$_sp_cache"
+    # Start with template (tool paths, non-secret config)
+    cp .env "$_sp_env"
+    # Append 1Password secrets
+    _op_vault="workspace-%s"
+    if command -v op &>/dev/null && command -v jq &>/dev/null; then
+        _op_ids=$(op item list --vault "$_op_vault" --format json 2>/dev/null | jq -r '.[].id' 2>/dev/null)
+        if [ -n "$_op_ids" ]; then
+            # Start progress indicator (background process that prints dots)
+            (
+                while true; do
+                    printf "." >&2
+                    sleep 1
+                done
+            ) &
+            _progress_pid=$!
+
+            echo "" >> "$_sp_env"
+            for _op_id in $_op_ids; do
+                op item get "$_op_id" --format json 2>/dev/null | jq -r '
+                    .title as $t |
+                    .fields[] |
+                    select(.value != "" and .value != null and .label != "" and .label != null and .id != "notesPlain" and .type != "OTP") |
+                    ($t + "_" + .label | gsub("[^A-Za-z0-9]"; "_") | gsub("_+"; "_") | gsub("^_|_$"; "") | ascii_upcase) + "=" + (.value | @sh)
+                ' >> "$_sp_env" 2>/dev/null
+            done
+
+            # Stop progress indicator
+            kill $_progress_pid 2>/dev/null
+            wait $_progress_pid 2>/dev/null
+            printf "\n" >&2
+
+            log_status "Loaded secrets from 1Password vault: $_op_vault"
+        fi
+    fi
+    chmod 600 "$_sp_env"
+fi
+
+# Load the resolved environment (template + secrets)
+dotenv_if_exists "$_sp_env"
 `, strings.ToLower(profileName))
 
-	// Insert after "dotenv_if_exists .env" line
-	dotenvIdx := strings.Index(envrcContent, "dotenv_if_exists .env")
-	if dotenvIdx == -1 {
-		localIdx := strings.Index(envrcContent, "dotenv_if_exists .envrc.local")
-		if localIdx == -1 {
-			localIdx = strings.Index(envrcContent, "# Welcome message")
+	// Remove old "dotenv_if_exists .env" line (but keep .envrc.local)
+	lines := strings.Split(envrcContent, "\n")
+	var cleanedLines []string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		// Remove "dotenv_if_exists .env" but keep ".envrc.local" and other dotenv lines
+		if trimmed == "dotenv_if_exists .env" || strings.Contains(trimmed, "# Load environment variables from .env file") ||
+		   (strings.HasPrefix(trimmed, "# Tool-specific") && strings.Contains(trimmed, "belong in .env")) {
+			continue
 		}
-		if localIdx == -1 {
-			envrcContent += vaultDiscoveryBlock
-		} else {
-			envrcContent = envrcContent[:localIdx] + vaultDiscoveryBlock + "\n" + envrcContent[localIdx:]
-		}
+		cleanedLines = append(cleanedLines, line)
+	}
+	envrcContent = strings.Join(cleanedLines, "\n")
+
+	// Insert vault discovery block before "dotenv_if_exists .envrc.local" or "# Welcome message"
+	localIdx := strings.Index(envrcContent, "dotenv_if_exists .envrc.local")
+	if localIdx == -1 {
+		localIdx = strings.Index(envrcContent, "# Welcome message")
+	}
+	if localIdx == -1 {
+		localIdx = strings.Index(envrcContent, "log_status")
+	}
+
+	if localIdx == -1 {
+		envrcContent += "\n" + vaultDiscoveryBlock
 	} else {
-		lineEnd := strings.Index(envrcContent[dotenvIdx:], "\n")
-		if lineEnd == -1 {
-			envrcContent += vaultDiscoveryBlock
-		} else {
-			insertAt := dotenvIdx + lineEnd + 1
-			envrcContent = envrcContent[:insertAt] + vaultDiscoveryBlock + envrcContent[insertAt:]
+		// Walk back to remove any blank lines
+		insertAt := localIdx
+		for insertAt > 0 && envrcContent[insertAt-1] == '\n' {
+			insertAt--
 		}
+		envrcContent = envrcContent[:insertAt] + "\n" + vaultDiscoveryBlock + "\n" + envrcContent[insertAt:]
 	}
 
 	if dryRun {
