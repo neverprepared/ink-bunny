@@ -93,6 +93,18 @@ brew install claudeai/claude-code/claude-code
 
    If this works, SSH is configured correctly.
 
+4. **Configure passwordless sudo** (required for VirtioFS mounting):
+   ```bash
+   # Add developer user to sudoers with NOPASSWD
+   echo 'developer ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/developer
+   sudo chmod 440 /etc/sudoers.d/developer
+
+   # Test passwordless sudo
+   sudo -n true
+   ```
+
+   If the test succeeds with no password prompt, passwordless sudo is configured correctly.
+
 ## Step 5: Configure Network for Port Forwarding
 
 UTM needs to be configured to forward SSH from guest to host:
@@ -122,7 +134,34 @@ Brainbox will automatically:
 - Set `hasCompletedOnboarding: true`
 - Configure bypass permissions mode
 
-## Step 7: Optimize VM for Cloning
+## Step 7: Configure Shared Directories (Optional)
+
+To share files between the host and VM:
+
+1. **Stop the template VM** (must be stopped to edit settings)
+2. **In UTM**, right-click the VM → "Edit"
+3. Go to **Sharing** tab
+4. Click **"+"** to add a shared directory
+5. Select the directory you want to share (e.g., your project directory)
+6. Click **Save**
+
+**How it works:**
+- Shared directories automatically appear at `/Volumes/My Shared Files/<folder-name>` inside the VM
+- No manual mounting required - they're available immediately after VM boot
+- You can access them directly or create symlinks to convenient locations
+
+**Example:**
+```bash
+# Inside the VM, after sharing ~/projects from host:
+ls "/Volumes/My Shared Files/projects"
+
+# Create a convenient symlink:
+ln -s "/Volumes/My Shared Files/projects" ~/workspace
+```
+
+**Note:** Currently, shared directories must be configured manually through UTM's GUI. Programmatic configuration via the API is not yet supported for Apple VMs.
+
+## Step 8: Optimize VM for Cloning
 
 Before shutting down the template:
 
@@ -139,7 +178,7 @@ sudo rm -rf ~/Library/Caches/*
 sudo rm -rf /var/log/*
 ```
 
-## Step 8: Final Shutdown
+## Step 9: Final Shutdown
 
 1. **Shut down the VM cleanly**: Apple menu → Shut Down
 2. **Verify VM is stopped** in UTM
