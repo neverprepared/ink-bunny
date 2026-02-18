@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from .config import settings
 from .rate_limit import limiter, rate_limit_exceeded_handler
 from .hub import init as hub_init, shutdown as hub_shutdown
-from .monitor import _calc_cpu, _human_bytes
+from .backends.docker import _calc_cpu, _human_bytes
 from .lifecycle import (
     _docker,
     provision,
@@ -242,7 +242,37 @@ def _extract_role(container: Any) -> str:
 
 
 def _get_sessions_info() -> list[dict[str, Any]]:
-    """Get session info from Docker."""
+    """Get session info from all backends (Docker + UTM)."""
+    from .backends import create_backend
+
+    sessions = []
+
+    # Get Docker sessions
+    try:
+        docker_backend = create_backend("docker")
+        docker_sessions = docker_backend.get_sessions_info()
+        for sess in docker_sessions:
+            # Add legacy fields for backward compatibility
+            sess["session_name"] = _extract_session_name(sess["name"])
+            sess["role"] = sess.get("role", "developer")
+        sessions.extend(docker_sessions)
+    except Exception as exc:
+        log.warning("docker.list_sessions_failed", metadata={"reason": str(exc)})
+
+    # Get UTM sessions
+    try:
+        utm_backend = create_backend("utm")
+        utm_sessions = utm_backend.get_sessions_info()
+        sessions.extend(utm_sessions)
+    except Exception as exc:
+        log.warning("utm.list_sessions_failed", metadata={"reason": str(exc)})
+
+    # Return sessions from all backends
+    return sessions
+
+
+def _get_sessions_info_legacy() -> list[dict[str, Any]]:
+    """Legacy Docker-only session listing (deprecated)."""
     sessions = []
     try:
         client = _docker()
@@ -281,6 +311,7 @@ def _get_sessions_info() -> list[dict[str, Any]]:
 
             sessions.append(
                 {
+                    "backend": "docker",
                     "name": name,
                     "session_name": _extract_session_name(name),
                     "role": _extract_role(c),
@@ -293,8 +324,8 @@ def _get_sessions_info() -> list[dict[str, Any]]:
                     "workspace_profile": workspace_profile,
                 }
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        log.warning("docker.list_sessions_failed", metadata={"reason": str(exc)})
 
     sessions.sort(key=lambda s: (not s["active"], s["name"]))
     return sessions
@@ -530,9 +561,25 @@ async def api_create_session(request: Request, body: CreateSessionRequest):
             ollama_host=body.ollama_host,
             workspace_profile=body.workspace_profile,
             workspace_home=body.workspace_home,
+            backend=body.backend,
+            vm_template=body.vm_template,
         )
         _audit_log(request, "session.create", session_name=body.name, success=True)
-        return {"success": True, "url": f"http://localhost:{ctx.port}"}
+
+        # Response format depends on backend
+        if ctx.backend == "utm":
+            return {
+                "success": True,
+                "backend": "utm",
+                "ssh_port": ctx.ssh_port,
+                "url": None,
+            }
+        else:
+            return {
+                "success": True,
+                "backend": "docker",
+                "url": f"http://localhost:{ctx.port}",
+            }
     except Exception as exc:
         _audit_log(request, "session.create", session_name=body.name, success=False, error=str(exc))
         log.error("session.create.failed", metadata={"error": str(exc)})

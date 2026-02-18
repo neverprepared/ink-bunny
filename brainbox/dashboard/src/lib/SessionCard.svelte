@@ -68,6 +68,9 @@
   let displayUrl = $derived(session.url ? session.url.replace('http://', '') : '');
   let llmVisibility = $derived(session.llm_provider === 'ollama' ? 'private' : 'public');
   let workspaceProfile = $derived((session.workspace_profile || '').toUpperCase());
+  let backend = $derived(session.backend || 'docker');
+  let isUTM = $derived(backend === 'utm');
+  let sshCommand = $derived(isUTM ? `ssh -p ${session.ssh_port || 2200} developer@localhost` : '');
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -89,6 +92,7 @@
       onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onInfo(session.name); } }}
       aria-label={`View details for ${displayName}`}
     >{displayName}</a>
+    <Badge type="backend" variant={backend} text={isUTM ? 'macOS VM' : 'Container'} />
     <Badge type="role" variant={displayRole} text={displayRole} />
     <Badge type="provider" variant={llmVisibility} text={llmVisibility} />
     {#if workspaceProfile}
@@ -98,7 +102,11 @@
 
   <div class="card-url">
     {#if session.active}
-      <a href={session.url} target="_blank" aria-label={`Open ${displayName} in new tab at ${displayUrl}`}>{displayUrl}</a>
+      {#if isUTM}
+        <code class="ssh-command" title="Copy and paste this command to connect via SSH">{sshCommand}</code>
+      {:else}
+        <a href={session.url} target="_blank" aria-label={`Open ${displayName} in new tab at ${displayUrl}`}>{displayUrl}</a>
+      {/if}
     {:else}
       <button class="start-btn" onclick={handleStart} disabled={isStarting} aria-label={`Start session ${displayName}`}>
         {isStarting ? 'starting...' : 'start'}
@@ -171,6 +179,22 @@
     font-size: 12px;
   }
   .card-url a:hover { text-decoration: underline; }
+
+  .ssh-command {
+    display: inline-block;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #3b82f6;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-size: 11px;
+    user-select: all;
+    cursor: text;
+  }
+  .ssh-command:hover {
+    background: rgba(59, 130, 246, 0.15);
+  }
 
   .card-detail {
     font-size: 13px;

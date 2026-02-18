@@ -271,8 +271,9 @@ class TestProvisionCosignIntegration:
         ]
         mock_client.containers.create.return_value = mock_container
 
-        # Patch docker client at module level
+        # Patch docker client at lifecycle level (used for cosign checks and backend)
         monkeypatch.setattr("brainbox.lifecycle._client", mock_client)
+        monkeypatch.setattr("brainbox.backends.docker._client", mock_client)
 
         # Clear session state
         import brainbox.lifecycle as lc
@@ -289,12 +290,9 @@ class TestProvisionCosignIntegration:
         from brainbox.lifecycle import provision
 
         with patch("brainbox.lifecycle.verify_image") as mock_verify:
-            # containers.get raises NotFound for the "remove old container" step
-            mock_docker[0].containers.get.side_effect = [
-                mock_docker[1],  # images.get returns the mock image
-                NotFound("not found"),  # old container check
-            ]
+            # Backend flow: images.get, containers.get (for old), containers.create
             mock_docker[0].images.get.return_value = mock_docker[1]
+            mock_docker[0].containers.get.side_effect = NotFound("not found")
 
             ctx = await provision(session_name="test-off")
             mock_verify.assert_not_called()
@@ -307,11 +305,8 @@ class TestProvisionCosignIntegration:
 
         from brainbox.lifecycle import provision
 
-        mock_docker[0].containers.get.side_effect = [
-            mock_docker[1],
-            NotFound("not found"),
-        ]
         mock_docker[0].images.get.return_value = mock_docker[1]
+        mock_docker[0].containers.get.side_effect = NotFound("not found")
 
         with patch("brainbox.lifecycle.verify_image") as mock_verify:
             ctx = await provision(session_name="test-warn-nokey")
@@ -341,11 +336,8 @@ class TestProvisionCosignIntegration:
         monkeypatch.setattr(settings.cosign, "mode", "warn")
         monkeypatch.setattr(settings.cosign, "key", str(key_file))
 
-        mock_docker[0].containers.get.side_effect = [
-            mock_docker[1],
-            NotFound("not found"),
-        ]
         mock_docker[0].images.get.return_value = mock_docker[1]
+        mock_docker[0].containers.get.side_effect = NotFound("not found")
 
         failed_result = CosignResult(
             verified=False, image_ref="test-image@sha256:abc123", stdout="", stderr="no sig"
@@ -417,11 +409,8 @@ class TestProvisionCosignIntegration:
             settings.cosign, "oidc_issuer", "https://token.actions.githubusercontent.com"
         )
 
-        mock_docker[0].containers.get.side_effect = [
-            mock_docker[1],
-            NotFound("not found"),
-        ]
         mock_docker[0].images.get.return_value = mock_docker[1]
+        mock_docker[0].containers.get.side_effect = NotFound("not found")
 
         ok_result = CosignResult(
             verified=True, image_ref="test-image@sha256:abc123", stdout="ok", stderr=""
@@ -470,11 +459,8 @@ class TestProvisionCosignIntegration:
             settings.cosign, "oidc_issuer", "https://token.actions.githubusercontent.com"
         )
 
-        mock_docker[0].containers.get.side_effect = [
-            mock_docker[1],
-            NotFound("not found"),
-        ]
         mock_docker[0].images.get.return_value = mock_docker[1]
+        mock_docker[0].containers.get.side_effect = NotFound("not found")
 
         ok_result = CosignResult(
             verified=True, image_ref="test-image@sha256:abc123", stdout="ok", stderr=""

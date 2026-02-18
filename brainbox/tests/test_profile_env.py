@@ -734,6 +734,7 @@ class TestProvisionProfileMounts:
 
         with (
             patch("brainbox.lifecycle._docker", return_value=mock_client),
+            patch("brainbox.backends.docker._docker", return_value=mock_client),
             patch("brainbox.lifecycle._find_available_port", return_value=7681),
             patch("brainbox.lifecycle._verify_cosign", new_callable=AsyncMock),
             patch("brainbox.lifecycle._resolve_profile_mounts", return_value=profile_mounts),
@@ -762,6 +763,7 @@ class TestProvisionProfileMounts:
 
         with (
             patch("brainbox.lifecycle._docker", return_value=mock_client),
+            patch("brainbox.backends.docker._docker", return_value=mock_client),
             patch("brainbox.lifecycle._find_available_port", return_value=7681),
             patch("brainbox.lifecycle._verify_cosign", new_callable=AsyncMock),
             patch("brainbox.lifecycle._resolve_profile_mounts", return_value={}),
@@ -786,6 +788,7 @@ class TestProvisionProfileMounts:
 
         with (
             patch("brainbox.lifecycle._docker", return_value=mock_client),
+            patch("brainbox.backends.docker._docker", return_value=mock_client),
             patch("brainbox.lifecycle._find_available_port", return_value=7681),
             patch("brainbox.lifecycle._verify_cosign", new_callable=AsyncMock),
             patch("brainbox.lifecycle._resolve_profile_mounts", return_value={}),
@@ -808,6 +811,7 @@ class TestProvisionProfileMounts:
 
         with (
             patch("brainbox.lifecycle._docker", return_value=mock_client),
+            patch("brainbox.backends.docker._docker", return_value=mock_client),
             patch("brainbox.lifecycle._find_available_port", return_value=7681),
             patch("brainbox.lifecycle._verify_cosign", new_callable=AsyncMock),
             patch("brainbox.lifecycle._resolve_profile_mounts", return_value={}) as mock_mounts,
@@ -837,6 +841,7 @@ class TestProvisionProfileMounts:
 
         with (
             patch("brainbox.lifecycle._docker", return_value=mock_client),
+            patch("brainbox.backends.docker._docker", return_value=mock_client),
             patch("brainbox.lifecycle._find_available_port", return_value=7681),
             patch("brainbox.lifecycle._verify_cosign", new_callable=AsyncMock),
             patch("brainbox.lifecycle._resolve_profile_mounts", return_value={}),
@@ -897,6 +902,7 @@ class TestStartProfileEnv:
         sessions = {ctx_with_profile.session_name: ctx_with_profile}
         with (
             patch("brainbox.lifecycle._docker", return_value=mock_client),
+            patch("brainbox.backends.docker._docker", return_value=mock_client),
             patch("brainbox.lifecycle._sessions", sessions),
             patch("brainbox.lifecycle._resolve_profile_env", return_value=profile_env_content),
         ):
@@ -931,6 +937,7 @@ class TestStartProfileEnv:
         sessions = {ctx_without_profile.session_name: ctx_without_profile}
         with (
             patch("brainbox.lifecycle._docker", return_value=mock_client),
+            patch("brainbox.backends.docker._docker", return_value=mock_client),
             patch("brainbox.lifecycle._sessions", sessions),
             patch("brainbox.lifecycle._resolve_profile_env", return_value=None),
         ):
@@ -967,6 +974,7 @@ class TestStartProfileEnv:
         sessions = {ctx.session_name: ctx}
         with (
             patch("brainbox.lifecycle._docker", return_value=mock_client),
+            patch("brainbox.backends.docker._docker", return_value=mock_client),
             patch("brainbox.lifecycle._sessions", sessions),
             patch("brainbox.lifecycle._resolve_profile_env", return_value=None) as mock_env,
         ):

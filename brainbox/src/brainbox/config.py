@@ -100,6 +100,14 @@ class OllamaSettings(BaseSettings):
     model: str = "qwen3-coder"
 
 
+class UTMSettings(BaseSettings):
+    default_template: str = "brainbox-macos-template"
+    ssh_base_port: int = 2200
+    utmctl_path: str = "/usr/local/bin/utmctl"
+    ssh_key_path: str = ""  # Empty = use ~/.ssh/id_ed25519
+    docs_dir: str = ""  # Empty = use ~/Library/Containers/com.utmapp.UTM/Data/Documents
+
+
 class HubSettings(BaseSettings):
     flush_interval: int = 30  # seconds
     prune_completed_after: int = 3600  # seconds
@@ -129,6 +137,7 @@ class Settings(BaseSettings):
     profile: ProfileSettings = Field(default_factory=ProfileSettings)
     hub: HubSettings = Field(default_factory=HubSettings)
     ollama: OllamaSettings = Field(default_factory=OllamaSettings)
+    utm: UTMSettings = Field(default_factory=UTMSettings)
 
     model_config = {"env_prefix": "CL_", "env_nested_delimiter": "__"}
 

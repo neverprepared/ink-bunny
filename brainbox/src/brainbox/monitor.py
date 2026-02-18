@@ -37,91 +37,79 @@ def stop_monitoring(session_name: str) -> None:
 
 
 async def _monitor_loop() -> None:
-    """Periodically check health of all tracked containers."""
+    """Periodically check health of all tracked sessions (Docker + UTM)."""
+    from .backends import create_backend
     from .config import settings
+    from .models import SessionState
+    import time
 
-    import docker
-    from docker.errors import NotFound
-
-    client = docker.from_env()
     interval = settings.health_check_interval
 
     while _tracked:
         for name, ctx in list(_tracked.items()):
-            try:
-                container = client.containers.get(ctx.container_name)
-                container.reload()
-                is_running = container.attrs["State"]["Running"]
+            slog = get_logger(session_name=name, container_name=ctx.container_name)
 
-                if not is_running:
+            try:
+                # Delegate health check to backend
+                backend = create_backend(ctx.backend)
+                health = await backend.health_check(ctx)
+
+                if not health.get("healthy", False):
                     ctx.health_failures += 1
-                    slog = get_logger(session_name=name, container_name=ctx.container_name)
                     slog.warning(
-                        "monitor.container_not_running", metadata={"failures": ctx.health_failures}
+                        "monitor.unhealthy",
+                        metadata={
+                            "backend": ctx.backend,
+                            "failures": ctx.health_failures,
+                            "reason": health.get("reason", "unknown"),
+                        },
                     )
+                    # Remove from tracking if it's gone
+                    if "not found" in health.get("reason", "").lower():
+                        _tracked.pop(name, None)
                     continue
 
-                # Get stats (non-streaming)
-                stats = container.stats(stream=False)
-                cpu_pct = _calc_cpu(stats)
-                mem = stats.get("memory_stats", {})
-                mem_usage = mem.get("usage", 0)
-                mem_limit = mem.get("limit", 1)
+                # Log health metrics (backend-specific)
+                if ctx.backend == "docker":
+                    cpu_pct = health.get("cpu_percent", 0)
+                    mem_usage_human = health.get("memory_usage_human", "0B")
+                    mem_limit_human = health.get("memory_limit_human", "0B")
+                    slog.debug(
+                        "monitor.health_check",
+                        metadata={
+                            "backend": "docker",
+                            "stats": {
+                                "cpu": f"{cpu_pct:.2f}%",
+                                "mem": f"{mem_usage_human} / {mem_limit_human}",
+                            },
+                        },
+                    )
+                elif ctx.backend == "utm":
+                    vm_state = health.get("vm_state", "unknown")
+                    ssh_reachable = health.get("ssh_reachable", False)
+                    slog.debug(
+                        "monitor.health_check",
+                        metadata={
+                            "backend": "utm",
+                            "vm_state": vm_state,
+                            "ssh_reachable": ssh_reachable,
+                            "ssh_port": ctx.ssh_port,
+                        },
+                    )
 
-                slog = get_logger(session_name=name, container_name=ctx.container_name)
-                slog.debug(
-                    "container.health_check",
-                    metadata={
-                        "stats": {
-                            "cpu": f"{cpu_pct:.2f}%",
-                            "mem": f"{_human_bytes(mem_usage)} / {_human_bytes(mem_limit)}",
-                        }
-                    },
-                )
-
-                # Check TTL
-                import time
-
+                # Check TTL (same for all backends)
                 elapsed = (time.time() * 1000 - ctx.created_at) / 1000
                 if ctx.ttl > 0 and elapsed > ctx.ttl:
                     slog.warning(
-                        "monitor.ttl_expired", metadata={"elapsed": elapsed, "ttl": ctx.ttl}
+                        "monitor.ttl_expired",
+                        metadata={"elapsed": elapsed, "ttl": ctx.ttl, "backend": ctx.backend},
                     )
-                    from .models import SessionState
-
                     ctx.state = SessionState.RECYCLING
 
-            except NotFound:
-                slog = get_logger(session_name=name, container_name=ctx.container_name)
-                slog.warning("monitor.container_gone")
-                _tracked.pop(name, None)
             except Exception as exc:
-                slog = get_logger(session_name=name, container_name=ctx.container_name)
-                slog.warning("monitor.check_failed", metadata={"reason": str(exc)})
+                slog.warning(
+                    "monitor.check_failed",
+                    metadata={"reason": str(exc), "backend": ctx.backend},
+                )
 
         await asyncio.sleep(interval)
-
-
-def _calc_cpu(stats: dict) -> float:
-    """Calculate CPU percentage from docker stats."""
-    cpu = stats.get("cpu_stats", {})
-    precpu = stats.get("precpu_stats", {})
-
-    cpu_delta = cpu.get("cpu_usage", {}).get("total_usage", 0) - precpu.get("cpu_usage", {}).get(
-        "total_usage", 0
-    )
-    sys_delta = cpu.get("system_cpu_usage", 0) - precpu.get("system_cpu_usage", 0)
-    n_cpus = cpu.get("online_cpus", 1)
-
-    if sys_delta > 0 and cpu_delta >= 0:
-        return (cpu_delta / sys_delta) * n_cpus * 100.0
-    return 0.0
-
-
-def _human_bytes(b: int) -> str:
-    """Format bytes as human-readable string."""
-    for unit in ("B", "KiB", "MiB", "GiB"):
-        if abs(b) < 1024:
-            return f"{b:.1f}{unit}"
-        b /= 1024  # type: ignore[assignment]
-    return f"{b:.1f}TiB"

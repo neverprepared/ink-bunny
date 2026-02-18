@@ -57,9 +57,14 @@ def mock_sessions(ollama_ctx, claude_ctx):
 class TestConfigureOllama:
     @pytest.mark.asyncio
     async def test_injects_ollama_env_vars(self, ollama_ctx, mock_sessions):
+        # Mock backend to avoid Docker dependency
+        mock_backend = MagicMock()
+        mock_backend.configure = AsyncMock(side_effect=lambda ctx, **kwargs: ctx)
+
         with (
             patch("brainbox.secrets.resolve_secrets", return_value={}),
             patch("brainbox.secrets.has_op_integration", return_value=False),
+            patch("brainbox.backends.create_backend", return_value=mock_backend),
         ):
             from brainbox.lifecycle import configure
 
@@ -73,9 +78,13 @@ class TestConfigureOllama:
     @pytest.mark.asyncio
     async def test_uses_default_url_when_not_specified(self, ollama_ctx, mock_sessions):
         ollama_ctx.ollama_host = None
+        mock_backend = MagicMock()
+        mock_backend.configure = AsyncMock(side_effect=lambda ctx, **kwargs: ctx)
+
         with (
             patch("brainbox.secrets.resolve_secrets", return_value={}),
             patch("brainbox.secrets.has_op_integration", return_value=False),
+            patch("brainbox.backends.create_backend", return_value=mock_backend),
         ):
             from brainbox.lifecycle import configure
 
@@ -86,9 +95,13 @@ class TestConfigureOllama:
     @pytest.mark.asyncio
     async def test_uses_custom_url_when_specified(self, ollama_ctx, mock_sessions):
         ollama_ctx.ollama_host = "http://gpu-box:11434"
+        mock_backend = MagicMock()
+        mock_backend.configure = AsyncMock(side_effect=lambda ctx, **kwargs: ctx)
+
         with (
             patch("brainbox.secrets.resolve_secrets", return_value={}),
             patch("brainbox.secrets.has_op_integration", return_value=False),
+            patch("brainbox.backends.create_backend", return_value=mock_backend),
         ):
             from brainbox.lifecycle import configure
 
@@ -108,9 +121,13 @@ class TestConfigureOllama:
             llm_model=None,
         )
         mock_sessions["test-ollama"] = ctx
+        mock_backend = MagicMock()
+        mock_backend.configure = AsyncMock(side_effect=lambda ctx, **kwargs: ctx)
+
         with (
             patch("brainbox.secrets.resolve_secrets", return_value={}),
             patch("brainbox.secrets.has_op_integration", return_value=False),
+            patch("brainbox.backends.create_backend", return_value=mock_backend),
         ):
             from brainbox.lifecycle import configure
 
@@ -121,9 +138,13 @@ class TestConfigureOllama:
     @pytest.mark.asyncio
     async def test_preserves_secrets_for_claude(self, claude_ctx, mock_sessions):
         base_secrets = {"ANTHROPIC_API_KEY": "sk-real-key", "GH_TOKEN": "ghp_abc"}
+        mock_backend = MagicMock()
+        mock_backend.configure = AsyncMock(side_effect=lambda ctx, **kwargs: ctx)
+
         with (
             patch("brainbox.secrets.resolve_secrets", return_value=dict(base_secrets)),
             patch("brainbox.secrets.has_op_integration", return_value=False),
+            patch("brainbox.backends.create_backend", return_value=mock_backend),
         ):
             from brainbox.lifecycle import configure
 
@@ -153,6 +174,7 @@ class TestProvisionLabels:
 
         with (
             patch("brainbox.lifecycle._docker", return_value=mock_client),
+            patch("brainbox.backends.docker._docker", return_value=mock_client),
             patch("brainbox.lifecycle._find_available_port", return_value=7681),
             patch("brainbox.lifecycle._verify_cosign", new_callable=AsyncMock),
         ):
@@ -180,6 +202,7 @@ class TestProvisionLabels:
 
         with (
             patch("brainbox.lifecycle._docker", return_value=mock_client),
+            patch("brainbox.backends.docker._docker", return_value=mock_client),
             patch("brainbox.lifecycle._find_available_port", return_value=7681),
             patch("brainbox.lifecycle._verify_cosign", new_callable=AsyncMock),
         ):

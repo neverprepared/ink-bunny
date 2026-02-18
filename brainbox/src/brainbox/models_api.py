@@ -24,6 +24,8 @@ class CreateSessionRequest(BaseModel):
     ollama_host: str | None = None
     workspace_profile: str | None = None
     workspace_home: str | None = None
+    backend: str = "docker"  # "docker" or "utm"
+    vm_template: str | None = None  # UTM only: template VM name
 
     @field_validator("name")
     @classmethod

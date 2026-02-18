@@ -13,6 +13,8 @@
   let llmProvider = $state('claude');
   let llmModel = $state('');
   let ollamaHost = $state('');
+  let backend = $state('docker');
+  let vmTemplate = $state('brainbox-macos-template');
   let openTab = $state(false);
   let error = $state('');
   let isCreating = $state(false);
@@ -56,6 +58,8 @@
         llm_provider: llmProvider,
         llm_model: llmProvider === 'ollama' ? llmModel : '',
         ollama_host: llmProvider === 'ollama' ? ollamaHost : '',
+        backend,
+        vm_template: backend === 'utm' ? vmTemplate : null,
       });
 
       if (data.success) {
@@ -102,6 +106,29 @@
         {/if}
       </p>
     </div>
+
+    <div class="modal-field">
+      <label for="session-backend">backend</label>
+      <select id="session-backend" bind:value={backend}>
+        <option value="docker">docker container</option>
+        <option value="utm">UTM macOS VM</option>
+      </select>
+      <p class="modal-hint">
+        {#if backend === 'docker'}
+          Linux container — fast, lightweight, web terminal access
+        {:else}
+          macOS VM via UTM — for Xcode/iOS development, SSH access only
+        {/if}
+      </p>
+    </div>
+
+    {#if backend === 'utm'}
+      <div class="modal-field">
+        <label for="session-vm-template">VM template</label>
+        <input type="text" id="session-vm-template" placeholder="brainbox-macos-template (default)" bind:value={vmTemplate} />
+        <p class="modal-hint">name of the golden image VM in UTM to clone</p>
+      </div>
+    {/if}
 
     <div class="modal-field">
       <label for="session-role">role</label>

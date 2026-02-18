@@ -55,6 +55,8 @@
 
   let activeSessions = $derived(sessions.filter(s => s.active));
   let stoppedCount = $derived(sessions.length - activeSessions.length);
+  // Only show terminal frames for Docker sessions (UTM uses SSH)
+  let dockerSessions = $derived(activeSessions.filter(s => (s.backend || 'docker') === 'docker'));
   let ports = $derived(activeSessions.map(s => s.port).filter(Boolean).map(Number));
   let portRange = $derived(
     ports.length === 0 ? '\u2014' :
@@ -88,9 +90,9 @@
     {/each}
   </div>
 
-  {#if activeSessions.length > 0}
-    <div class="frames" class:single={activeSessions.length === 1}>
-      {#each activeSessions as session (session.name)}
+  {#if dockerSessions.length > 0}
+    <div class="frames" class:single={dockerSessions.length === 1}>
+      {#each dockerSessions as session (session.name)}
         <TerminalFrame {session} onUpdate={handleSessionUpdate} />
       {/each}
     </div>

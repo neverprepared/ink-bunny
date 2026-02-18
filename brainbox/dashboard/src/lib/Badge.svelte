@@ -2,7 +2,7 @@
   let { type = 'role', variant, text } = $props();
 </script>
 
-<span class="badge" class:badge-role={type === 'role'} class:badge-provider={type === 'provider'} class:badge-profile={type === 'profile'} data-variant={variant}>
+<span class="badge" class:badge-backend={type === 'backend'} class:badge-role={type === 'role'} class:badge-provider={type === 'provider'} class:badge-profile={type === 'profile'} data-variant={variant}>
   {text}
 </span>
 
@@ -54,5 +54,19 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
     background: rgba(245, 158, 11, 0.15);
     color: #f59e0b;
+  }
+
+  /* Backend badges */
+  .badge-backend {
+    letter-spacing: 0.02em;
+    font-weight: 500;
+  }
+  .badge-backend[data-variant="docker"] {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+  }
+  .badge-backend[data-variant="utm"] {
+    background: rgba(139, 92, 246, 0.15);
+    color: #8b5cf6;
   }
 </style>

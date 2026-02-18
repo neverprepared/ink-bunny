@@ -136,8 +136,9 @@ class TestSecurityPatterns:
             quoted = shlex.quote(dangerous)
             # All dangerous characters should be inside quotes
             # which means they won't be interpreted by the shell
-            assert quoted.startswith("'") and quoted.endswith("'"), \
+            assert quoted.startswith("'") and quoted.endswith("'"), (
                 f"Failed to safely quote: {dangerous} -> {quoted}"
+            )
 
 
 class TestInputValidation:
