@@ -20,6 +20,11 @@
       "file": "templates/custom.md",
       "description": "Minimal scaffold for fully custom workflows",
       "tags": ["custom", "blank"]
+    },
+    "transcript-summary": {
+      "file": "templates/transcript-summary.md",
+      "description": "Batch summarize meeting transcripts into structured notes",
+      "tags": ["transcript", "summarize", "batch", "documentation"]
     }
   },
   "steps": {
@@ -92,6 +97,11 @@
       "file": "steps/deploy-staging.md",
       "description": "Deploy changes to a staging environment",
       "category": "deployment"
+    },
+    "batch-process": {
+      "file": "steps/batch-process.md",
+      "description": "Process multiple files in parallel using background agents",
+      "category": "processing"
     }
   }
 }

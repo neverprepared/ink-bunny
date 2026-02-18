@@ -84,6 +84,46 @@ async def _run_subprocess(
         raise TimeoutError(f"Command timed out after {timeout}s: {' '.join(cmd)}")
 
 
+async def _discover_vm_ip(mac_address: str, timeout: int = 60) -> str:
+    """Discover VM IP address via ARP table using MAC address.
+
+    Args:
+        mac_address: VM's MAC address (e.g., "a6:45:33:e5:e4:0d")
+        timeout: How long to wait for VM to appear in ARP table
+
+    Returns:
+        VM's IP address
+
+    Raises:
+        TimeoutError: If VM IP not found within timeout
+    """
+    # Normalize MAC address for flexible matching (handles missing leading zeros)
+    # ARP may show "a6:45:33:e5:e4:d" while config has "a6:45:33:e5:e4:0d"
+    mac_parts = mac_address.lower().split(":")
+    mac_pattern = ":".join(part.lstrip("0") or "0" for part in mac_parts)
+
+    start_time = asyncio.get_event_loop().time()
+    while (asyncio.get_event_loop().time() - start_time) < timeout:
+        # Query ARP table
+        returncode, stdout, stderr = await _run_subprocess(["arp", "-a"], timeout=5)
+        if returncode == 0:
+            # Parse ARP output: "? (192.168.64.12) at a6:45:33:e5:e4:d on bridge100"
+            for line in stdout.split("\n"):
+                line_lower = line.lower()
+                # Check if MAC matches (with or without leading zeros)
+                if mac_pattern in line_lower or mac_address.lower() in line_lower:
+                    # Extract IP address
+                    import re
+
+                    match = re.search(r"\(([0-9.]+)\)", line)
+                    if match:
+                        return match.group(1)
+
+        await asyncio.sleep(2)
+
+    raise TimeoutError(f"VM IP not found in ARP table after {timeout}s (MAC: {mac_address})")
+
+
 async def _ssh_execute(
     host: str,
     port: int,
@@ -96,8 +136,8 @@ async def _ssh_execute(
     """Execute command via SSH.
 
     Args:
-        host: SSH hostname (usually localhost)
-        port: SSH port
+        host: SSH hostname or IP address
+        port: SSH port (22 for bridged, custom for port forwarding)
         user: SSH username
         ssh_key: Path to SSH private key
         command: Shell command to execute
@@ -287,25 +327,55 @@ class UTMBackend:
 
             # Update VM name
             config["Name"] = vm_name
+            if "Information" not in config:
+                config["Information"] = {}
+            config["Information"]["Name"] = vm_name
 
             # Configure SSH port forwarding (guest 22 → host ssh_port)
-            qemu = config.setdefault("Qemu", {})
-            network = qemu.setdefault("Network", {})
-            port_forward = network.setdefault("PortForward", [])
+            # Check backend type (Apple or QEMU)
+            backend_type = config.get("Backend", "QEMU")
 
-            # Remove existing SSH forwarding rules
-            port_forward[:] = [rule for rule in port_forward if rule.get("GuestPort") != 22]
+            if backend_type == "Apple":
+                # Apple Virtualization Framework with Bridged networking
+                # Network is a list of interfaces for Apple VMs
+                network_list = config.setdefault("Network", [])
+                if not network_list:
+                    network_list.append({"Mode": "Bridged"})
 
-            # Add new SSH forwarding rule
-            port_forward.append(
-                {
-                    "Protocol": "tcp",
-                    "GuestAddress": "0.0.0.0",
-                    "GuestPort": 22,
-                    "HostAddress": "127.0.0.1",
-                    "HostPort": ssh_port,
-                }
-            )
+                # Ensure first interface has bridged mode and extract MAC address
+                if len(network_list) > 0:
+                    network_list[0]["Mode"] = "Bridged"
+                    mac_address = network_list[0].get("MacAddress")
+                    if mac_address:
+                        ctx.mac_address = mac_address
+                    # Remove port forwarding (not used with bridged)
+                    network_list[0].pop("PortForward", None)
+                else:
+                    raise ValueError("No network interfaces found in Apple VM config")
+            else:
+                # QEMU with port forwarding (Network is a dict)
+                qemu = config.setdefault("Qemu", {})
+                network = qemu.setdefault("Network", {})
+                network["Mode"] = "Shared"
+                port_forward = network.setdefault("PortForward", [])
+
+                # Remove existing SSH forwarding rules
+                port_forward[:] = [
+                    rule
+                    for rule in port_forward
+                    if isinstance(rule, dict) and rule.get("GuestPort") != 22
+                ]
+
+                # Add new SSH forwarding rule
+                port_forward.append(
+                    {
+                        "Protocol": "tcp",
+                        "GuestAddress": "0.0.0.0",
+                        "GuestPort": 22,
+                        "HostAddress": "127.0.0.1",
+                        "HostPort": ssh_port,
+                    }
+                )
 
             # Add VirtioFS shared directories for volume mounts
             shared_dirs = config.setdefault("SharedDirectories", [])
@@ -336,6 +406,10 @@ class UTMBackend:
             # Write updated config
             with config_plist.open("wb") as f:
                 plistlib.dump(config, f)
+
+            # Register VM with UTM by opening it
+            os.system(f"open '{vm_path}' 2>/dev/null")
+            await asyncio.sleep(2)  # Give UTM time to register the VM
 
         except Exception as exc:
             slog.error("utm.config_update_failed", metadata={"reason": str(exc)})
@@ -393,19 +467,33 @@ class UTMBackend:
         slog.info("utm.booting_for_config")
         await _run_subprocess([utmctl, "start", vm_name], timeout=60)
 
+        # Determine SSH connection parameters
+        if ctx.mac_address:
+            # Bridged networking - discover IP
+            slog.info("utm.discovering_ip_for_config", metadata={"mac": ctx.mac_address})
+            vm_ip = await _discover_vm_ip(ctx.mac_address, timeout=60)
+            ctx.vm_ip = vm_ip
+            ssh_host = vm_ip
+            ssh_port = 22
+            slog.info("utm.ip_discovered", metadata={"ip": vm_ip})
+        else:
+            # Port forwarding
+            ssh_host = "localhost"
+            ssh_port = ctx.ssh_port
+
         # Wait for SSH
-        slog.info("utm.waiting_for_ssh", metadata={"port": ctx.ssh_port})
-        ssh_ready = await _wait_for_ssh("localhost", ctx.ssh_port, timeout=120)
+        slog.info("utm.waiting_for_ssh", metadata={"host": ssh_host, "port": ssh_port})
+        ssh_ready = await _wait_for_ssh(ssh_host, ssh_port, timeout=120)
         if not ssh_ready:
             slog.error("utm.ssh_timeout")
-            raise TimeoutError(f"SSH not available on port {ctx.ssh_port} after 120s")
+            raise TimeoutError(f"SSH not available at {ssh_host}:{ssh_port} after 120s")
 
         # Inject secrets to ~/.env
         try:
             # Create/clear .env
             await _ssh_execute(
-                "localhost",
-                ctx.ssh_port,
+                ssh_host,
+                ssh_port,
                 ctx.ssh_user,
                 ssh_key,
                 "rm -f ~/.env && touch ~/.env && chmod 600 ~/.env",
@@ -529,15 +617,36 @@ class UTMBackend:
         slog.info("utm.starting_vm")
         await _run_subprocess([utmctl, "start", vm_name], timeout=60)
 
-        # Wait for SSH
-        slog.info("utm.waiting_for_ssh", metadata={"port": ctx.ssh_port})
-        ssh_ready = await _wait_for_ssh("localhost", ctx.ssh_port, timeout=120)
-        if not ssh_ready:
-            slog.error("utm.ssh_timeout_after_start")
-            raise TimeoutError(f"SSH not available on port {ctx.ssh_port} after 120s")
+        # For bridged networking (Apple VMs), discover IP via ARP
+        if ctx.mac_address:
+            slog.info("utm.discovering_ip", metadata={"mac": ctx.mac_address})
+            try:
+                vm_ip = await _discover_vm_ip(ctx.mac_address, timeout=60)
+                ctx.vm_ip = vm_ip
+                slog.info("utm.ip_discovered", metadata={"ip": vm_ip})
 
-        ctx.state = SessionState.RUNNING
-        slog.info("utm.started", metadata={"ssh_port": ctx.ssh_port})
+                # Wait for SSH on discovered IP
+                ssh_ready = await _wait_for_ssh(vm_ip, 22, timeout=120)
+                if not ssh_ready:
+                    slog.error("utm.ssh_timeout_after_start")
+                    raise TimeoutError(f"SSH not available at {vm_ip}:22 after 120s")
+
+                ctx.state = SessionState.RUNNING
+                slog.info("utm.started", metadata={"ip": vm_ip})
+            except TimeoutError as exc:
+                slog.error("utm.ip_discovery_failed", metadata={"reason": str(exc)})
+                raise
+        else:
+            # Port forwarding (QEMU VMs)
+            slog.info("utm.waiting_for_ssh", metadata={"port": ctx.ssh_port})
+            ssh_ready = await _wait_for_ssh("localhost", ctx.ssh_port, timeout=120)
+            if not ssh_ready:
+                slog.error("utm.ssh_timeout_after_start")
+                raise TimeoutError(f"SSH not available on port {ctx.ssh_port} after 120s")
+
+            ctx.state = SessionState.RUNNING
+            slog.info("utm.started", metadata={"ssh_port": ctx.ssh_port})
+
         return ctx
 
     async def stop(self, ctx: SessionContext) -> SessionContext:

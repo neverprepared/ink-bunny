@@ -72,10 +72,12 @@ class SessionContext(BaseModel):
     workspace_home: str | None = None  # Caller's workspace home path
     # Backend-specific fields
     backend: str = "docker"  # "docker" or "utm"
-    ssh_port: int | None = None  # UTM only: SSH port for VM access
+    ssh_port: int | None = None  # UTM only: SSH port for VM access (deprecated - use vm_ip)
     ssh_user: str = "developer"  # UTM SSH username
     vm_template: str | None = None  # UTM only: Template VM name used for cloning
     vm_path: str | None = None  # UTM only: Full path to .utm package
+    vm_ip: str | None = None  # UTM only: VM's IP address (bridged networking)
+    mac_address: str | None = None  # UTM only: VM's MAC address for IP discovery
 
 
 # ---------------------------------------------------------------------------
