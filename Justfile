@@ -24,6 +24,21 @@ bb-mcp:
 bb-dashboard:
     cd brainbox && npm run dashboard
 
+bb-daemon-start:
+    cd brainbox && uv run python -m brainbox api --daemon
+
+bb-daemon-stop:
+    cd brainbox && uv run python -m brainbox stop
+
+bb-daemon-status:
+    cd brainbox && uv run python -m brainbox status
+
+bb-daemon-restart:
+    cd brainbox && uv run python -m brainbox restart
+
+bb-daemon-logs:
+    tail -f ~/.config/developer/logs/brainbox.log
+
 bb-docker-build:
     cd brainbox && ./scripts/build.sh
 

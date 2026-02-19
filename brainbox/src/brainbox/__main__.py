@@ -44,13 +44,28 @@ def main() -> None:
     # api
     p_api = sub.add_parser("api")
     p_api.add_argument("--host", default="127.0.0.1")
-    p_api.add_argument("--port", type=int, default=8000)
+    p_api.add_argument("--port", type=int, default=9999)
     p_api.add_argument("--reload", action="store_true", default=False)
+    p_api.add_argument("--daemon", action="store_true", default=False)
+
+    # stop
+    p_stop = sub.add_parser("stop")
+    p_stop.add_argument("--timeout", type=int, default=10)
+
+    # status
+    p_status = sub.add_parser("status")
+    p_status.add_argument("--json", action="store_true", default=False)
+
+    # restart
+    p_restart = sub.add_parser("restart")
+    p_restart.add_argument("--host", default="127.0.0.1")
+    p_restart.add_argument("--port", type=int, default=9999)
+    p_restart.add_argument("--reload", action="store_true", default=False)
 
     # mcp
     p_mcp = sub.add_parser("mcp")
     p_mcp.add_argument(
-        "--url", default=None, help="API URL (default: $BRAINBOX_URL or http://127.0.0.1:8000)"
+        "--url", default=None, help="API URL (default: $BRAINBOX_URL or http://127.0.0.1:9999)"
     )
 
     args = parser.parse_args()
@@ -70,6 +85,12 @@ def main() -> None:
             _start_api(args)
         elif args.command == "mcp":
             _start_mcp(args)
+        elif args.command == "stop":
+            _stop_daemon(args)
+        elif args.command == "status":
+            _status_daemon(args)
+        elif args.command == "restart":
+            _restart_daemon(args)
     except Exception as exc:
         print(json.dumps({"ok": False, "error": str(exc)}), file=sys.stderr)
         sys.exit(1)
@@ -136,14 +157,83 @@ def _start_mcp(args: argparse.Namespace) -> None:
 
 
 def _start_api(args: argparse.Namespace) -> None:
-    import uvicorn
+    if args.daemon:
+        from .daemon import DaemonManager
 
-    uvicorn.run(
-        "brainbox.api:app",
-        host=args.host,
-        port=args.port,
-        reload=args.reload,
-    )
+        manager = DaemonManager()
+        pid, message = manager.start(host=args.host, port=args.port, reload=args.reload)
+        print(message)
+    else:
+        import uvicorn
+
+        uvicorn.run(
+            "brainbox.api:app",
+            host=args.host,
+            port=args.port,
+            reload=args.reload,
+        )
+
+
+def _stop_daemon(args: argparse.Namespace) -> None:
+    from .daemon import DaemonManager
+
+    manager = DaemonManager()
+    message = manager.stop(timeout=args.timeout)
+    print(message)
+
+
+def _status_daemon(args: argparse.Namespace) -> None:
+    from .daemon import DaemonManager
+
+    manager = DaemonManager()
+    status = manager.status()
+
+    if args.json:
+        print(json.dumps(manager.to_dict(status), indent=2))
+    else:
+        if status.running:
+            uptime_str = _format_uptime(status.uptime_seconds) if status.uptime_seconds else "unknown"
+            print("✓ Daemon running")
+            print(f"  PID: {status.pid}")
+            print(f"  URL: http://{status.host}:{status.port}")
+            print(f"  Uptime: {uptime_str}")
+            if status.log_file:
+                print(f"  Logs: {status.log_file}")
+        else:
+            print("✗ Daemon not running")
+            if status.log_file:
+                print(f"  Logs: {status.log_file}")
+
+
+def _restart_daemon(args: argparse.Namespace) -> None:
+    from .daemon import DaemonManager
+
+    manager = DaemonManager()
+    pid, message = manager.restart(host=args.host, port=args.port, reload=args.reload)
+    print(message)
+
+
+def _format_uptime(seconds: int) -> str:
+    """Format uptime seconds into human-readable string.
+
+    Args:
+        seconds: Uptime in seconds
+
+    Returns:
+        Formatted string like "2h 15m" or "45s"
+    """
+    if seconds < 60:
+        return f"{seconds}s"
+
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m"
+
+    hours = minutes // 60
+    remaining_minutes = minutes % 60
+    if remaining_minutes > 0:
+        return f"{hours}h {remaining_minutes}m"
+    return f"{hours}h"
 
 
 if __name__ == "__main__":
