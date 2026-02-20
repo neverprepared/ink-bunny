@@ -126,7 +126,7 @@ class Settings(BaseSettings):
     health_check_timeout: int = 5  # seconds
     health_check_retries: int = 3
 
-    api_port: int = 8000
+    api_port: int = 9999
     op_vault: str = ""
 
     resources: ResourceSettings = Field(default_factory=ResourceSettings)

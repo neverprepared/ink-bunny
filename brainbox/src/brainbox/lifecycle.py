@@ -9,12 +9,10 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import shlex
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import docker
-from docker.errors import NotFound
 
 from pathlib import Path
 
@@ -456,6 +454,7 @@ async def provision(
     workspace_home: str | None = None,
     backend: str = "docker",
     vm_template: str | None = None,
+    ports: dict[str, int] | None = None,
 ) -> SessionContext:
     from .backends import create_backend
 
@@ -492,6 +491,7 @@ async def provision(
         workspace_home=workspace_home,
         backend=backend,
         vm_template=vm_template,
+        ports=ports,
     )
 
     slog = get_logger(session_name=session_name, container_name=container_name)
@@ -713,6 +713,7 @@ async def run_pipeline(
     workspace_home: str | None = None,
     backend: str = "docker",
     vm_template: str | None = None,
+    ports: dict[str, int] | None = None,
 ) -> SessionContext:
     ctx = await provision(
         session_name=session_name,
@@ -729,6 +730,7 @@ async def run_pipeline(
         workspace_home=workspace_home,
         backend=backend,
         vm_template=vm_template,
+        ports=ports,
     )
     await configure(ctx)
     await start(ctx)

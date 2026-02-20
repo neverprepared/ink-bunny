@@ -563,6 +563,7 @@ async def api_create_session(request: Request, body: CreateSessionRequest):
             workspace_home=body.workspace_home,
             backend=body.backend,
             vm_template=body.vm_template,
+            ports=body.ports,
         )
         _audit_log(request, "session.create", session_name=body.name, success=True)
 

@@ -14,7 +14,7 @@ The `/api/sessions/{name}/query` endpoint allows the orchestrator to send prompt
          │ HTTP POST /api/sessions/{name}/query
          ▼
 ┌──────────────────────────────────┐
-│     Brainbox API (port 8000)     │
+│     Brainbox API (port 9998)     │
 │  - Validates session exists      │
 │  - Gets container IP address     │
 │  - Proxies request to container  │
@@ -110,7 +110,7 @@ GET http://{container_ip}:9000/health
 ### 1. Create Container with Volume Mount
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/create \
+curl -X POST http://127.0.0.1:9998/api/create \
   -H 'Content-Type: application/json' \
   -d '{
     "name": "myproject",
@@ -134,7 +134,7 @@ curl http://localhost:9000/health
 ### 3. Send Query from Orchestrator
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/sessions/myproject/query \
+curl -X POST http://127.0.0.1:9998/api/sessions/myproject/query \
   -H 'Content-Type: application/json' \
   -d '{
     "prompt": "Run pytest tests/, fix any failures, and report results",
@@ -203,7 +203,7 @@ just bb-test
 
 2. Create test container:
    ```bash
-   curl -X POST http://127.0.0.1:8000/api/create \
+   curl -X POST http://127.0.0.1:9998/api/create \
      -H 'Content-Type: application/json' \
      -d '{"name": "test-query", "volume": "/tmp:/home/developer/workspace"}'
    ```
@@ -218,7 +218,7 @@ just bb-test
 
 4. Test query:
    ```bash
-   curl -X POST http://127.0.0.1:8000/api/sessions/test-query/query \
+   curl -X POST http://127.0.0.1:9998/api/sessions/test-query/query \
      -H 'Content-Type: application/json' \
      -d '{
        "prompt": "List files in the workspace using ls -la",
