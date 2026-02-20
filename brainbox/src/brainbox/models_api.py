@@ -26,6 +26,7 @@ class CreateSessionRequest(BaseModel):
     workspace_home: str | None = None
     backend: str = "docker"  # "docker" or "utm"
     vm_template: str | None = None  # UTM only: template VM name
+    ports: dict[str, int] | None = None  # Additional port mappings (container_port: host_port)
 
     @field_validator("name")
     @classmethod

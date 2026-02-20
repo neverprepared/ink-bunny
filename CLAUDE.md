@@ -84,7 +84,7 @@ just bb-build            # Install deps + build Svelte dashboard
 just bb-test             # Run pytest
 just bb-lint             # Run ruff
 just bb-mcp              # Start MCP server
-just bb-dashboard        # Start API + dashboard (localhost:8080)
+just bb-dashboard        # Start API + dashboard (localhost:9999)
 just bb-docker-build     # Build Docker image
 just bb-docker-start     # Start default session
 just bb-docker-start -s myproject -v /path:/home/developer/workspace/myproject

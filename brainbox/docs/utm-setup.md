@@ -215,7 +215,7 @@ export CL_UTM__UTMCTL_PATH=/opt/homebrew/bin/utmctl
 Create a UTM session via API:
 
 ```bash
-curl -X POST http://localhost:8000/api/create \
+curl -X POST http://localhost:9999/api/create \
   -H "Content-Type: application/json" \
   -d '{
     "name": "ios-project",

@@ -5,7 +5,7 @@ brainbox FastAPI backend.
 
 Usage:
     brainbox mcp                    # stdio transport (default)
-    brainbox mcp --url http://host:8000  # custom API URL
+    brainbox mcp --url http://host:9999  # custom API URL
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ mcp = FastMCP("brainbox")
 
 
 def _api_url() -> str:
-    return os.environ.get("BRAINBOX_URL", "http://127.0.0.1:8000")
+    return os.environ.get("BRAINBOX_URL", "http://127.0.0.1:9999")
 
 
 def _request(method: str, path: str, body: dict[str, Any] | None = None) -> Any:
