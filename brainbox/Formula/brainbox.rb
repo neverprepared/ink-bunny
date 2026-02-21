@@ -3,8 +3,8 @@ class Brainbox < Formula
 
   desc "Sandboxed Docker container orchestration for Claude Code"
   homepage "https://github.com/neverprepared/ink-bunny"
-  url "https://github.com/neverprepared/ink-bunny/releases/download/brainbox/v0.7.0/brainbox-0.7.0.tar.gz"
-  sha256 "377e2169491d6b8c30edbca21e827743a9c7fe5ba27d21d6ef58f02b855ed931"
+  url "https://github.com/neverprepared/ink-bunny/releases/download/brainbox/v0.7.1/brainbox-0.7.1.tar.gz"
+  sha256 "62e169043e1dba431746e14d904965c599b434ac9fe5a078438c487b8ec81121"
   license "MIT"
 
   depends_on "python@3.12"
