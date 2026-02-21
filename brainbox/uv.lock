@@ -72,13 +72,14 @@ wheels = [
 
 [[package]]
 name = "brainbox"
-version = "0.5.0"
+version = "0.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
     { name = "docker" },
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "nats-py" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "questionary" },
@@ -109,6 +110,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "mcp", extras = ["cli"], marker = "extra == 'mcp'", specifier = ">=1.0" },
+    { name = "nats-py", specifier = ">=2.9" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "questionary", specifier = ">=2.0" },
@@ -602,6 +604,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
+name = "nats-py"
+version = "2.13.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c2/70/e08fa8c2c15c9cc458bdf121019df1b9101e32602a408d94953fe1246300/nats_py-2.13.1.tar.gz", hash = "sha256:68a0afe018bdaa12740e0ae8c5a94e1937126d4901ae656afc382e2b3ab40005", size = 116881, upload-time = "2026-02-05T17:26:09.595Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/45/0d/38d36347de5088f6cc8c028895043ee264933d00ff729c0f208643fa2ad9/nats_py-2.13.1-py3-none-any.whl", hash = "sha256:838590cd4d3fae141fb3332c16c9861e0831b053a29cd844d51d1104dfc5b4d9", size = 80947, upload-time = "2026-02-05T17:26:08.493Z" },
 ]
 
 [[package]]
