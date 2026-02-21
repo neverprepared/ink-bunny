@@ -88,6 +88,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Homebrew installation**:" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "brew install neverprepared/ink-bunny/brainbox-docker" >> $GITHUB_STEP_SUMMARY
+          echo "brew install neverprepared/ink-bunny/brainbox" >> $GITHUB_STEP_SUMMARY
           echo "brainbox --help" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY

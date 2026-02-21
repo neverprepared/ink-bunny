@@ -8,7 +8,7 @@ The Docker wrapper runs brainbox inside a container, avoiding dependency conflic
 
 ```bash
 # Install via Homebrew
-brew install neverprepared/ink-bunny/brainbox-docker
+brew install neverprepared/ink-bunny/brainbox
 
 # First run will pull the Docker image
 brainbox --help
@@ -135,7 +135,7 @@ Brainbox stores configuration in `~/.config/brainbox/`:
 
 ```bash
 # Homebrew
-brew uninstall brainbox-docker  # or brainbox
+brew uninstall brainbox
 
 # Remove config
 rm -rf ~/.config/brainbox

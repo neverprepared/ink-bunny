@@ -22,7 +22,7 @@ PID_FILE="${CONFIG_DIR}/.brainbox-pid"
 # Read configuration
 # -----------------------------------------------------------------------------
 
-DEFAULT_URL="http://127.0.0.1:8000"
+DEFAULT_URL="http://127.0.0.1:9999"
 DEFAULT_AUTOSTART="true"
 
 # Start with defaults
@@ -43,7 +43,7 @@ fi
 
 # Extract port from URL for auto-start
 PORT=$(echo "$URL" | sed -n 's|.*:\([0-9]*\)$|\1|p')
-PORT="${PORT:-8000}"
+PORT="${PORT:-9999}"
 
 # Extract host from URL for auto-start
 HOST=$(echo "$URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')

@@ -19,7 +19,7 @@ docker run -it --rm \
 ## Installation via Homebrew (Recommended)
 
 ```bash
-brew install neverprepared/ink-bunny/brainbox-docker
+brew install neverprepared/ink-bunny/brainbox
 brainbox --help
 ```
 

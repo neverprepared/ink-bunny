@@ -8,7 +8,7 @@ This document describes the current orchestration flow from host to container, i
 graph TB
     subgraph "Host Machine"
         Orchestrator[Claude Code<br/>Orchestrator]
-        API[Brainbox API<br/>FastAPI :8000]
+        API[Brainbox API<br/>FastAPI :9999]
         Docker[Docker Engine]
         Dashboard[Web Dashboard<br/>Browser]
     end

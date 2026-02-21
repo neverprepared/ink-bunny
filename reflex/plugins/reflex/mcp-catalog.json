@@ -211,7 +211,7 @@
         "command": "brainbox",
         "args": ["mcp"],
         "env": {
-          "BRAINBOX_URL": "${BRAINBOX_URL:-http://127.0.0.1:8000}"
+          "BRAINBOX_URL": "${BRAINBOX_URL:-http://127.0.0.1:9999}"
         }
       }
     },
