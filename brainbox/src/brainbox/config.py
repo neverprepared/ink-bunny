@@ -84,10 +84,22 @@ class LangfuseSettings(BaseSettings):
     secret_key: str = Field(default_factory=_langfuse_secret_key)
 
 
+def _qdrant_url() -> str:
+    import os
+
+    return os.environ.get("QDRANT_URL") or "http://localhost:6333"
+
+
+def _qdrant_api_key() -> str:
+    import os
+
+    return os.environ.get("QDRANT_API_KEY") or ""
+
+
 class QdrantSettings(BaseSettings):
     enabled: bool = True
-    url: str = "http://localhost:6333"
-    api_key: str = ""
+    url: str = Field(default_factory=_qdrant_url)
+    api_key: str = Field(default_factory=_qdrant_api_key)
     collection: str = "brainbox"
 
 

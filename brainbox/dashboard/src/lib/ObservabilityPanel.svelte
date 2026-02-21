@@ -7,6 +7,8 @@
 
   let langfuseHealth = $state({ healthy: false, mode: 'off' });
   let qdrantHealth = $state({ healthy: false, url: null });
+  let langfuseLoading = $state(true);
+  let qdrantLoading = $state(true);
   let sessions = $state([]);
   let summaries = $state([]);
   let selectedSession = $state('');
@@ -15,13 +17,18 @@
   const DOCKER_EVENTS = ['create', 'start', 'stop', 'die', 'destroy'];
 
   async function refreshHealth() {
+    langfuseLoading = true;
+    qdrantLoading = true;
+
     try {
       langfuseHealth = await fetchLangfuseHealth();
     } catch { langfuseHealth = { healthy: false, mode: 'unknown' }; }
+    finally { langfuseLoading = false; }
 
     try {
       qdrantHealth = await fetchQdrantHealth();
     } catch { qdrantHealth = { healthy: false, url: null }; }
+    finally { qdrantLoading = false; }
   }
 
   async function refreshSessions() {
@@ -93,8 +100,8 @@
 </header>
 
 <div class="stats">
-  <StatCard label="LangFuse" value={langfuseHealth.healthy ? 'Connected' : 'Offline'} variant={langfuseHealth.healthy ? 'healthy' : 'unhealthy'} />
-  <StatCard label="Qdrant" value={qdrantHealth.healthy ? 'Connected' : 'Offline'} variant={qdrantHealth.healthy ? 'healthy' : 'unhealthy'} />
+  <StatCard label="LangFuse" value={langfuseLoading ? '...' : (langfuseHealth.healthy ? 'Online' : 'Offline')} variant={langfuseLoading ? 'default' : (langfuseHealth.healthy ? 'healthy' : 'unhealthy')} />
+  <StatCard label="Qdrant" value={qdrantLoading ? '...' : (qdrantHealth.healthy ? 'Online' : 'Offline')} variant={qdrantLoading ? 'default' : (qdrantHealth.healthy ? 'healthy' : 'unhealthy')} />
   <StatCard label="Total Traces" value={totalTraces} />
   <StatCard label="Errors" value={totalErrors} variant={totalErrors > 0 ? 'errors' : 'default'} />
   <StatCard label="Active Sessions" value={activeCount} variant="sessions" />
