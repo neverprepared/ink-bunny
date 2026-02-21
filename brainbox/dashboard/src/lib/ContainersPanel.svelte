@@ -13,6 +13,8 @@
   let showNewModal = $state(false);
   let infoSession = $state(null);
   let eventSource = null;
+  let expandedSessions = $state(new Set());
+  let activeProfile = $state(null);
 
   const DOCKER_EVENTS = ['create', 'start', 'stop', 'die', 'destroy'];
   const TIPS = [
@@ -35,6 +37,16 @@
     refresh();
   }
 
+  function toggleTerminal(sessionName) {
+    const newExpanded = new Set(expandedSessions);
+    if (newExpanded.has(sessionName)) {
+      newExpanded.delete(sessionName);
+    } else {
+      newExpanded.add(sessionName);
+    }
+    expandedSessions = newExpanded;
+  }
+
   onMount(async () => {
     await refresh();
     eventSource = connectSSE((data) => {
@@ -53,8 +65,23 @@
     if (eventSource) eventSource.close();
   });
 
-  let activeSessions = $derived(sessions.filter(s => s.active));
-  let stoppedCount = $derived(sessions.length - activeSessions.length);
+  // Group sessions by profile
+  let profiles = $derived([...new Set(sessions.map(s => s.workspace_profile || '').filter(p => p))].sort());
+
+  // Set active profile to first available if not set or if current profile has no sessions
+  $effect(() => {
+    if (profiles.length > 0 && (!activeProfile || !profiles.includes(activeProfile))) {
+      activeProfile = profiles[0];
+    }
+  });
+
+  // Filter sessions by active profile
+  let filteredSessions = $derived(
+    activeProfile ? sessions.filter(s => s.workspace_profile === activeProfile) : sessions
+  );
+
+  let activeSessions = $derived(filteredSessions.filter(s => s.active));
+  let stoppedCount = $derived(filteredSessions.length - activeSessions.length);
   // Only show terminal frames for Docker sessions (UTM uses SSH)
   let dockerSessions = $derived(activeSessions.filter(s => (s.backend || 'docker') === 'docker'));
   let ports = $derived(activeSessions.map(s => s.port).filter(Boolean).map(Number));
@@ -73,30 +100,46 @@
 {#if sessions.length === 0}
   <EmptyState {tip} />
 {:else}
+  {#if profiles.length > 0}
+    <div class="profile-tabs">
+      {#each profiles as profile}
+        <button
+          class="profile-tab"
+          class:active={activeProfile === profile}
+          onclick={() => activeProfile = profile}
+          aria-label={`Switch to ${profile.toUpperCase()} profile`}
+        >
+          {profile.toUpperCase()}
+        </button>
+      {/each}
+    </div>
+  {/if}
   <StatsGrid
-    total={sessions.length}
+    total={filteredSessions.length}
     active={activeSessions.length}
     stopped={stoppedCount}
     {portRange}
   />
 
   <div class="session-grid">
-    {#each sessions as session (session.name)}
-      <SessionCard
-        {session}
-        onUpdate={handleSessionUpdate}
-        onInfo={(name) => infoSession = name}
-      />
+    {#each filteredSessions as session (session.name)}
+      <div class="session-container">
+        <SessionCard
+          {session}
+          onUpdate={handleSessionUpdate}
+          onInfo={(name) => infoSession = name}
+          isExpanded={expandedSessions.has(session.name)}
+          onToggleTerminal={() => toggleTerminal(session.name)}
+          showTerminalToggle={session.active && (session.backend || 'docker') === 'docker'}
+        />
+        {#if expandedSessions.has(session.name) && session.active && (session.backend || 'docker') === 'docker'}
+          <div class="terminal-container">
+            <TerminalFrame {session} onUpdate={handleSessionUpdate} />
+          </div>
+        {/if}
+      </div>
     {/each}
   </div>
-
-  {#if dockerSessions.length > 0}
-    <div class="frames" class:single={dockerSessions.length === 1}>
-      {#each dockerSessions as session (session.name)}
-        <TerminalFrame {session} onUpdate={handleSessionUpdate} />
-      {/each}
-    </div>
-  {/if}
 {/if}
 
 {#if showNewModal}
@@ -149,25 +192,72 @@
     border-color: #3b82f6;
   }
 
-  .session-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-  @media (max-width: 768px) {
-    .session-grid { grid-template-columns: 1fr; }
+  .profile-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--color-border-primary);
+    padding-bottom: 2px;
   }
 
-  .frames {
+  .profile-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--color-text-muted);
+    padding: 8px 16px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+    position: relative;
+    bottom: -2px;
+  }
+
+  .profile-tab:hover {
+    color: var(--color-text-primary);
+    border-bottom-color: rgba(245, 158, 11, 0.3);
+  }
+
+  .profile-tab.active {
+    color: #f59e0b;
+    border-bottom-color: #f59e0b;
+  }
+
+  .session-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
     gap: 16px;
     margin-bottom: 24px;
   }
-  .frames.single { grid-template-columns: 1fr; }
-  @media (max-width: 900px) {
-    .frames { grid-template-columns: 1fr; }
+
+  .session-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .terminal-container {
+    width: 100%;
+    max-height: 500px;
+    overflow: hidden;
+    animation: slideDown 0.2s ease-out;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: scaleY(0);
+    }
+    to {
+      opacity: 1;
+      transform: scaleY(1);
+    }
   }
 
   .attribution {

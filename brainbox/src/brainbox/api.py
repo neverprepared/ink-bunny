@@ -23,6 +23,7 @@ from .config import settings
 from .rate_limit import limiter, rate_limit_exceeded_handler
 from .hub import init as hub_init, shutdown as hub_shutdown
 from .backends.docker import _calc_cpu, _human_bytes
+from .nats_client import BrainboxNATSClient
 from .lifecycle import (
     _docker,
     provision,
@@ -120,6 +121,47 @@ def _broadcast_sse(data: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# NATS client
+# ---------------------------------------------------------------------------
+
+_nats_client: BrainboxNATSClient | None = None
+
+
+def _get_nats_client() -> BrainboxNATSClient | None:
+    """Get the global NATS client instance."""
+    return _nats_client
+
+
+# ---------------------------------------------------------------------------
+# Task tracking for async execution
+# ---------------------------------------------------------------------------
+
+_tasks: dict[str, dict[str, Any]] = {}
+
+
+def _store_task(task_id: str, status: str, **kwargs):
+    """Store task status and metadata."""
+    _tasks[task_id] = {
+        "task_id": task_id,
+        "status": status,
+        "created_at": time.time(),
+        **kwargs
+    }
+
+
+def _update_task(task_id: str, **kwargs):
+    """Update task metadata."""
+    if task_id in _tasks:
+        _tasks[task_id].update(kwargs)
+        _tasks[task_id]["updated_at"] = time.time()
+
+
+def _get_task(task_id: str) -> dict[str, Any] | None:
+    """Retrieve task by ID."""
+    return _tasks.get(task_id)
+
+
+# ---------------------------------------------------------------------------
 # Docker events watcher
 # ---------------------------------------------------------------------------
 
@@ -178,6 +220,92 @@ def require_token(request: Request) -> Token:
 
 
 # ---------------------------------------------------------------------------
+# NATS event handlers
+# ---------------------------------------------------------------------------
+
+
+async def _handle_agent_question(data: dict):
+    """Handle question from container agent."""
+    log.info("nats.question_received", metadata=data)
+    # TODO: Route to orchestrator, wait for human/AI decision
+    # For now, broadcast to SSE clients so dashboard can display
+    _broadcast_sse(json.dumps({"type": "agent_question", "data": data}))
+
+
+async def _handle_progress_update(data: dict):
+    """Handle progress update from container."""
+    log.debug("nats.progress_update", metadata=data)
+
+    # Update task status
+    task_id = data.get("task_id")
+    if task_id:
+        _update_task(
+            task_id,
+            status="in_progress",
+            progress=data.get("progress"),
+            message=data.get("message")
+        )
+
+    # Broadcast to SSE for dashboard updates
+    _broadcast_sse(json.dumps({"type": "progress_update", "data": data}))
+
+
+async def _handle_result(data: dict):
+    """Handle task result from container."""
+    log.info("nats.result_received", metadata=data)
+
+    # Store task result
+    task_id = data.get("task_id")
+    if task_id:
+        _update_task(
+            task_id,
+            status="completed",
+            result=data.get("result"),
+            output=data.get("output"),
+            exit_code=data.get("exit_code"),
+            duration_seconds=data.get("duration_seconds")
+        )
+
+    # Broadcast to SSE for dashboard updates
+    _broadcast_sse(json.dumps({"type": "task_result", "data": data}))
+
+
+async def _handle_error(data: dict):
+    """Handle error notification from container."""
+    log.error("nats.error_received", metadata=data)
+
+    # Store task error
+    task_id = data.get("task_id")
+    if task_id:
+        _update_task(
+            task_id,
+            status="failed",
+            error=data.get("error"),
+            message=data.get("message")
+        )
+
+    # Broadcast to SSE for dashboard updates
+    _broadcast_sse(json.dumps({"type": "task_error", "data": data}))
+
+
+async def _handle_cancelled(data: dict):
+    """Handle task cancellation notification from container."""
+    log.info("nats.task_cancelled", metadata=data)
+
+    # Store task cancellation
+    task_id = data.get("task_id")
+    if task_id:
+        _update_task(
+            task_id,
+            status="cancelled",
+            message=data.get("message", "Task cancelled by user")
+        )
+
+    # Broadcast to SSE for dashboard updates
+    _broadcast_sse(json.dumps({"type": "task_cancelled", "data": data}))
+
+
+# ---------------------------------------------------------------------------
 # Lifespan
 # ---------------------------------------------------------------------------
 
@@ -204,11 +332,43 @@ async def lifespan(app: FastAPI):
     global _docker_events_task
     _docker_events_task = asyncio.create_task(_watch_docker_events())
 
+    # Initialize NATS client if enabled
+    global _nats_client
+    if settings.nats.enabled:
+        try:
+            _nats_client = BrainboxNATSClient(nats_url=settings.nats.url)
+            await _nats_client.connect()
+
+            # Subscribe to all container questions
+            await _nats_client.subscribe_all_containers("questions", _handle_agent_question)
+
+            # Subscribe to all progress updates
+            await _nats_client.subscribe_all_containers("progress", _handle_progress_update)
+
+            # Subscribe to all results
+            await _nats_client.subscribe_all_containers("results", _handle_result)
+
+            # Subscribe to all errors
+            await _nats_client.subscribe_all_containers("errors", _handle_error)
+
+            # Subscribe to task cancellations
+            await _nats_client.subscribe_all_containers("cancelled", _handle_cancelled)
+
+            log.info("nats.connected", metadata={"url": settings.nats.url})
+        except Exception as e:
+            log.error("nats.connection_failed", metadata={"error": str(e)})
+            _nats_client = None
+
     log.info("api.started", metadata={"port": settings.api_port})
     yield
 
     if _docker_events_task:
         _docker_events_task.cancel()
+
+    # Disconnect NATS client
+    if _nats_client:
+        await _nats_client.disconnect()
+
     await hub_shutdown()
 
 
@@ -621,12 +781,289 @@ async def api_exec_session(request: Request, name: str, body: ExecSessionRequest
 
 @app.post("/api/sessions/{name}/query")
 @limiter.limit("5/minute")
-async def api_query_session(request: Request, name: str, body: QuerySessionRequest):
-    """Send a prompt to Claude Code running in the container via tmux.
+async def api_query_session(
+    request: Request,
+    name: str,
+    body: QuerySessionRequest,
+    async_mode: bool = Query(True, description="Execute in background (returns immediately)")
+):
+    """Send a prompt to Claude Code running in the container.
 
-    This endpoint sends the prompt directly to the running Claude instance
-    in the tmux session using docker exec and tmux commands.
+    Phase 2: HTTP wrapper over NATS - uses NATS if enabled, falls back to tmux.
+
+    Args:
+        async_mode: If True (default), returns immediately with task_id.
+                   If False, waits for completion (legacy sync mode).
     """
+    # Use NATS if enabled and connected
+    if settings.nats.enabled and _nats_client and _nats_client.is_connected:
+        return await _query_via_nats(request, name, body, async_mode=async_mode)
+    else:
+        return await _query_via_tmux(request, name, body)
+
+
+def _parse_claude_output(raw_output: str) -> str:
+    """Parse Claude CLI output to extract just the assistant's response.
+
+    Removes box drawing, ANSI codes, prompts, and extracts clean content.
+    """
+    import re
+
+    # First, strip out the welcome box (everything before the first ❯)
+    if "❯" in raw_output:
+        # Find the first occurrence of ❯ and remove everything before it
+        first_prompt_idx = raw_output.find("❯")
+        raw_output = raw_output[first_prompt_idx:]
+
+    # Split by the prompt marker (❯) to get command/response sections
+    sections = raw_output.split("❯")
+
+    # Find the LAST section that contains Claude's response (marked with ●)
+    response_text = ""
+    for section in reversed(sections):
+        # Skip empty sections
+        if not section.strip():
+            continue
+
+        # Skip sections that are just navigation commands (cd /)
+        lines = section.strip().splitlines()
+        if lines and lines[0].strip().startswith("cd /"):
+            continue
+
+        # Look for Claude's response marker (●)
+        if "●" in section:
+            # Split on ● and take everything after the LAST ●
+            parts = section.split("●")
+            # Get the last non-empty part
+            for part in reversed(parts):
+                if part.strip():
+                    response_text = part.strip()
+                    break
+            if response_text:
+                break
+
+    if not response_text:
+        # Fallback: return original if we can't parse
+        return raw_output.strip()
+
+    # Clean up artifacts
+    # Remove "Web Search(...)" lines
+    response_text = re.sub(r"Web Search\([^)]+\)\n", "", response_text)
+    # Remove search timing indicators like "⎿  Did 1 search in 7s"
+    response_text = re.sub(r"⎿\s*Did \d+ search.*?\n", "", response_text)
+    # Remove completion timing like "✻ Churned for 37s"
+    response_text = re.sub(r"✻\s*(?:Brewed|Churned|Percolated|Simmered).*?\n", "", response_text)
+    # Remove separator lines
+    response_text = re.sub(r"─{10,}", "", response_text)
+    # Remove permission UI indicators
+    response_text = re.sub(r"⏵.*?bypass permissions.*?\n", "", response_text, flags=re.IGNORECASE)
+    # Normalize whitespace
+    response_text = re.sub(r"\n{3,}", "\n\n", response_text)
+
+    return response_text.strip()
+
+
+async def _query_via_nats(
+    request: Request, name: str, body: QuerySessionRequest, async_mode: bool = True
+):
+    """Query container via NATS (Phase 2).
+
+    Args:
+        async_mode: If True, publish command and return immediately.
+                   If False, use request/reply pattern and wait for result.
+    """
+    start_time = time.time()
+
+    # Verify container exists and is running
+    prefix = settings.resolved_prefix
+    container_name = f"{prefix}{name}"
+    try:
+        client = _docker()
+        container = client.containers.get(container_name)
+        if container.status != "running":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Container '{name}' is not running (status: {container.status})",
+            )
+    except docker.errors.NotFound:
+        _audit_log(request, "session.query", session_name=name, success=False, error="not_found")
+        raise HTTPException(status_code=404, detail=f"Container '{name}' not found")
+
+    # Create task
+    task_id = f"query-{int(time.time() * 1000)}"  # Use milliseconds for uniqueness
+    command = {
+        "command": "execute_task",
+        "task_id": task_id,
+        "prompt": body.prompt,
+        "working_dir": body.working_dir or f"/home/developer/workspace/{name}",
+        "timeout": body.timeout,
+    }
+
+    if async_mode:
+        # Async mode: publish command and return immediately
+        try:
+            # Store task as queued
+            _store_task(
+                task_id,
+                status="queued",
+                session_name=name,
+                prompt=body.prompt,
+                submitted_at=start_time
+            )
+
+            # Publish command to container (fire-and-forget)
+            await _nats_client.publish_command(name, command)
+
+            _audit_log(request, "session.query", session_name=name, success=True)
+
+            return {
+                "task_id": task_id,
+                "status": "queued",
+                "message": "Task submitted for execution. Subscribe to /api/events or poll /api/tasks/{task_id} for results."
+            }
+
+        except Exception as e:
+            _audit_log(request, "session.query", session_name=name, success=False, error=str(e))
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to submit task: {e}",
+            )
+
+    else:
+        # Sync mode: wait for result (legacy behavior)
+        try:
+            result = await _nats_client.send_command(name, command, timeout=float(body.timeout))
+
+            duration = time.time() - start_time
+            _audit_log(request, "session.query", session_name=name, success=result.get("success", False))
+
+            # Parse the Claude CLI output for clean presentation
+            raw_output = result.get("output", "")
+            parsed_response = _parse_claude_output(raw_output) if raw_output else ""
+
+            return {
+                "success": result.get("success", True),
+                "conversation_id": result.get("task_id", task_id),
+                "response": parsed_response,  # Clean, parsed assistant response
+                "output": raw_output,  # Keep raw output for debugging
+                "error": result.get("error"),
+                "exit_code": result.get("exit_code", 0),
+                "duration_seconds": duration,
+                "files_modified": result.get("files_modified", []),
+            }
+
+        except TimeoutError:
+            _audit_log(request, "session.query", session_name=name, success=False, error="timeout")
+            raise HTTPException(
+                status_code=408,
+                detail=f"Query execution timed out after {body.timeout}s",
+            )
+        except Exception as e:
+            _audit_log(request, "session.query", session_name=name, success=False, error=str(e))
+            raise HTTPException(
+                status_code=500,
+                detail=f"Query execution failed: {e}",
+            )
+
+
+@app.get("/api/tasks/{task_id}")
+@limiter.limit("30/minute")
+async def api_get_task_status(request: Request, task_id: str):
+    """Get status of an async task.
+
+    Returns task metadata including status, result (if completed), and progress.
+    """
+    task = _get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+
+    # Parse response if task is completed
+    if task.get("status") == "completed" and task.get("output"):
+        parsed_response = _parse_claude_output(task["output"])
+        task["response"] = parsed_response
+
+    return task
+
+
+@app.get("/api/tasks")
+@limiter.limit("30/minute")
+async def api_list_tasks(
+    request: Request,
+    status: str | None = Query(None, description="Filter by status (queued, in_progress, completed, failed)"),
+    limit: int = Query(50, description="Maximum number of tasks to return", ge=1, le=500)
+):
+    """List all tasks with optional status filter."""
+    tasks = list(_tasks.values())
+
+    # Filter by status if provided
+    if status:
+        tasks = [t for t in tasks if t.get("status") == status]
+
+    # Sort by creation time (newest first)
+    tasks.sort(key=lambda t: t.get("created_at", 0), reverse=True)
+
+    # Limit results
+    tasks = tasks[:limit]
+
+    return {
+        "tasks": tasks,
+        "total": len(tasks),
+        "filtered": len(_tasks) if not status else len([t for t in _tasks.values() if t.get("status") == status])
+    }
+
+
+@app.delete("/api/tasks/{task_id}")
+@limiter.limit("30/minute")
+async def api_cancel_task(request: Request, task_id: str):
+    """Cancel a running or queued task.
+
+    Sends cancellation signal to the container executing the task.
+    """
+    task = _get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+
+    current_status = task.get("status")
+
+    # Can only cancel queued or in-progress tasks
+    if current_status not in ["queued", "in_progress"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot cancel task with status '{current_status}'. Only queued/in_progress tasks can be cancelled."
+        )
+
+    session_name = task.get("session_name")
+    if not session_name:
+        raise HTTPException(status_code=500, detail="Task missing session_name metadata")
+
+    # Send cancel command via NATS if available
+    if _nats_client and _nats_client.is_connected:
+        try:
+            await _nats_client.publish_command(session_name, {
+                "command": "cancel_task",
+                "task_id": task_id
+            })
+
+            _update_task(task_id, status="cancelled", cancelled_at=time.time())
+            log.info("task.cancelled", task_id=task_id, session=session_name)
+
+            return {
+                "task_id": task_id,
+                "status": "cancelled",
+                "message": "Cancellation signal sent to container"
+            }
+        except Exception as e:
+            log.error("task.cancel_failed", task_id=task_id, error=str(e))
+            raise HTTPException(status_code=500, detail=f"Failed to send cancel signal: {e}")
+    else:
+        raise HTTPException(
+            status_code=503,
+            detail="NATS not available. Cannot cancel task."
+        )
+
+
+async def _query_via_tmux(request: Request, name: str, body: QuerySessionRequest):
+    """Query container via tmux (legacy fallback)."""
     prefix = settings.resolved_prefix
     container_name = f"{prefix}{name}"
     start_time = time.time()
@@ -776,13 +1213,18 @@ async def api_query_session(request: Request, name: str, body: QuerySessionReque
                 response_lines.append(line)
 
         cleaned_output = "\n".join(response_lines).strip()
+        raw_output = cleaned_output or output
+
+        # Parse the Claude CLI output for clean presentation
+        parsed_response = _parse_claude_output(raw_output) if raw_output else ""
 
         _audit_log(request, "session.query", session_name=name, success=True)
 
         return {
             "success": True,
             "conversation_id": f"{name}-{int(time.time())}",
-            "output": cleaned_output or output,
+            "response": parsed_response,  # Clean, parsed assistant response
+            "output": raw_output,  # Keep raw output for debugging
             "error": None,
             "exit_code": 0,
             "duration_seconds": duration,
@@ -802,11 +1244,11 @@ async def api_query_session(request: Request, name: str, body: QuerySessionReque
 # ---------------------------------------------------------------------------
 
 _trace_cache: dict[str, dict[str, Any]] = {}  # session_name -> {data, ts}
-_TRACE_CACHE_TTL = 10  # seconds
+_TRACE_CACHE_TTL = 60  # seconds - increased from 10s to reduce load
 
 
-def _get_trace_counts(session_name: str) -> dict[str, int]:
-    """Get trace/error counts for a session, cached for 10s."""
+def _get_trace_counts(session_name: str, timeout: float = 2.0) -> dict[str, int]:
+    """Get trace/error counts for a session, cached for 60s with timeout."""
     now = time.monotonic()
     cached = _trace_cache.get(session_name)
     if cached and (now - cached["ts"]) < _TRACE_CACHE_TTL:
@@ -816,10 +1258,16 @@ def _get_trace_counts(session_name: str) -> dict[str, int]:
         return {"trace_count": 0, "error_count": 0}
 
     try:
-        summary = get_session_traces_summary(session_name)
-        data = {"trace_count": summary.total_traces, "error_count": summary.error_count}
-    except Exception:
-        data = {"trace_count": 0, "error_count": 0}
+        # Use a thread pool with timeout to prevent blocking
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(get_session_traces_summary, session_name)
+            summary = future.result(timeout=timeout)
+            data = {"trace_count": summary.total_traces, "error_count": summary.error_count}
+    except (Exception, concurrent.futures.TimeoutError):
+        # Return zeros on timeout or error, don't cache failures
+        return {"trace_count": 0, "error_count": 0}
 
     _trace_cache[session_name] = {"data": data, "ts": now}
     return data
@@ -827,11 +1275,15 @@ def _get_trace_counts(session_name: str) -> dict[str, int]:
 
 def _get_container_metrics() -> list[dict[str, Any]]:
     """Collect per-container CPU %, memory usage, and uptime (blocking)."""
+    import concurrent.futures
+
     results = []
     try:
         client = _docker()
         containers = client.containers.list(filters={"label": "brainbox.managed=true"})
-        for c in containers:
+
+        def get_container_metrics(c):
+            """Get metrics for a single container."""
             try:
                 stats = c.stats(stream=False)
                 cpu_pct = _calc_cpu(stats)
@@ -851,26 +1303,38 @@ def _get_container_metrics() -> list[dict[str, Any]]:
 
                 labels = c.labels or {}
                 session_name = _extract_session_name(c.name)
-                trace_counts = _get_trace_counts(session_name)
-                results.append(
-                    {
-                        "name": c.name,
-                        "session_name": session_name,
-                        "role": _extract_role(c),
-                        "llm_provider": labels.get("brainbox.llm_provider", "claude"),
-                        "workspace_profile": labels.get("brainbox.workspace_profile", ""),
-                        "cpu_percent": round(cpu_pct, 2),
-                        "mem_usage": mem_usage,
-                        "mem_usage_human": _human_bytes(mem_usage),
-                        "mem_limit": mem_limit,
-                        "mem_limit_human": _human_bytes(mem_limit),
-                        "uptime_seconds": round(uptime_seconds),
-                        "trace_count": trace_counts["trace_count"],
-                        "error_count": trace_counts["error_count"],
-                    }
-                )
+                # Use shorter timeout for trace counts to prevent blocking
+                trace_counts = _get_trace_counts(session_name, timeout=1.0)
+
+                return {
+                    "name": c.name,
+                    "session_name": session_name,
+                    "role": _extract_role(c),
+                    "llm_provider": labels.get("brainbox.llm_provider", "claude"),
+                    "workspace_profile": labels.get("brainbox.workspace_profile", ""),
+                    "cpu_percent": round(cpu_pct, 2),
+                    "mem_usage": mem_usage,
+                    "mem_usage_human": _human_bytes(mem_usage),
+                    "mem_limit": mem_limit,
+                    "mem_limit_human": _human_bytes(mem_limit),
+                    "uptime_seconds": round(uptime_seconds),
+                    "trace_count": trace_counts["trace_count"],
+                    "error_count": trace_counts["error_count"],
+                }
             except Exception:
-                pass
+                return None
+
+        # Process containers in parallel with a timeout per container
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(containers))) as executor:
+            future_to_container = {executor.submit(get_container_metrics, c): c for c in containers}
+            for future in concurrent.futures.as_completed(future_to_container, timeout=10):
+                try:
+                    result = future.result(timeout=2)
+                    if result:
+                        results.append(result)
+                except (Exception, concurrent.futures.TimeoutError):
+                    pass
+
     except Exception:
         pass
 
@@ -1137,6 +1601,22 @@ async def api_langfuse_health():
     loop = asyncio.get_running_loop()
     healthy = await loop.run_in_executor(None, langfuse_health_check)
     return {"healthy": healthy, "mode": mode}
+
+
+@app.get("/api/qdrant/health")
+async def api_qdrant_health():
+    """Check Qdrant connectivity."""
+    if not settings.qdrant.enabled:
+        return {"healthy": False, "url": None, "detail": "Qdrant integration is disabled"}
+
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{settings.qdrant.url}/")
+            healthy = response.status_code == 200
+            return {"healthy": healthy, "url": settings.qdrant.url}
+    except Exception as e:
+        return {"healthy": False, "url": settings.qdrant.url, "error": str(e)}
 
 
 @app.get("/api/langfuse/sessions/{session_name}/traces")

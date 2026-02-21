@@ -90,7 +90,8 @@
   .frame-bar a:hover { text-decoration: underline; }
   iframe {
     width: 100%;
-    height: 400px;
+    height: 450px;
+    max-height: 450px;
     border: none;
     background: #000;
   }

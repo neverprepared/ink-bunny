@@ -72,6 +72,10 @@ export async function fetchLangfuseHealth() {
   return fetchJSON('/api/langfuse/health');
 }
 
+export async function fetchQdrantHealth() {
+  return fetchJSON('/api/qdrant/health');
+}
+
 export async function fetchSessionTraces(sessionName, limit = 50) {
   return fetchJSON(`/api/langfuse/sessions/${encodeURIComponent(sessionName)}/traces?limit=${limit}`);
 }

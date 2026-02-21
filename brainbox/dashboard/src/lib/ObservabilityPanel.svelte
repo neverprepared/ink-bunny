@@ -1,11 +1,12 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { fetchLangfuseHealth, fetchSessions, fetchSessionSummary, connectSSE } from './api.js';
+  import { fetchLangfuseHealth, fetchQdrantHealth, fetchSessions, fetchSessionSummary, connectSSE } from './api.js';
   import TraceTimeline from './TraceTimeline.svelte';
   import ToolBreakdown from './ToolBreakdown.svelte';
   import StatCard from './StatCard.svelte';
 
-  let health = $state({ healthy: false, mode: 'off' });
+  let langfuseHealth = $state({ healthy: false, mode: 'off' });
+  let qdrantHealth = $state({ healthy: false, url: null });
   let sessions = $state([]);
   let summaries = $state([]);
   let selectedSession = $state('');
@@ -15,8 +16,12 @@
 
   async function refreshHealth() {
     try {
-      health = await fetchLangfuseHealth();
-    } catch { health = { healthy: false, mode: 'unknown' }; }
+      langfuseHealth = await fetchLangfuseHealth();
+    } catch { langfuseHealth = { healthy: false, mode: 'unknown' }; }
+
+    try {
+      qdrantHealth = await fetchQdrantHealth();
+    } catch { qdrantHealth = { healthy: false, url: null }; }
   }
 
   async function refreshSessions() {
@@ -88,7 +93,8 @@
 </header>
 
 <div class="stats">
-  <StatCard label="LangFuse" value={health.healthy ? 'Connected' : 'Offline'} variant={health.healthy ? 'healthy' : 'unhealthy'} />
+  <StatCard label="LangFuse" value={langfuseHealth.healthy ? 'Connected' : 'Offline'} variant={langfuseHealth.healthy ? 'healthy' : 'unhealthy'} />
+  <StatCard label="Qdrant" value={qdrantHealth.healthy ? 'Connected' : 'Offline'} variant={qdrantHealth.healthy ? 'healthy' : 'unhealthy'} />
   <StatCard label="Total Traces" value={totalTraces} />
   <StatCard label="Errors" value={totalErrors} variant={totalErrors > 0 ? 'errors' : 'default'} />
   <StatCard label="Active Sessions" value={activeCount} variant="sessions" />
@@ -129,9 +135,12 @@
 
   .stats {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 16px;
     margin-bottom: 24px;
+  }
+  @media (max-width: 900px) {
+    .stats { grid-template-columns: repeat(3, 1fr); }
   }
   @media (max-width: 600px) {
     .stats { grid-template-columns: repeat(2, 1fr); }

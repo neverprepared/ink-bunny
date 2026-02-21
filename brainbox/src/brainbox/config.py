@@ -84,6 +84,13 @@ class LangfuseSettings(BaseSettings):
     secret_key: str = Field(default_factory=_langfuse_secret_key)
 
 
+class QdrantSettings(BaseSettings):
+    enabled: bool = True
+    url: str = "http://localhost:6333"
+    api_key: str = ""
+    collection: str = "brainbox"
+
+
 class ProfileSettings(BaseSettings):
     mount_env: bool = True  # mount the profile .env from volatile cache
     mount_aws: bool = True
@@ -114,6 +121,12 @@ class HubSettings(BaseSettings):
     message_retention: int = 100
 
 
+class NATSSettings(BaseSettings):
+    enabled: bool = True
+    url: str = "nats://localhost:4222"
+    jetstream_enabled: bool = True
+
+
 class Settings(BaseSettings):
     role: str = "developer"
     image: str = ""
@@ -134,10 +147,12 @@ class Settings(BaseSettings):
     cosign: CosignSettings = Field(default_factory=CosignSettings)
     artifact: ArtifactSettings = Field(default_factory=ArtifactSettings)
     langfuse: LangfuseSettings = Field(default_factory=LangfuseSettings)
+    qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
     profile: ProfileSettings = Field(default_factory=ProfileSettings)
     hub: HubSettings = Field(default_factory=HubSettings)
     ollama: OllamaSettings = Field(default_factory=OllamaSettings)
     utm: UTMSettings = Field(default_factory=UTMSettings)
+    nats: NATSSettings = Field(default_factory=NATSSettings)
 
     model_config = {"env_prefix": "CL_", "env_nested_delimiter": "__"}
 

@@ -3,7 +3,7 @@
   import { notifications } from './notifications.svelte.js';
   import Badge from './Badge.svelte';
 
-  let { session, onUpdate, onInfo } = $props();
+  let { session, onUpdate, onInfo, isExpanded = false, onToggleTerminal, showTerminalToggle = false } = $props();
 
   let confirmAction = $state(null); // 'stop' | 'delete' | null
   let confirmTimeout = null;
@@ -71,6 +71,11 @@
   let backend = $derived(session.backend || 'docker');
   let isUTM = $derived(backend === 'utm');
   let sshCommand = $derived(isUTM ? `ssh -p ${session.ssh_port || 2200} developer@localhost` : '');
+  let volumeMounts = $derived(
+    session.volume && session.volume !== '-'
+      ? session.volume.split(',').map(v => v.trim()).filter(v => v.length > 0)
+      : []
+  );
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -114,14 +119,23 @@
     {/if}
   </div>
 
-  {#if session.volume && session.volume !== '-'}
+  {#if volumeMounts.length > 0}
     <div class="card-detail">
       <span class="card-detail-label">vol</span>
-      <span class="card-volume">{session.volume}</span>
+      <div class="card-volume-list">
+        {#each volumeMounts as mount}
+          <span class="card-volume">{mount}</span>
+        {/each}
+      </div>
     </div>
   {/if}
 
   <div class="card-actions">
+    {#if showTerminalToggle}
+      <button class="terminal-btn" onclick={onToggleTerminal} aria-label={isExpanded ? `Hide terminal for ${displayName}` : `Show terminal for ${displayName}`}>
+        {isExpanded ? '▼ hide terminal' : '▶ show terminal'}
+      </button>
+    {/if}
     {#if session.active}
       <button class="stop-btn" onclick={handleStop} aria-label={confirmAction === 'stop' ? `Confirm stop session ${displayName}` : `Stop session ${displayName}`}>
         {confirmAction === 'stop' ? 'stop?' : 'stop'}
@@ -142,6 +156,8 @@
     padding: var(--spacing-lg) var(--spacing-xl);
     border-left: 3px solid var(--color-border-primary);
     transition: opacity 0.2s;
+    max-width: 100%;
+    overflow: hidden;
   }
   .session-card.active { border-left-color: var(--color-success); }
   .session-card.inactive { opacity: 0.5; }
@@ -201,7 +217,7 @@
     color: var(--color-text-tertiary);
     margin-bottom: 6px;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 6px;
   }
   .card-detail-label {
@@ -210,6 +226,14 @@
     text-transform: uppercase;
     letter-spacing: 0.03em;
     min-width: 50px;
+    padding-top: 2px;
+  }
+  .card-volume-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    max-width: 100%;
   }
   .card-volume {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
@@ -219,10 +243,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  .card-volume:hover {
-    overflow: visible;
-    white-space: normal;
     word-break: break-all;
   }
 
@@ -278,5 +298,21 @@
   .start-btn:hover {
     background: rgba(16, 185, 129, 0.2);
     border-color: var(--color-success);
+  }
+  .terminal-btn {
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #3b82f6;
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    transition: all 0.15s;
+    flex: 1;
+  }
+  .terminal-btn:hover {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: #3b82f6;
   }
 </style>
