@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.11.0...reflex-v1.12.0) (2026-02-21)
+
+
+### Features
+
+* **brainbox:** integrate bridged networking for UTM Apple VMs ([0fb96a6](https://github.com/neverprepared/ink-bunny/commit/0fb96a69a8f975b4f205f7c56a5c947f90cfda92))
+* **reflex:** update container command for brainbox 0.7.1 ([8e829e3](https://github.com/neverprepared/ink-bunny/commit/8e829e3225c87b77ad47c0e30d365c90793960c5))
+
 ## [1.11.0](https://github.com/neverprepared/ink-bunny/compare/reflex/v1.10.0...reflex-v1.11.0) (2026-02-15)
 
 
