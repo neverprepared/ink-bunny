@@ -153,6 +153,55 @@ def get_hub_state() -> dict[str, Any]:
     return _request("GET", "/api/hub/state")
 
 
+@mcp.tool()
+def query_session(
+    name: str,
+    query: str,
+    timeout: int = 300,
+    agent_name: str | None = None,
+) -> dict[str, Any]:
+    """Send a query to a running container session and get the response via NATS.
+
+    Args:
+        name: Session name (e.g. test-1)
+        query: The query/task to execute in the container
+        timeout: Maximum seconds to wait for response (default: 300)
+        agent_name: Optional agent name to use in the container
+    """
+    body: dict[str, Any] = {"query": query, "timeout": timeout}
+    if agent_name:
+        body["agent_name"] = agent_name
+    return _request("POST", f"/api/sessions/{name}/query", body)
+
+
+@mcp.tool()
+def cancel_task(task_id: str) -> dict[str, Any]:
+    """Cancel a pending or running task.
+
+    Args:
+        task_id: The task ID to cancel
+    """
+    return _request("DELETE", f"/api/hub/tasks/{task_id}")
+
+
+@mcp.tool()
+def get_langfuse_health() -> dict[str, Any]:
+    """Check LangFuse observability service health and connectivity."""
+    return _request("GET", "/api/langfuse/health")
+
+
+@mcp.tool()
+def get_qdrant_health() -> dict[str, Any]:
+    """Check Qdrant vector database health and connectivity."""
+    return _request("GET", "/api/qdrant/health")
+
+
+@mcp.tool()
+def list_agents() -> list[dict[str, Any]]:
+    """List all registered agents in the hub."""
+    return _request("GET", "/api/hub/agents")
+
+
 def run() -> None:
     """Run the MCP server on stdio transport."""
     mcp.run(transport="stdio")
