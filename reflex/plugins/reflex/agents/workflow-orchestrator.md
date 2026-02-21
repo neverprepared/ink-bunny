@@ -125,6 +125,7 @@ For each workflow step:
 ```
 Task(
   subagent_type: "general-purpose",
+  description: "Execute workflow step",
   prompt: |
     Execute step '{step_name}' of the {workflow} workflow.
 
@@ -218,14 +219,14 @@ mcp__atlassian__jira_update_issue: issueKey="$TICKET_ID", fields={status: "In Pr
 
 ### GitHub
 
-Use the MCP tools (prefixed with `mcp__plugin_reflex_github__`):
+Use the MCP tools (prefixed with `mcp__github__`):
 
 ```
 # Search for issue
-mcp__plugin_reflex_github__search_issues: query="repo:$OWNER/$REPO $TICKET_ID in:title"
+mcp__github__search_issues: query="repo:$OWNER/$REPO $TICKET_ID in:title"
 
 # Create issue
-mcp__plugin_reflex_github__create_issue: owner="$OWNER", repo="$REPO", title="$TITLE"
+mcp__github__create_issue: owner="$OWNER", repo="$REPO", title="$TITLE"
 
 # Update issue — use issue_write or search_issues to update state
 ```

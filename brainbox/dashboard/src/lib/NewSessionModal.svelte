@@ -9,7 +9,6 @@
   let name = $state('');
   let role = $state('developer');
   let volume = $state('');
-  let query = $state('');
   let llmProvider = $state('claude');
   let llmModel = $state('');
   let ollamaHost = $state('');
@@ -53,8 +52,6 @@
         name: sanitized,
         role,
         volume,
-        query,
-        openTab,
         llm_provider: llmProvider,
         llm_model: llmProvider === 'ollama' ? llmModel : '',
         ollama_host: llmProvider === 'ollama' ? ollamaHost : '',
@@ -180,11 +177,6 @@
     <div class="modal-field">
       <label for="session-volume">volume mount</label>
       <input type="text" id="session-volume" placeholder="~/myproject:/home/developer/myproject" bind:value={volume} />
-    </div>
-
-    <div class="modal-field">
-      <label for="session-query">initial query</label>
-      <input type="text" id="session-query" placeholder="Research topic X..." bind:value={query} />
     </div>
 
     <div class="modal-field-checkbox">

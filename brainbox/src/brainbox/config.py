@@ -47,7 +47,7 @@ class CosignSettings(BaseSettings):
 
 class ArtifactSettings(BaseSettings):
     mode: Literal["off", "warn", "enforce"] = "warn"
-    endpoint: str = "http://localhost:9000"
+    endpoint: str = "http://localhost:9090"
     access_key: str = ""
     secret_key: str = ""
     bucket: str = "artifacts"

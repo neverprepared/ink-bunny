@@ -34,8 +34,7 @@ Extract:
 Before delegating, search for relevant context:
 
 ```
-Tool: qdrant-find
-Query: {extract key terms from task}
+qdrant-find(query: "{extract key terms from task}")
 ```
 
 ### 3. Build Enriched Prompt
@@ -66,9 +65,11 @@ Use it if relevant, but verify if the information seems outdated.
 Use the Task tool to launch the target agent with the enriched prompt:
 
 ```
-Tool: Task
-Agent: {target-agent}
-Prompt: {enriched prompt with context}
+Task(
+  subagent_type: "{target-agent}",
+  description: "RAG-enriched delegation",
+  prompt: "{enriched prompt with context}"
+)
 ```
 
 ### 5. Optionally Store Results

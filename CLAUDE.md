@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a monorepo for an agentic development platform with five packages:
 
 - **brainbox/** — FastAPI backend, Svelte dashboard, and Python package for managing sandboxed Claude Code sessions
-- **docker/** — Dockerfiles and compose configs: `docker/brainbox/` (container image + setup), `docker/qdrant/`, `docker/langfuse/`
+- **docker/** — Dockerfiles and compose configs: `docker/brainbox/` (container image + setup), `docker/qdrant/`, `docker/langfuse/`, `docker/minio/`, `docker/docker-compose.yml` (unified)
 - **reflex/** — Claude Code plugin providing skills, agents, slash commands, workflow orchestration, RAG integration, and MCP server management
 - **shell-profiler/** — Go CLI for managing workspace-specific environment profiles via direnv
 - **docs/** — Three-phase architectural documentation (Foundation → Hardened → Production-ready) describing the broader agentic platform vision
@@ -23,20 +23,20 @@ Four pillars, all defined as markdown files:
 | Pillar | Location | Format |
 |--------|----------|--------|
 | Skills (42) | `reflex/plugins/reflex/skills/<name>/SKILL.md` | Pattern/knowledge definitions |
-| Commands (18) | `reflex/plugins/reflex/commands/<name>.md` | Slash commands (`/reflex:*`) |
+| Commands (19) | `reflex/plugins/reflex/commands/<name>.md` | Slash commands (`/reflex:*`) |
 | Agents (2) | `reflex/plugins/reflex/agents/<name>.md` | rag-proxy, workflow-orchestrator |
-| Workflows (4) | `reflex/plugins/reflex/workflow-templates/templates/` | jira-driven, github-driven, standalone, custom |
+| Workflows (5) | `reflex/plugins/reflex/workflow-templates/templates/` | jira-driven, github-driven, standalone, custom, transcript-summary |
 
 Key config files:
 - `reflex/plugins/reflex/.claude-plugin/plugin.json` — plugin manifest
-- `reflex/plugins/reflex/mcp-catalog.json` — MCP server registry (11+ servers)
+- `reflex/plugins/reflex/mcp-catalog.json` — MCP server registry (17 servers)
 - `reflex/plugins/reflex/hooks/hooks.json` — hook configurations (guardrails, LangFuse, notifications)
 
 Scripts in `reflex/plugins/reflex/scripts/` implement hooks and tooling: `guardrail.py` (destructive op blocking), `ingest.py` (Qdrant ingestion), `summarize.py` (transcript summarizer), `mcp-generate.sh` (MCP registration).
 
 ### Brainbox Architecture
 
-Docker container (Ubuntu 24.04, Dockerfile at `docker/brainbox/Dockerfile`) with non-root `developer` user, pre-installed Claude Code, and Playwright MCP. Container setup files (`.bashrc`, `settings.json`, `ttyd-wrapper.sh`, `CLAUDE.md`) live in `docker/brainbox/setup/`. Sessions are named and isolated with persistent data in `~/.config/developer/sessions/`. Secrets are managed via `scripts/manage-env.js` and injected as `/home/developer/.env`.
+Docker container (Ubuntu 24.04, Dockerfile at `docker/brainbox/Dockerfile`) with non-root `developer` user, pre-installed Claude Code, and Playwright MCP. Container setup files (`.bashrc`, `settings.json`, `ttyd-wrapper.sh`, `CLAUDE.md`) live in `docker/brainbox/setup/`. Sessions are named and isolated with persistent data in `~/.config/developer/sessions/`. Secrets are injected as `/home/developer/.env` at container startup.
 
 ### Dashboard Architecture
 
@@ -54,6 +54,7 @@ Sidebar (220px / 60px collapsed)  |  Main Content (active panel)
 |-------|-----------|---------|
 | Containers | `ContainersPanel.svelte` | Session cards, terminal iframes, create/stop/delete, SSE updates |
 | Dashboard | `DashboardPanel.svelte` | StatsGrid + MetricsTable (polls `/api/metrics/containers` every 5s) + HubActivity (SSE-refreshed) |
+| Observability | `ObservabilityPanel.svelte` | LangFuse + Qdrant health, session traces, trace detail |
 
 Key files:
 - `dashboard/src/lib/stores.svelte.js` — `currentPanel` + `sidebarCollapsed` reactive state
@@ -88,6 +89,12 @@ just bb-dashboard        # Start API + dashboard (localhost:9999)
 just bb-docker-build     # Build Docker image
 just bb-docker-start     # Start default session
 just bb-docker-start -s myproject -v /path:/home/developer/workspace/myproject
+just bb-daemon-start     # Start API as daemon
+just bb-daemon-stop      # Stop daemon
+just bb-daemon-status    # Check daemon status
+just bb-daemon-restart   # Restart daemon
+just bb-daemon-logs      # Tail daemon logs
+just bb-minio            # Start MinIO via docker compose
 ```
 
 ### Shell Profiler (Go)

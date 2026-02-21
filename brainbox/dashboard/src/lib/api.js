@@ -52,11 +52,11 @@ export async function startSession(name) {
   });
 }
 
-export async function createSession({ name, role, volume, query, openTab, llm_provider, llm_model, ollama_host }) {
+export async function createSession({ name, role, volume, llm_provider, llm_model, ollama_host, backend, vm_template }) {
   return fetchJSON('/api/create', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, role, volume, query, openTab, llm_provider, llm_model, ollama_host }),
+    body: JSON.stringify({ name, role, volume, llm_provider, llm_model, ollama_host, backend, vm_template }),
   });
 }
 

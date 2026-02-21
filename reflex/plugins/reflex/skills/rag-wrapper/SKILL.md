@@ -24,8 +24,7 @@ If you need custom control, follow this pattern:
 ### Step 1: Query Relevant Context
 
 ```
-Tool: qdrant-find
-Query: {key terms from task}
+qdrant-find(query: "{key terms from task}")
 ```
 
 ### Step 2: Format Context Block
@@ -58,9 +57,11 @@ Note: Above context is from stored knowledge. Verify if needed.
 ### Step 4: Delegate
 
 ```
-Tool: Task
-Agent: {target-agent}
-Prompt: {enriched prompt}
+Task(
+  subagent_type: "{target-agent}",
+  description: "RAG-wrapped agent task",
+  prompt: "{enriched prompt}"
+)
 ```
 
 ## Enriched Prompt Template

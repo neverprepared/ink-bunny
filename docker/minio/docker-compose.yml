@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"  # S3 API
+      - "9090:9000"  # S3 API (9090 avoids conflict with ClickHouse)
       - "9001:9001"  # Console
     volumes:
       - minio-data:/data

@@ -156,21 +156,17 @@ def get_hub_state() -> dict[str, Any]:
 @mcp.tool()
 def query_session(
     name: str,
-    query: str,
+    prompt: str,
     timeout: int = 300,
-    agent_name: str | None = None,
 ) -> dict[str, Any]:
-    """Send a query to a running container session and get the response via NATS.
+    """Send a prompt to Claude Code running in a container session.
 
     Args:
         name: Session name (e.g. test-1)
-        query: The query/task to execute in the container
+        prompt: The prompt/task to execute in the container
         timeout: Maximum seconds to wait for response (default: 300)
-        agent_name: Optional agent name to use in the container
     """
-    body: dict[str, Any] = {"query": query, "timeout": timeout}
-    if agent_name:
-        body["agent_name"] = agent_name
+    body: dict[str, Any] = {"prompt": prompt, "timeout": timeout}
     return _request("POST", f"/api/sessions/{name}/query", body)
 
 

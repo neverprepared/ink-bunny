@@ -19,7 +19,7 @@ reflex/
 │   ├── scripts/              # Helper scripts (bash)
 │   ├── mcp-catalog.json      # MCP server catalog (registry)
 │   └── CLAUDE.md             # Plugin-specific instructions
-├── docker/                   # Docker Compose services
+├── ../docker/                # Docker Compose services (at monorepo root)
 │   ├── qdrant/               # Vector database (port 6333)
 │   └── langfuse/             # LLM observability (port 3000)
 ├── release-please-config.json  # Release automation
@@ -46,11 +46,16 @@ claude --plugin-dir /path/to/reflex
 ### Docker Services
 
 ```bash
+# Docker services live at the monorepo root (not inside reflex/)
 # Start Qdrant (required for RAG features)
-cd docker/qdrant && cp .env.example .env && docker compose up -d
+cd ../docker/qdrant && cp .env.example .env && docker compose up -d
 
 # Start LangFuse (optional, for observability)
-cd docker/langfuse && cp .env.example .env && docker compose up -d
+cd ../docker/langfuse && cp .env.example .env && docker compose up -d
+
+# Or use just recipes from the monorepo root:
+just reflex-qdrant
+just reflex-langfuse
 ```
 
 ## Versioning and Releases

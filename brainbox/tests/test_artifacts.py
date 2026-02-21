@@ -71,7 +71,7 @@ class TestArtifactSettings:
     def test_defaults(self):
         s = ArtifactSettings()
         assert s.mode == "warn"
-        assert s.endpoint == "http://localhost:9000"
+        assert s.endpoint == "http://localhost:9090"
         assert s.access_key == ""
         assert s.secret_key == ""
         assert s.bucket == "artifacts"

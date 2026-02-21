@@ -217,7 +217,7 @@ if [ -z "$SESSION_NAME" ] || [ -z "$QUERY" ]; then
 fi
 
 # Build JSON payload
-PAYLOAD=$(jq -n --arg q "$QUERY" '{query: $q, timeout: 300}')
+PAYLOAD=$(jq -n --arg q "$QUERY" '{prompt: $q, timeout: 300}')
 
 RESULT=$(curl -sf -X POST "${URL}/api/sessions/${SESSION_NAME}/query" \
   -H 'Content-Type: application/json' \

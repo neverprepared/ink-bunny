@@ -65,10 +65,10 @@ reflex-dev:
     claude --plugin-dir reflex
 
 reflex-qdrant:
-    cd reflex/docker/qdrant && docker compose up -d
+    cd docker/qdrant && docker compose up -d
 
 reflex-langfuse:
-    cd reflex/docker/langfuse && docker compose up -d
+    cd docker/langfuse && docker compose up -d
 
 # === Cross-cutting ===
 
