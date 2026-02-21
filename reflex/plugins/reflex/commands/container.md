@@ -1,7 +1,7 @@
 ---
 description: Manage the brainbox API and sandboxed dev environments
 allowed-tools: Bash(curl:*), Bash(brainbox:*), Bash(open:*), Bash(kill:*), Bash(cat:*), Bash(mkdir:*), Bash(echo:*), Bash(jq:*)
-argument-hint: <start|stop|status|create|dashboard|config>
+argument-hint: <start|stop|status|create|query|dashboard|config|health>
 ---
 
 # Brainbox
@@ -88,7 +88,7 @@ echo "**Configuration:**"
 if [ -f "$CONFIG_FILE" ]; then
   cat "$CONFIG_FILE" | jq .
 else
-  echo "  Using defaults (url: http://127.0.0.1:8000, autostart: true)"
+  echo "  Using defaults (url: http://127.0.0.1:9999, autostart: true)"
 fi
 
 echo ""
@@ -186,6 +186,88 @@ Show the result: on success report the container URL and detected profile. On fa
 /reflex:container create myproject --mount /data:/workspace/data:ro --mount /configs:/workspace/.config:rw
 ```
 
+### `/reflex:container query`
+
+Send a query to a running container and get the response via NATS. This is the primary way to interact with containers for orchestration workflows.
+
+```bash
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+URL_FILE="${CLAUDE_DIR}/reflex/.brainbox-url"
+
+if [ ! -f "$URL_FILE" ]; then
+  echo "Brainbox is not connected. Start it first:"
+  echo "  /reflex:container start"
+  exit 1
+fi
+
+URL=$(cat "$URL_FILE")
+
+# Parse arguments: session_name and query text
+# Format: /reflex:container query <session-name> <query-text>
+SESSION_NAME=$(echo "$ARG" | awk '{print $1}')
+QUERY=$(echo "$ARG" | cut -d' ' -f2-)
+
+if [ -z "$SESSION_NAME" ] || [ -z "$QUERY" ]; then
+  echo "Usage: /reflex:container query <session-name> <query>"
+  echo ""
+  echo "Examples:"
+  echo "  /reflex:container query test-1 'What files are in the current directory?'"
+  echo "  /reflex:container query myproject 'Run the tests'"
+  exit 1
+fi
+
+# Build JSON payload
+PAYLOAD=$(jq -n --arg q "$QUERY" '{query: $q, timeout: 300}')
+
+RESULT=$(curl -sf -X POST "${URL}/api/sessions/${SESSION_NAME}/query" \
+  -H 'Content-Type: application/json' \
+  -d "$PAYLOAD" --max-time 320 2>&1)
+
+echo "$RESULT"
+```
+
+Show the result to the user. On success, display the container's response. On timeout or error, show the error message.
+
+**Examples:**
+```bash
+# Query a container
+/reflex:container query test-1 Create a Python script that prints hello world
+
+# Run commands
+/reflex:container query myproject List all files in the workspace
+```
+
+### `/reflex:container health`
+
+Check health status of observability services (LangFuse, Qdrant).
+
+```bash
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+URL_FILE="${CLAUDE_DIR}/reflex/.brainbox-url"
+
+if [ ! -f "$URL_FILE" ]; then
+  echo "Brainbox is not connected. Start it first:"
+  echo "  /reflex:container start"
+  exit 1
+fi
+
+URL=$(cat "$URL_FILE")
+
+echo "## Observability Health"
+echo ""
+
+# LangFuse
+LANGFUSE=$(curl -sf "${URL}/api/langfuse/health" --max-time 3 2>/dev/null || echo '{"healthy":false}')
+LANGFUSE_STATUS=$(echo "$LANGFUSE" | jq -r 'if .healthy then "Online" else "Offline" end')
+echo "**LangFuse:** ${LANGFUSE_STATUS}"
+
+# Qdrant
+QDRANT=$(curl -sf "${URL}/api/qdrant/health" --max-time 3 2>/dev/null || echo '{"healthy":false}')
+QDRANT_STATUS=$(echo "$QDRANT" | jq -r 'if .healthy then "Online" else "Offline" end')
+QDRANT_URL=$(echo "$QDRANT" | jq -r '.url // "unknown"')
+echo "**Qdrant:** ${QDRANT_STATUS} (${QDRANT_URL})"
+```
+
 ### `/reflex:container config`
 
 Show or set configuration values. With no extra arguments, show current config. With key=value pairs, update the config file.
@@ -203,7 +285,7 @@ if [ -f "$CONFIG_FILE" ]; then
 else
   echo "No config file. Using defaults:"
   echo '```json'
-  echo '{"url": "http://127.0.0.1:8000", "autostart": true}'
+  echo '{"url": "http://127.0.0.1:9999", "autostart": true}'
   echo '```'
 fi
 echo ""
@@ -227,7 +309,7 @@ mkdir -p "${CLAUDE_DIR}/reflex"
 if [ -f "$CONFIG_FILE" ]; then
   CONFIG=$(cat "$CONFIG_FILE")
 else
-  CONFIG='{"url": "http://127.0.0.1:8000", "autostart": true}'
+  CONFIG='{"url": "http://127.0.0.1:9999", "autostart": true}'
 fi
 
 # Apply the update — the key and value come from the user's argument
@@ -243,7 +325,7 @@ cat "$CONFIG_FILE" | jq .
 If no argument or invalid argument provided, show usage:
 
 ```
-Usage: /reflex:container <start|stop|status|create|dashboard|config>
+Usage: /reflex:container <start|stop|status|create|query|dashboard|health|config>
 
 Manage the brainbox API for sandboxed dev environments.
 
@@ -253,11 +335,15 @@ Commands:
   status     Show connection info and running containers
   create     Create a container (auto-detects profile from env)
              Syntax: create [name] [--mount /host:/container[:mode]] ...
+  query      Send a query to a running container via NATS
+             Syntax: query <session-name> <query-text>
   dashboard  Open the dashboard in browser
+  health     Check observability services (LangFuse, Qdrant)
   config     Show/set configuration (url, autostart)
 
 Configuration:
   Config file: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/reflex/brainbox.json
+  Default API port: 9999
 
   Environment variable overrides (highest priority):
     BRAINBOX_URL        API endpoint (local or remote)
@@ -268,8 +354,9 @@ Examples:
   /reflex:container create
   /reflex:container create myproject
   /reflex:container create myproject --mount /data:/workspace/data:ro
-  /reflex:container create --mount /local/src:/workspace/src:rw
+  /reflex:container query test-1 'List all files in the workspace'
+  /reflex:container health
   /reflex:container status
-  /reflex:container config url=http://remote:8080
+  /reflex:container config url=http://remote:9999
   /reflex:container config autostart=false
 ```
