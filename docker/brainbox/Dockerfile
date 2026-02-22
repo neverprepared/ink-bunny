@@ -167,6 +167,20 @@ RUN bash -c '. "$NVM_DIR/nvm.sh" && npm install -g @playwright/mcp' && \
 USER developer
 
 # =============================================================================
+# fastembed model cache — pre-download so PostToolUse hooks start instantly
+# =============================================================================
+# The qdrant-websearch hook uses sentence-transformers/all-MiniLM-L6-v2 (384-dim).
+# Without pre-caching, the first hook run triggers a 30+ second download which
+# exceeds the 5-second hook timeout, causing silent failure.
+RUN uvx --python 3.12 --with fastembed python3 -c "\
+from fastembed import TextEmbedding; \
+from pathlib import Path; \
+cache = str(Path.home() / '.cache' / 'fastembed'); \
+m = TextEmbedding('sentence-transformers/all-MiniLM-L6-v2', cache_dir=cache); \
+list(m.embed(['warmup'])); \
+print('fastembed model cached')"
+
+# =============================================================================
 # Base image complete — role-specific Dockerfiles extend from here
 # =============================================================================
 ENV BASH_ENV=/home/developer/.env

@@ -15,6 +15,7 @@ import re
 import sys
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
@@ -372,8 +373,9 @@ def store_to_qdrant(content: str, metadata: Dict) -> None:
                 }
             )
 
-        # Generate embedding
-        embedder = TextEmbedding(MODEL_NAME)
+        # Generate embedding (use persistent cache outside /tmp)
+        cache_dir = str(Path.home() / ".cache" / "fastembed")
+        embedder = TextEmbedding(MODEL_NAME, cache_dir=cache_dir)
         embedding = list(embedder.embed([content]))[0]
 
         # Generate point ID from content hash (prevents duplicates)
@@ -402,6 +404,32 @@ def store_to_qdrant(content: str, metadata: Dict) -> None:
 # Main
 # =============================================================================
 
+def parse_tool_response(tool_response) -> List[Dict]:
+    """
+    Normalize tool_response to a list of result dicts.
+
+    Claude Code sends WebSearch tool_response as either:
+    - A list of dicts: [{"title": ..., "url": ..., "snippet": ...}, ...]
+    - A string: "Web search results for query: ...\n\nLinks: [{...}, ...]"
+
+    Returns a list of result dicts (may be empty if parsing fails).
+    """
+    if isinstance(tool_response, list):
+        # Already a list — filter to dicts with at least a url or title
+        return [r for r in tool_response if isinstance(r, dict)]
+
+    if isinstance(tool_response, str):
+        # Parse the "Links: [...]" JSON embedded in the string
+        match = re.search(r'Links:\s*(\[.*\])', tool_response, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group(1))
+            except json.JSONDecodeError:
+                pass
+
+    return []
+
+
 def main():
     """Main entry point for hook script."""
     try:
@@ -410,11 +438,14 @@ def main():
 
         # Extract tool input and response
         tool_input = tool_data.get("tool_input", {})
-        tool_response = tool_data.get("tool_response", [])
+        raw_response = tool_data.get("tool_response", [])
 
         # Skip if no results
-        if not tool_response:
+        if not raw_response:
             return
+
+        # Normalize tool_response to list of result dicts
+        tool_response = parse_tool_response(raw_response)
 
         # Build metadata
         metadata = build_metadata(tool_input, tool_response)
