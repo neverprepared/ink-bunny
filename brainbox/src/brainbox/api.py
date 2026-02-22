@@ -1375,7 +1375,7 @@ async def api_langfuse_health():
         return {"healthy": False, "mode": "off", "detail": "LangFuse integration is disabled"}
     loop = asyncio.get_running_loop()
     healthy = await loop.run_in_executor(None, langfuse_health_check)
-    return {"healthy": healthy, "mode": mode}
+    return {"healthy": healthy, "mode": mode, "url": settings.langfuse.base_url}
 
 
 @app.get("/api/qdrant/health")

@@ -1,28 +1,18 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { fetchLangfuseHealth, fetchQdrantHealth, fetchSessions, fetchSessionSummary, connectSSE } from './api.js';
-  import TraceTimeline from './TraceTimeline.svelte';
-  import ToolBreakdown from './ToolBreakdown.svelte';
+  import { fetchLangfuseHealth, fetchQdrantHealth } from './api.js';
   import StatCard from './StatCard.svelte';
 
-  let langfuseHealth = $state({ healthy: false, mode: 'off' });
+  let langfuseHealth = $state({ healthy: false, mode: 'off', url: null });
   let qdrantHealth = $state({ healthy: false, url: null });
   let langfuseLoading = $state(true);
   let qdrantLoading = $state(true);
-  let sessions = $state([]);
-  let summaries = $state([]);
-  let selectedSession = $state('');
-  let eventSource = null;
-
-  const DOCKER_EVENTS = ['create', 'start', 'stop', 'die', 'destroy'];
+  let interval = null;
 
   async function refreshHealth() {
-    langfuseLoading = true;
-    qdrantLoading = true;
-
     try {
       langfuseHealth = await fetchLangfuseHealth();
-    } catch { langfuseHealth = { healthy: false, mode: 'unknown' }; }
+    } catch { langfuseHealth = { healthy: false, mode: 'unknown', url: null }; }
     finally { langfuseLoading = false; }
 
     try {
@@ -31,85 +21,63 @@
     finally { qdrantLoading = false; }
   }
 
-  async function refreshSessions() {
-    try {
-      const all = await fetchSessions();
-      sessions = all.filter(s => s.active);
-    } catch { /* noop */ }
-  }
-
-  async function refreshSummaries() {
-    try {
-      const results = await Promise.all(
-        activeSessions.map(name =>
-          fetchSessionSummary(name).catch(() => ({
-            session_id: name,
-            total_traces: 0,
-            total_observations: 0,
-            error_count: 0,
-            tool_counts: {},
-          }))
-        )
-      );
-      summaries = results;
-    } catch { /* noop */ }
-  }
-
   onMount(() => {
     refreshHealth();
-    refreshSessions();
-    eventSource = connectSSE((data) => {
-      if (DOCKER_EVENTS.includes(data)) {
-        refreshSessions();
-      }
-    });
+    interval = setInterval(refreshHealth, 30_000);
   });
 
   onDestroy(() => {
-    if (eventSource) eventSource.close();
+    if (interval) clearInterval(interval);
   });
-
-  let activeSessions = $derived(sessions.map(s => s.session_name));
-
-  // Re-fetch summaries when sessions change
-  $effect(() => {
-    if (activeSessions.length > 0) {
-      refreshSummaries();
-    } else {
-      summaries = [];
-    }
-  });
-
-  let totalTraces = $derived(summaries.reduce((n, s) => n + (s.total_traces || 0), 0));
-  let totalErrors = $derived(summaries.reduce((n, s) => n + (s.error_count || 0), 0));
-  let activeCount = $derived(activeSessions.length);
 </script>
 
 <header>
   <h1><span class="accent">observability</span></h1>
-  {#if activeSessions.length > 0}
-    <div class="session-filter">
-      <select bind:value={selectedSession}>
-        <option value="">All sessions</option>
-        {#each activeSessions as name (name)}
-          <option value={name}>{name}</option>
-        {/each}
-      </select>
-    </div>
-  {/if}
 </header>
 
 <div class="stats">
   <StatCard label="LangFuse" value={langfuseLoading ? '...' : (langfuseHealth.healthy ? 'Online' : 'Offline')} variant={langfuseLoading ? 'default' : (langfuseHealth.healthy ? 'healthy' : 'unhealthy')} />
   <StatCard label="Qdrant" value={qdrantLoading ? '...' : (qdrantHealth.healthy ? 'Online' : 'Offline')} variant={qdrantLoading ? 'default' : (qdrantHealth.healthy ? 'healthy' : 'unhealthy')} />
-  <StatCard label="Total Traces" value={totalTraces} />
-  <StatCard label="Errors" value={totalErrors} variant={totalErrors > 0 ? 'errors' : 'default'} />
-  <StatCard label="Active Sessions" value={activeCount} variant="sessions" />
 </div>
 
-<div class="widgets">
-  <TraceTimeline sessions={activeSessions} {selectedSession} />
-  <ToolBreakdown sessions={selectedSession ? [selectedSession] : activeSessions} />
+<div class="services">
+  <div class="service-card">
+    <div class="service-header">
+      <div class="service-title">
+        <span class="dot" class:online={langfuseHealth.healthy} class:offline={!langfuseHealth.healthy}></span>
+        LangFuse
+      </div>
+      {#if langfuseHealth.healthy && langfuseHealth.url}
+        <a href={langfuseHealth.url} target="_blank" rel="noopener noreferrer" class="open-link">
+          Open →
+        </a>
+      {/if}
+    </div>
+    <p class="service-desc">Trace observability for LLM sessions</p>
+    {#if !langfuseHealth.healthy}
+      <p class="service-offline">Service unavailable</p>
+    {/if}
+  </div>
+
+  <div class="service-card">
+    <div class="service-header">
+      <div class="service-title">
+        <span class="dot" class:online={qdrantHealth.healthy} class:offline={!qdrantHealth.healthy}></span>
+        Qdrant
+      </div>
+      {#if qdrantHealth.healthy && qdrantHealth.url}
+        <a href={qdrantHealth.url} target="_blank" rel="noopener noreferrer" class="open-link">
+          Open →
+        </a>
+      {/if}
+    </div>
+    <p class="service-desc">Vector database for RAG and memory</p>
+    {#if qdrantHealth.healthy && qdrantHealth.url}
+      <p class="service-url">{qdrantHealth.url}</p>
+    {:else if !qdrantHealth.healthy}
+      <p class="service-offline">Service unavailable</p>
+    {/if}
+  </div>
 </div>
 
 <style>
@@ -126,39 +94,81 @@
   }
   .accent { color: #f59e0b; }
 
-  .session-filter select {
-    background: #111827;
-    border: 1px solid #1e293b;
-    color: #e2e8f0;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    cursor: pointer;
-  }
-  .session-filter select:focus {
-    outline: none;
-    border-color: #f59e0b;
-  }
-
   .stats {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 16px;
     margin-bottom: 24px;
-  }
-  @media (max-width: 900px) {
-    .stats { grid-template-columns: repeat(3, 1fr); }
-  }
-  @media (max-width: 600px) {
-    .stats { grid-template-columns: repeat(2, 1fr); }
+    max-width: 400px;
   }
 
-  .widgets {
+  .services {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 16px;
   }
-  @media (max-width: 900px) {
-    .widgets { grid-template-columns: 1fr; }
+  @media (max-width: 700px) {
+    .services { grid-template-columns: 1fr; }
+  }
+
+  .service-card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    padding: 20px;
+  }
+
+  .service-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .service-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #e2e8f0;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot.online  { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+  .dot.offline { background: #ef4444; }
+
+  .open-link {
+    font-size: 13px;
+    color: #f59e0b;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.15s;
+  }
+  .open-link:hover { color: #fbbf24; }
+
+  .service-desc {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+  }
+
+  .service-url {
+    font-size: 12px;
+    color: #475569;
+    margin: 6px 0 0;
+    font-family: monospace;
+    word-break: break-all;
+  }
+
+  .service-offline {
+    font-size: 13px;
+    color: #ef4444;
+    margin: 6px 0 0;
   }
 </style>
