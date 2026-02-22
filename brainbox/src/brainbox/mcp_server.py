@@ -14,6 +14,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -25,11 +26,25 @@ def _api_url() -> str:
     return os.environ.get("BRAINBOX_URL", "http://127.0.0.1:9999")
 
 
+def _api_key() -> str:
+    """Load API key from CL_API_KEY env, or from key file on disk."""
+    key = os.environ.get("CL_API_KEY", "")
+    if key:
+        return key
+    key_file = Path.home() / ".config" / "developer" / ".api-key"
+    if key_file.exists():
+        return key_file.read_text().strip()
+    return ""
+
+
 def _request(method: str, path: str, body: dict[str, Any] | None = None) -> Any:
     """Make an HTTP request to the brainbox API."""
     url = f"{_api_url()}{path}"
     data = json.dumps(body).encode() if body else None
     headers = {"Content-Type": "application/json"} if data else {}
+    key = _api_key()
+    if key:
+        headers["X-API-Key"] = key
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:

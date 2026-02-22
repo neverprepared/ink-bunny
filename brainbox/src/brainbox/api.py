@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -16,9 +18,11 @@ from fastapi.staticfiles import StaticFiles
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from sse_starlette.sse import EventSourceResponse
+from starlette.middleware.cors import CORSMiddleware
 
 from datetime import datetime, timezone
 
+from .auth import get_api_key, load_or_create_key, require_api_key
 from .config import settings
 from .rate_limit import limiter, rate_limit_exceeded_handler
 from .hub import init as hub_init, shutdown as hub_shutdown
@@ -35,6 +39,7 @@ from .lifecycle import (
 )
 from .validation import (
     validate_artifact_key,
+    validate_session_name,
     ValidationError,
 )
 from .log import get_logger, setup_logging
@@ -88,13 +93,15 @@ def _audit_log(
     success: bool = True,
     error: str | None = None,
 ) -> None:
-    """Log destructive operations with client metadata."""
+    """Log destructive operations with client metadata and request ID."""
     client_ip = get_remote_address(request) if hasattr(request, "client") else "unknown"
     user_agent = request.headers.get("user-agent", "unknown")
+    request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
 
     log.info(
         "audit.operation",
         metadata={
+            "request_id": request_id,
             "operation": operation,
             "session_name": session_name or "N/A",
             "client_ip": client_ip,
@@ -110,14 +117,21 @@ def _audit_log(
 # ---------------------------------------------------------------------------
 
 _sse_queues: set[asyncio.Queue] = set()
+_sse_drops: int = 0
 
 
 def _broadcast_sse(data: str) -> None:
+    global _sse_drops
     for q in list(_sse_queues):
         try:
             q.put_nowait(data)
         except asyncio.QueueFull:
-            pass
+            _sse_drops += 1
+            if _sse_drops % 50 == 1:
+                log.warning(
+                    "sse.queue_full",
+                    metadata={"total_drops": _sse_drops, "connected_clients": len(_sse_queues)},
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -141,12 +155,7 @@ _tasks: dict[str, dict[str, Any]] = {}
 
 def _store_task(task_id: str, status: str, **kwargs):
     """Store task status and metadata."""
-    _tasks[task_id] = {
-        "task_id": task_id,
-        "status": status,
-        "created_at": time.time(),
-        **kwargs
-    }
+    _tasks[task_id] = {"task_id": task_id, "status": status, "created_at": time.time(), **kwargs}
 
 
 def _update_task(task_id: str, **kwargs):
@@ -243,7 +252,7 @@ async def _handle_progress_update(data: dict):
             task_id,
             status="in_progress",
             progress=data.get("progress"),
-            message=data.get("message")
+            message=data.get("message"),
         )
 
     # Broadcast to SSE for dashboard updates
@@ -263,7 +272,7 @@ async def _handle_result(data: dict):
             result=data.get("result"),
             output=data.get("output"),
             exit_code=data.get("exit_code"),
-            duration_seconds=data.get("duration_seconds")
+            duration_seconds=data.get("duration_seconds"),
         )
 
     # Broadcast to SSE for dashboard updates
@@ -277,12 +286,7 @@ async def _handle_error(data: dict):
     # Store task error
     task_id = data.get("task_id")
     if task_id:
-        _update_task(
-            task_id,
-            status="failed",
-            error=data.get("error"),
-            message=data.get("message")
-        )
+        _update_task(task_id, status="failed", error=data.get("error"), message=data.get("message"))
 
     # Broadcast to SSE for dashboard updates
     _broadcast_sse(json.dumps({"type": "task_error", "data": data}))
@@ -296,9 +300,7 @@ async def _handle_cancelled(data: dict):
     task_id = data.get("task_id")
     if task_id:
         _update_task(
-            task_id,
-            status="cancelled",
-            message=data.get("message", "Task cancelled by user")
+            task_id, status="cancelled", message=data.get("message", "Task cancelled by user")
         )
 
     # Broadcast to SSE for dashboard updates
@@ -314,6 +316,7 @@ async def _handle_cancelled(data: dict):
 async def lifespan(app: FastAPI):
     setup_logging()
     await hub_init()
+    load_or_create_key()
 
     # Forward hub events to SSE
     on_event(
@@ -374,9 +377,40 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Brainbox", version="0.2.0", lifespan=lifespan)
 
+# CORS — restrict to localhost by default; override via CL_CORS_ORIGINS
+_cors_origins = (
+    os.environ.get("CL_CORS_ORIGINS", "").split(",")
+    if os.environ.get("CL_CORS_ORIGINS")
+    else [
+        "http://localhost:9999",
+        "http://127.0.0.1:9999",
+        "http://localhost:5173",  # Vite dev server
+    ]
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-Id", "X-API-Key"],
+)
+
 # Add rate limiter state and exception handler
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+
+# ---------------------------------------------------------------------------
+# API key endpoint (loopback only)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/auth/key")
+async def api_get_key(request: Request):
+    """Return the API key — only accessible from loopback addresses."""
+    client_ip = request.client.host if request.client else ""
+    if client_ip not in ("127.0.0.1", "::1"):
+        raise HTTPException(status_code=403, detail="Only accessible from localhost")
+    return {"key": get_api_key()}
 
 
 # ---------------------------------------------------------------------------
@@ -497,7 +531,9 @@ def _get_sessions_info_legacy() -> list[dict[str, Any]]:
 
 
 @app.get("/api/events")
-async def sse_events():
+async def sse_events(
+    session: str | None = Query(None, description="Filter events by session name"),
+):
     queue: asyncio.Queue = asyncio.Queue(maxsize=50)
     _sse_queues.add(queue)
 
@@ -506,6 +542,17 @@ async def sse_events():
             yield {"data": "connected"}
             while True:
                 data = await queue.get()
+                # If a session filter is active, only forward matching events
+                if session:
+                    try:
+                        parsed = json.loads(data)
+                        event_session = parsed.get("data", {}).get("session_name") or parsed.get(
+                            "session_name"
+                        )
+                        if event_session and event_session != session:
+                            continue
+                    except (json.JSONDecodeError, TypeError, AttributeError):
+                        pass  # Non-JSON events (docker actions) pass through
                 yield {"data": data}
         except asyncio.CancelledError:
             pass
@@ -528,7 +575,7 @@ async def api_list_sessions():
 
 @app.post("/api/stop")
 @limiter.limit("10/minute")
-async def api_stop_session(request: Request, body: StopSessionRequest):
+async def api_stop_session(request: Request, body: StopSessionRequest, _key=Depends(require_api_key)):
     name = body.name
     session_name = _extract_session_name(name)
     try:
@@ -580,7 +627,7 @@ async def api_stop_session(request: Request, body: StopSessionRequest):
 
 @app.post("/api/delete")
 @limiter.limit("10/minute")
-async def api_delete_session(request: Request, body: DeleteSessionRequest):
+async def api_delete_session(request: Request, body: DeleteSessionRequest, _key=Depends(require_api_key)):
     name = body.name
     session_name = _extract_session_name(name)
     try:
@@ -639,7 +686,7 @@ async def api_delete_session(request: Request, body: DeleteSessionRequest):
 
 @app.post("/api/start")
 @limiter.limit("10/minute")
-async def api_start_session(request: Request, body: StartSessionRequest):
+async def api_start_session(request: Request, body: StartSessionRequest, _key=Depends(require_api_key)):
     name = body.name
     session_name = _extract_session_name(name)
     try:
@@ -709,7 +756,7 @@ async def api_start_session(request: Request, body: StartSessionRequest):
 
 @app.post("/api/create")
 @limiter.limit("10/minute")
-async def api_create_session(request: Request, body: CreateSessionRequest):
+async def api_create_session(request: Request, body: CreateSessionRequest, _key=Depends(require_api_key)):
     try:
         ctx = await run_pipeline(
             session_name=body.name,
@@ -749,8 +796,21 @@ async def api_create_session(request: Request, body: CreateSessionRequest):
 
 @app.post("/api/sessions/{name}/exec")
 @limiter.limit("10/minute")
-async def api_exec_session(request: Request, name: str, body: ExecSessionRequest):
+async def api_exec_session(request: Request, name: str, body: ExecSessionRequest, _key=Depends(require_api_key)):
     """Execute a command inside a running container."""
+    try:
+        validate_session_name(name)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Sanitize command input
+    if not body.command or not body.command.strip():
+        raise HTTPException(status_code=400, detail="Command cannot be empty")
+    if "\x00" in body.command:
+        raise HTTPException(status_code=400, detail="Command cannot contain null bytes")
+    if len(body.command) > 10_000:
+        raise HTTPException(status_code=400, detail="Command too long (max 10000 chars)")
+
     prefix = settings.resolved_prefix
     container_name = f"{prefix}{name}"
 
@@ -779,13 +839,45 @@ async def api_exec_session(request: Request, name: str, body: ExecSessionRequest
     }
 
 
+@app.post("/api/sessions/{name}/refresh-secrets")
+@limiter.limit("5/minute")
+async def api_refresh_secrets(request: Request, name: str, _key=Depends(require_api_key)):
+    """Re-resolve and re-inject secrets into a running session."""
+    try:
+        validate_session_name(name)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    from .secrets import resolve_secrets
+    from .lifecycle import get_session
+
+    ctx = get_session(name)
+    if not ctx:
+        _audit_log(
+            request, "session.refresh_secrets", session_name=name, success=False, error="not_found"
+        )
+        raise HTTPException(status_code=404, detail=f"Session '{name}' not found")
+
+    try:
+        secrets = resolve_secrets()
+        ctx.secrets.update(secrets)
+        await configure(ctx)
+        _audit_log(request, "session.refresh_secrets", session_name=name, success=True)
+        return {"success": True, "secrets_count": len(secrets)}
+    except Exception as exc:
+        _audit_log(
+            request, "session.refresh_secrets", session_name=name, success=False, error=str(exc)
+        )
+        raise HTTPException(status_code=500, detail=f"Secret refresh failed: {exc}")
+
+
 @app.post("/api/sessions/{name}/query")
 @limiter.limit("5/minute")
 async def api_query_session(
     request: Request,
     name: str,
     body: QuerySessionRequest,
-    async_mode: bool = Query(True, description="Execute in background (returns immediately)")
+    async_mode: bool = Query(True, description="Execute in background (returns immediately)"),
+    _key=Depends(require_api_key),
 ):
     """Send a prompt to Claude Code running in the container.
 
@@ -795,6 +887,10 @@ async def api_query_session(
         async_mode: If True (default), returns immediately with task_id.
                    If False, waits for completion (legacy sync mode).
     """
+    try:
+        validate_session_name(name)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     # Use NATS if enabled and connected
     if settings.nats.enabled and _nats_client and _nats_client.is_connected:
         return await _query_via_nats(request, name, body, async_mode=async_mode)
@@ -908,7 +1004,7 @@ async def _query_via_nats(
                 status="queued",
                 session_name=name,
                 prompt=body.prompt,
-                submitted_at=start_time
+                submitted_at=start_time,
             )
 
             # Publish command to container (fire-and-forget)
@@ -919,7 +1015,7 @@ async def _query_via_nats(
             return {
                 "task_id": task_id,
                 "status": "queued",
-                "message": "Task submitted for execution. Subscribe to /api/events or poll /api/tasks/{task_id} for results."
+                "message": "Task submitted for execution. Subscribe to /api/events or poll /api/tasks/{task_id} for results.",
             }
 
         except Exception as e:
@@ -935,7 +1031,9 @@ async def _query_via_nats(
             result = await _nats_client.send_command(name, command, timeout=float(body.timeout))
 
             duration = time.time() - start_time
-            _audit_log(request, "session.query", session_name=name, success=result.get("success", False))
+            _audit_log(
+                request, "session.query", session_name=name, success=result.get("success", False)
+            )
 
             # Parse the Claude CLI output for clean presentation
             raw_output = result.get("output", "")
@@ -989,8 +1087,10 @@ async def api_get_task_status(request: Request, task_id: str):
 @limiter.limit("30/minute")
 async def api_list_tasks(
     request: Request,
-    status: str | None = Query(None, description="Filter by status (queued, in_progress, completed, failed)"),
-    limit: int = Query(50, description="Maximum number of tasks to return", ge=1, le=500)
+    status: str | None = Query(
+        None, description="Filter by status (queued, in_progress, completed, failed)"
+    ),
+    limit: int = Query(50, description="Maximum number of tasks to return", ge=1, le=500),
 ):
     """List all tasks with optional status filter."""
     tasks = list(_tasks.values())
@@ -1008,13 +1108,15 @@ async def api_list_tasks(
     return {
         "tasks": tasks,
         "total": len(tasks),
-        "filtered": len(_tasks) if not status else len([t for t in _tasks.values() if t.get("status") == status])
+        "filtered": len(_tasks)
+        if not status
+        else len([t for t in _tasks.values() if t.get("status") == status]),
     }
 
 
 @app.delete("/api/tasks/{task_id}")
 @limiter.limit("30/minute")
-async def api_cancel_task(request: Request, task_id: str):
+async def api_cancel_task(request: Request, task_id: str, _key=Depends(require_api_key)):
     """Cancel a running or queued task.
 
     Sends cancellation signal to the container executing the task.
@@ -1029,7 +1131,7 @@ async def api_cancel_task(request: Request, task_id: str):
     if current_status not in ["queued", "in_progress"]:
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot cancel task with status '{current_status}'. Only queued/in_progress tasks can be cancelled."
+            detail=f"Cannot cancel task with status '{current_status}'. Only queued/in_progress tasks can be cancelled.",
         )
 
     session_name = task.get("session_name")
@@ -1039,10 +1141,9 @@ async def api_cancel_task(request: Request, task_id: str):
     # Send cancel command via NATS if available
     if _nats_client and _nats_client.is_connected:
         try:
-            await _nats_client.publish_command(session_name, {
-                "command": "cancel_task",
-                "task_id": task_id
-            })
+            await _nats_client.publish_command(
+                session_name, {"command": "cancel_task", "task_id": task_id}
+            )
 
             _update_task(task_id, status="cancelled", cancelled_at=time.time())
             log.info("task.cancelled", task_id=task_id, session=session_name)
@@ -1050,16 +1151,13 @@ async def api_cancel_task(request: Request, task_id: str):
             return {
                 "task_id": task_id,
                 "status": "cancelled",
-                "message": "Cancellation signal sent to container"
+                "message": "Cancellation signal sent to container",
             }
         except Exception as e:
             log.error("task.cancel_failed", task_id=task_id, error=str(e))
             raise HTTPException(status_code=500, detail=f"Failed to send cancel signal: {e}")
     else:
-        raise HTTPException(
-            status_code=503,
-            detail="NATS not available. Cannot cancel task."
-        )
+        raise HTTPException(status_code=503, detail="NATS not available. Cannot cancel task.")
 
 
 async def _query_via_tmux(request: Request, name: str, body: QuerySessionRequest):
@@ -1325,7 +1423,9 @@ def _get_container_metrics() -> list[dict[str, Any]]:
                 return None
 
         # Process containers in parallel with a timeout per container
-        with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(containers))) as executor:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=min(10, len(containers))
+        ) as executor:
             future_to_container = {executor.submit(get_container_metrics, c): c for c in containers}
             for future in concurrent.futures.as_completed(future_to_container, timeout=10):
                 try:
@@ -1373,7 +1473,7 @@ async def hub_get_agent(name: str):
 
 
 @app.post("/api/hub/tasks", status_code=201)
-async def hub_submit_task(body: TaskCreate):
+async def hub_submit_task(body: TaskCreate, _key=Depends(require_api_key)):
     try:
         task = await submit_task(body.description, body.agent_name)
         return task.model_dump()
@@ -1396,7 +1496,7 @@ async def hub_get_task(task_id: str):
 
 
 @app.delete("/api/hub/tasks/{task_id}")
-async def hub_cancel_task(task_id: str):
+async def hub_cancel_task(task_id: str, _key=Depends(require_api_key)):
     try:
         task = await cancel_task(task_id)
         return task.model_dump()
@@ -1515,7 +1615,7 @@ async def api_list_artifacts(prefix: str = Query(default="")):
 
 @app.post("/api/artifacts/{key:path}", status_code=201)
 @limiter.limit("30/minute")
-async def api_upload_artifact(key: str, request: Request):
+async def api_upload_artifact(key: str, request: Request, _key=Depends(require_api_key)):
     """Upload an artifact (raw bytes in request body)."""
     # Validate artifact key to prevent path traversal
     try:
@@ -1524,7 +1624,22 @@ async def api_upload_artifact(key: str, request: Request):
         log.error("artifact.upload.validation_failed", metadata={"key": key, "error": str(val_err)})
         raise HTTPException(status_code=400, detail=str(val_err))
 
+    # Enforce upload size limit (default 50 MB)
+    max_size = int(os.environ.get("CL_ARTIFACT_MAX_SIZE", 50 * 1024 * 1024))
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > max_size:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Upload too large ({int(content_length)} bytes). Max: {max_size} bytes.",
+        )
+
     data = await request.body()
+    if len(data) > max_size:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Upload too large ({len(data)} bytes). Max: {max_size} bytes.",
+        )
+
     content_type = request.headers.get("content-type", "application/octet-stream")
     metadata = {"content_type": content_type}
 
@@ -1561,7 +1676,7 @@ async def api_download_artifact(request: Request, key: str):
 
 @app.delete("/api/artifacts/{key:path}")
 @limiter.limit("30/minute")
-async def api_delete_artifact(request: Request, key: str):
+async def api_delete_artifact(request: Request, key: str, _key=Depends(require_api_key)):
     """Delete an artifact by key."""
     await _artifact_op(delete_artifact, key)
     return {"deleted": True, "key": key}
@@ -1611,6 +1726,7 @@ async def api_qdrant_health():
 
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(f"{settings.qdrant.url}/")
             healthy = response.status_code == 200

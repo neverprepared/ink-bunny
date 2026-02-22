@@ -131,6 +131,7 @@ class HubSettings(BaseSettings):
     flush_interval: int = 30  # seconds
     prune_completed_after: int = 3600  # seconds
     message_retention: int = 100
+    token_ttl: int = 3600  # seconds — default token time-to-live
 
 
 class NATSSettings(BaseSettings):
@@ -191,6 +192,10 @@ class Settings(BaseSettings):
     @property
     def state_file(self) -> Path:
         return self.config_dir / "hub-state.json"
+
+    @property
+    def api_key_file(self) -> Path:
+        return self.config_dir / ".api-key"
 
     @property
     def agents_dir(self) -> Path:

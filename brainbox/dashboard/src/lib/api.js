@@ -1,5 +1,33 @@
 /** API client for brainbox backend. */
 
+let _apiKey = null;
+
+/**
+ * Fetch the API key from the loopback-only auth endpoint.
+ * Called once at startup before the app mounts.
+ */
+export async function initApiKey() {
+  try {
+    const res = await fetch('/api/auth/key');
+    if (res.ok) {
+      const data = await res.json();
+      _apiKey = data.key;
+    }
+  } catch {
+    // API key endpoint not available — mutating requests will fail with 401
+  }
+}
+
+/**
+ * Build headers for mutating (protected) requests.
+ * Includes X-API-Key when available.
+ */
+function protectedHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  if (_apiKey) headers['X-API-Key'] = _apiKey;
+  return headers;
+}
+
 /**
  * Helper to handle fetch responses with proper error handling.
  * @param {string} url - API endpoint URL
@@ -31,7 +59,7 @@ export async function fetchSessions(signal = null) {
 export async function stopSession(name) {
   return fetchJSON('/api/stop', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: protectedHeaders(),
     body: JSON.stringify({ name }),
   });
 }
@@ -39,7 +67,7 @@ export async function stopSession(name) {
 export async function deleteSession(name) {
   return fetchJSON('/api/delete', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: protectedHeaders(),
     body: JSON.stringify({ name }),
   });
 }
@@ -47,7 +75,7 @@ export async function deleteSession(name) {
 export async function startSession(name) {
   return fetchJSON('/api/start', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: protectedHeaders(),
     body: JSON.stringify({ name }),
   });
 }
@@ -55,7 +83,7 @@ export async function startSession(name) {
 export async function createSession({ name, role, volume, llm_provider, llm_model, ollama_host, backend, vm_template }) {
   return fetchJSON('/api/create', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: protectedHeaders(),
     body: JSON.stringify({ name, role, volume, llm_provider, llm_model, ollama_host, backend, vm_template }),
   });
 }
