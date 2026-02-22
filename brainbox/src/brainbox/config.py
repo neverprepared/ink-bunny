@@ -134,12 +134,6 @@ class HubSettings(BaseSettings):
     token_ttl: int = 3600  # seconds — default token time-to-live
 
 
-class NATSSettings(BaseSettings):
-    enabled: bool = True
-    url: str = "nats://localhost:4222"
-    jetstream_enabled: bool = True
-
-
 class Settings(BaseSettings):
     role: str = "developer"
     image: str = ""
@@ -165,7 +159,6 @@ class Settings(BaseSettings):
     hub: HubSettings = Field(default_factory=HubSettings)
     ollama: OllamaSettings = Field(default_factory=OllamaSettings)
     utm: UTMSettings = Field(default_factory=UTMSettings)
-    nats: NATSSettings = Field(default_factory=NATSSettings)
 
     model_config = {"env_prefix": "CL_", "env_nested_delimiter": "__"}
 

@@ -48,7 +48,6 @@ graph TD
     subgraph Observability["Observability"]
         lf[langfuse_client.py<br/>trace queries]
         art[artifacts.py<br/>MinIO S3 store]
-        nats[nats_client.py<br/>NATS pub/sub]
     end
 
     subgraph Core["Core"]
@@ -61,7 +60,6 @@ graph TD
     api --> hub
     api --> lf
     api --> art
-    api --> nats
     api --> rate
     api --> val
     api --> models_api
@@ -94,7 +92,7 @@ graph TD
     class api,mcp,rate,val,models_api apiStyle
     class lc,cosign,hard,secrets,mon lcStyle
     class hub,reg,router,msg,pol hubStyle
-    class lf,art,nats obsStyle
+    class lf,art obsStyle
     class cfg,models,logmod coreStyle
     class be_init,docker_be,utm_be beStyle
 ```
@@ -164,7 +162,6 @@ mindmap
 | `policy.py` | Task assignment, message, and capability authorization | [hub.md](hub.md) |
 | `langfuse_client.py` | LangFuse trace/observation queries via HTTP | [observability.md](observability.md) |
 | `artifacts.py` | MinIO S3 artifact upload/download/list/delete | [observability.md](observability.md) |
-| `nats_client.py` | NATS pub/sub for container command dispatch (imported by `api.py` but not yet implemented) | [observability.md](observability.md) |
 | `config.py` | Pydantic settings from `CL_*` env vars | [lifecycle.md](lifecycle.md) |
 | `models.py` | Domain models (Agent, Session, Task, Token, Message) | [hub.md](hub.md) |
 | `log.py` | structlog JSON logging with session context | [observability.md](observability.md) |

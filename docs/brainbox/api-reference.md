@@ -64,9 +64,7 @@ Response (UTM): `{"success": true, "backend": "utm", "ssh_port": 2200, "url": nu
 
 #### `POST /api/sessions/{name}/query`
 
-Sends a prompt to Claude Code running inside the container. Uses NATS if enabled, falls back to tmux.
-
-**Query parameter:** `?async_mode=true` (default). When `true`, returns immediately with a `task_id` for polling. When `false`, blocks until completion (legacy sync mode).
+Sends a prompt to Claude Code running inside the container via tmux.
 
 ```json
 {
@@ -77,44 +75,27 @@ Sends a prompt to Claude Code running inside the container. Uses NATS if enabled
 }
 ```
 
-### Query Execution Decision Tree
+### Query Execution Flow
 
 ```mermaid
 flowchart TD
-    Query([POST /api/sessions/name/query]) --> NATSCheck{NATS enabled<br/>and connected?}
-
-    NATSCheck -->|yes| AsyncCheck{async_mode?}
-    NATSCheck -->|no| Tmux[Tmux Fallback]
-
-    AsyncCheck -->|true| Publish[Publish command<br/>fire-and-forget]
-    AsyncCheck -->|false| Request[Request/reply<br/>wait for result]
-
-    Publish --> StoreTask[Store task as queued]
-    Publish --> Return1[Return task_id immediately]
-
-    Request --> Wait[Wait for result<br/>with timeout]
-    Wait --> Parse[Parse Claude output]
-    Parse --> Return2[Return parsed response]
-
-    Tmux --> CheckSession{tmux session<br/>exists?}
+    Query([POST /api/sessions/name/query]) --> CheckSession{tmux session<br/>exists?}
     CheckSession -->|no| Error503[503 No tmux session]
     CheckSession -->|yes| SendKeys[tmux send-keys prompt]
     SendKeys --> Poll[Poll for completion<br/>markers or prompt return]
     Poll --> Timeout{timed out?}
     Timeout -->|yes| Error408[408 Timeout]
     Timeout -->|no| Capture[Capture + parse output]
-    Capture --> Return3[Return parsed response]
+    Capture --> Return[Return parsed response]
 
-    classDef natsStyle fill:#3b82f6,stroke:#2563eb,color:#fff
     classDef tmuxStyle fill:#f97316,stroke:#ea580c,color:#fff
     classDef errStyle fill:#ef4444,stroke:#dc2626,color:#fff
 
-    class Publish,Request,Wait,StoreTask natsStyle
-    class Tmux,CheckSession,SendKeys,Poll,Capture tmuxStyle
+    class CheckSession,SendKeys,Poll,Capture tmuxStyle
     class Error503,Error408 errStyle
 ```
 
-### Async Tasks (NATS)
+### Tasks
 
 | Method | Path | Rate Limit | Description |
 |--------|------|-----------|-------------|

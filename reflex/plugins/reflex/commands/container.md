@@ -188,7 +188,7 @@ Show the result: on success report the container URL and detected profile. On fa
 
 ### `/reflex:container query`
 
-Send a query to a running container and get the response via NATS. This is the primary way to interact with containers for orchestration workflows.
+Send a query to a running container and get the response via tmux. This is the primary way to interact with containers for orchestration workflows.
 
 ```bash
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
@@ -335,7 +335,7 @@ Commands:
   status     Show connection info and running containers
   create     Create a container (auto-detects profile from env)
              Syntax: create [name] [--mount /host:/container[:mode]] ...
-  query      Send a query to a running container via NATS
+  query      Send a query to a running container via tmux
              Syntax: query <session-name> <query-text>
   dashboard  Open the dashboard in browser
   health     Check observability services (LangFuse, Qdrant)

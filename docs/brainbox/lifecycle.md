@@ -280,4 +280,4 @@ All settings use the `CL_` env prefix with `__` as nested delimiter.
 | `profile.mount_aws` | `CL_PROFILE__MOUNT_AWS` | `true` | Mount AWS credentials |
 | `profile.mount_ssh` | `CL_PROFILE__MOUNT_SSH` | `true` | Mount SSH directory |
 
-See `config.py` for the full list of nested settings groups: `ResourceSettings`, `HardeningSettings`, `CosignSettings`, `ArtifactSettings`, `LangfuseSettings`, `QdrantSettings`, `ProfileSettings`, `OllamaSettings`, `UTMSettings`, `HubSettings`, `NATSSettings`.
+See `config.py` for the full list of nested settings groups: `ResourceSettings`, `HardeningSettings`, `CosignSettings`, `ArtifactSettings`, `LangfuseSettings`, `QdrantSettings`, `ProfileSettings`, `OllamaSettings`, `UTMSettings`, `HubSettings`.

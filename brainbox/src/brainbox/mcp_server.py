@@ -37,7 +37,7 @@ def _api_key() -> str:
     return ""
 
 
-def _request(method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+def _request(method: str, path: str, body: dict[str, Any] | None = None, timeout: int = 30) -> Any:
     """Make an HTTP request to the brainbox API."""
     url = f"{_api_url()}{path}"
     data = json.dumps(body).encode() if body else None
@@ -47,7 +47,7 @@ def _request(method: str, path: str, body: dict[str, Any] | None = None) -> Any:
         headers["X-API-Key"] = key
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode())
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode() if exc.fp else str(exc)
@@ -169,6 +169,27 @@ def get_hub_state() -> dict[str, Any]:
 
 
 @mcp.tool()
+def get_session(name: str) -> dict[str, Any]:
+    """Get info for a single session by name.
+
+    Args:
+        name: Session name (e.g. test-1)
+    """
+    return _request("GET", f"/api/sessions/{name}")
+
+
+@mcp.tool()
+def exec_session(name: str, command: str) -> dict[str, Any]:
+    """Execute a shell command inside a running container session.
+
+    Args:
+        name: Session name (e.g. test-1)
+        command: Shell command to run (e.g. "pytest tests/", "git status")
+    """
+    return _request("POST", f"/api/sessions/{name}/exec", {"command": command})
+
+
+@mcp.tool()
 def query_session(
     name: str,
     prompt: str,
@@ -182,7 +203,7 @@ def query_session(
         timeout: Maximum seconds to wait for response (default: 300)
     """
     body: dict[str, Any] = {"prompt": prompt, "timeout": timeout}
-    return _request("POST", f"/api/sessions/{name}/query", body)
+    return _request("POST", f"/api/sessions/{name}/query", body, timeout=timeout + 10)
 
 
 @mcp.tool()

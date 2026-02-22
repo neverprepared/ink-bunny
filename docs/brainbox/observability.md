@@ -1,6 +1,6 @@
 # Monitoring, Metrics & Infrastructure
 
-Brainbox integrates several infrastructure services for observability, artifact storage, and inter-container messaging. This document covers the health monitoring loop, container metrics collection, LangFuse trace integration, MinIO artifact storage, secret resolution, NATS messaging, and SSE event broadcasting.
+Brainbox integrates several infrastructure services for observability and artifact storage. This document covers the health monitoring loop, container metrics collection, LangFuse trace integration, MinIO artifact storage, secret resolution, and SSE event broadcasting.
 
 ## Infrastructure Service Map
 
@@ -16,7 +16,6 @@ graph TB
         LF[LangFuse<br/>:3000<br/>HTTP Basic Auth]
         QD[Qdrant<br/>:6333<br/>API Key optional]
         MN[MinIO<br/>:9090<br/>Access Key + Secret]
-        NATS[NATS<br/>:4222<br/>No auth]
         Docker[Docker Engine<br/>unix socket]
     end
 
@@ -28,19 +27,16 @@ graph TB
     API -->|traces, observations| LF
     API -->|health check| QD
     API -->|upload, download| MN
-    API -->|pub/sub commands| NATS
     API -->|SDK calls| Docker
     Monitor -->|health_check| Docker
     SSE -->|events| Docker
-    NATS -->|commands| C1 & C2
-    C1 & C2 -->|results| NATS
 
     classDef bbStyle fill:#f97316,stroke:#ea580c,color:#fff
     classDef svcStyle fill:#3b82f6,stroke:#2563eb,color:#fff
     classDef ctrStyle fill:#22c55e,stroke:#16a34a,color:#fff
 
     class API,SSE,Monitor bbStyle
-    class LF,QD,MN,NATS,Docker svcStyle
+    class LF,QD,MN,Docker svcStyle
     class C1,C2 ctrStyle
 ```
 
@@ -50,7 +46,6 @@ graph TB
 | LangFuse | 3000 | HTTP | Basic (public_key:secret_key) | `CL_LANGFUSE__*` |
 | Qdrant | 6333 | HTTP | API key (optional) | `CL_QDRANT__*` |
 | MinIO | 9090 | HTTP (S3) | Access key + secret | `CL_ARTIFACT__*` |
-| NATS | 4222 | NATS protocol | None | `CL_NATS__*` |
 | Docker | unix socket | Docker API | — | — |
 
 ## Health Monitor Loop
@@ -214,7 +209,6 @@ graph TB
     subgraph Sources["Event Sources"]
         DE[Docker Engine<br/>container events]
         Hub[Hub Router<br/>task events]
-        NATS_S[NATS<br/>container messages]
     end
 
     subgraph Broadcast["SSE Broadcast"]
@@ -231,7 +225,6 @@ graph TB
 
     DE -->|"create,start,stop,die,destroy"| Filter --> BC
     Hub -->|"task.started, task.completed, ..."| Serialize --> BC
-    NATS_S -->|"progress, result, error"| Serialize --> BC
 
     BC --> Q1 & Q2 & Q3
     Q1 --> EP[GET /api/events]
@@ -242,7 +235,7 @@ graph TB
     classDef bcStyle fill:#f97316,stroke:#ea580c,color:#fff
     classDef clientStyle fill:#22c55e,stroke:#16a34a,color:#fff
 
-    class DE,Hub,NATS_S srcStyle
+    class DE,Hub srcStyle
     class Filter,Serialize,BC bcStyle
     class Q1,Q2,Q3 clientStyle
 ```
@@ -252,7 +245,6 @@ graph TB
 - `_broadcast_sse(data)` — puts data into all queues (drops on `QueueFull`)
 - Docker events run in a background thread via `run_in_executor`, reconnecting after a 1s delay on stream death
 - Hub events are forwarded via `on_event()` callback registered during lifespan
-- NATS events (questions, progress, results, errors, cancellations) are forwarded from subscription handlers
 
 ## LangFuse Integration
 
@@ -268,26 +260,6 @@ The LangFuse client (`langfuse_client.py`) queries traces and observations via t
 **SessionSummary** aggregates: `total_traces`, `total_observations`, `error_count`, `tool_counts` (tool name → count).
 
 **Caching:** Container metrics endpoint caches trace counts per session with a 60s TTL to reduce LangFuse API load.
-
-## NATS Integration
-
-**Status:** `nats_client.py` is imported by `api.py` but the implementation file is not yet present in the repository. The NATS integration code in `api.py` (handlers, subscriptions) is complete, but the `BrainboxNATSClient` class itself needs to be implemented.
-
-When NATS is enabled (`CL_NATS__ENABLED=true`), brainbox subscribes to container event channels and can publish commands.
-
-**Subscriptions (set up during lifespan):**
-
-| Subject Pattern | Handler | Purpose |
-|----------------|---------|---------|
-| `brainbox.*.questions` | `_handle_agent_question` | Agent asks a question |
-| `brainbox.*.progress` | `_handle_progress_update` | Task progress updates |
-| `brainbox.*.results` | `_handle_result` | Task completion results |
-| `brainbox.*.errors` | `_handle_error` | Task errors |
-| `brainbox.*.cancelled` | `_handle_cancelled` | Task cancellations |
-
-All NATS events update the async task store (`_tasks`) and broadcast to SSE clients.
-
-**Publishing:** `_nats_client.publish_command(session_name, command)` sends commands to containers, used by the query endpoint for async task dispatch.
 
 ## Structured Logging
 
@@ -324,5 +296,4 @@ All modules use `structlog` configured for JSON output to stdout.
 | `router.task_completed` | info | router.py |
 | `messages.routed` | info | messages.py |
 | `messages.rejected` | warning | messages.py |
-| `nats.connected` | info | api.py |
 | `monitor.health_check` | info/warning | monitor.py |

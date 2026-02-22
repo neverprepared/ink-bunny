@@ -27,7 +27,6 @@ from .config import settings
 from .rate_limit import limiter, rate_limit_exceeded_handler
 from .hub import init as hub_init, shutdown as hub_shutdown
 from .backends.docker import _calc_cpu, _human_bytes
-from .nats_client import BrainboxNATSClient
 from .lifecycle import (
     _docker,
     provision,
@@ -135,40 +134,8 @@ def _broadcast_sse(data: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# NATS client
-# ---------------------------------------------------------------------------
-
-_nats_client: BrainboxNATSClient | None = None
-
-
-def _get_nats_client() -> BrainboxNATSClient | None:
-    """Get the global NATS client instance."""
-    return _nats_client
-
-
-# ---------------------------------------------------------------------------
 # Task tracking for async execution
 # ---------------------------------------------------------------------------
-
-_tasks: dict[str, dict[str, Any]] = {}
-
-
-def _store_task(task_id: str, status: str, **kwargs):
-    """Store task status and metadata."""
-    _tasks[task_id] = {"task_id": task_id, "status": status, "created_at": time.time(), **kwargs}
-
-
-def _update_task(task_id: str, **kwargs):
-    """Update task metadata."""
-    if task_id in _tasks:
-        _tasks[task_id].update(kwargs)
-        _tasks[task_id]["updated_at"] = time.time()
-
-
-def _get_task(task_id: str) -> dict[str, Any] | None:
-    """Retrieve task by ID."""
-    return _tasks.get(task_id)
-
 
 # ---------------------------------------------------------------------------
 # Docker events watcher
@@ -229,85 +196,6 @@ def require_token(request: Request) -> Token:
 
 
 # ---------------------------------------------------------------------------
-# NATS event handlers
-# ---------------------------------------------------------------------------
-
-
-async def _handle_agent_question(data: dict):
-    """Handle question from container agent."""
-    log.info("nats.question_received", metadata=data)
-    # TODO: Route to orchestrator, wait for human/AI decision
-    # For now, broadcast to SSE clients so dashboard can display
-    _broadcast_sse(json.dumps({"type": "agent_question", "data": data}))
-
-
-async def _handle_progress_update(data: dict):
-    """Handle progress update from container."""
-    log.debug("nats.progress_update", metadata=data)
-
-    # Update task status
-    task_id = data.get("task_id")
-    if task_id:
-        _update_task(
-            task_id,
-            status="in_progress",
-            progress=data.get("progress"),
-            message=data.get("message"),
-        )
-
-    # Broadcast to SSE for dashboard updates
-    _broadcast_sse(json.dumps({"type": "progress_update", "data": data}))
-
-
-async def _handle_result(data: dict):
-    """Handle task result from container."""
-    log.info("nats.result_received", metadata=data)
-
-    # Store task result
-    task_id = data.get("task_id")
-    if task_id:
-        _update_task(
-            task_id,
-            status="completed",
-            result=data.get("result"),
-            output=data.get("output"),
-            exit_code=data.get("exit_code"),
-            duration_seconds=data.get("duration_seconds"),
-        )
-
-    # Broadcast to SSE for dashboard updates
-    _broadcast_sse(json.dumps({"type": "task_result", "data": data}))
-
-
-async def _handle_error(data: dict):
-    """Handle error notification from container."""
-    log.error("nats.error_received", metadata=data)
-
-    # Store task error
-    task_id = data.get("task_id")
-    if task_id:
-        _update_task(task_id, status="failed", error=data.get("error"), message=data.get("message"))
-
-    # Broadcast to SSE for dashboard updates
-    _broadcast_sse(json.dumps({"type": "task_error", "data": data}))
-
-
-async def _handle_cancelled(data: dict):
-    """Handle task cancellation notification from container."""
-    log.info("nats.task_cancelled", metadata=data)
-
-    # Store task cancellation
-    task_id = data.get("task_id")
-    if task_id:
-        _update_task(
-            task_id, status="cancelled", message=data.get("message", "Task cancelled by user")
-        )
-
-    # Broadcast to SSE for dashboard updates
-    _broadcast_sse(json.dumps({"type": "task_cancelled", "data": data}))
-
-
-# ---------------------------------------------------------------------------
 # Lifespan
 # ---------------------------------------------------------------------------
 
@@ -335,42 +223,11 @@ async def lifespan(app: FastAPI):
     global _docker_events_task
     _docker_events_task = asyncio.create_task(_watch_docker_events())
 
-    # Initialize NATS client if enabled
-    global _nats_client
-    if settings.nats.enabled:
-        try:
-            _nats_client = BrainboxNATSClient(nats_url=settings.nats.url)
-            await _nats_client.connect()
-
-            # Subscribe to all container questions
-            await _nats_client.subscribe_all_containers("questions", _handle_agent_question)
-
-            # Subscribe to all progress updates
-            await _nats_client.subscribe_all_containers("progress", _handle_progress_update)
-
-            # Subscribe to all results
-            await _nats_client.subscribe_all_containers("results", _handle_result)
-
-            # Subscribe to all errors
-            await _nats_client.subscribe_all_containers("errors", _handle_error)
-
-            # Subscribe to task cancellations
-            await _nats_client.subscribe_all_containers("cancelled", _handle_cancelled)
-
-            log.info("nats.connected", metadata={"url": settings.nats.url})
-        except Exception as e:
-            log.error("nats.connection_failed", metadata={"error": str(e)})
-            _nats_client = None
-
     log.info("api.started", metadata={"port": settings.api_port})
     yield
 
     if _docker_events_task:
         _docker_events_task.cancel()
-
-    # Disconnect NATS client
-    if _nats_client:
-        await _nats_client.disconnect()
 
     await hub_shutdown()
 
@@ -571,6 +428,21 @@ async def sse_events(
 async def api_list_sessions():
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _get_sessions_info)
+
+
+@app.get("/api/sessions/{name}")
+async def api_get_session(name: str):
+    """Get info for a single session by name."""
+    try:
+        validate_session_name(name)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    loop = asyncio.get_running_loop()
+    sessions = await loop.run_in_executor(None, _get_sessions_info)
+    for session in sessions:
+        if session.get("session_name") == name:
+            return session
+    raise HTTPException(status_code=404, detail=f"Session '{name}' not found")
 
 
 @app.post("/api/stop")
@@ -876,26 +748,14 @@ async def api_query_session(
     request: Request,
     name: str,
     body: QuerySessionRequest,
-    async_mode: bool = Query(True, description="Execute in background (returns immediately)"),
     _key=Depends(require_api_key),
 ):
-    """Send a prompt to Claude Code running in the container.
-
-    Phase 2: HTTP wrapper over NATS - uses NATS if enabled, falls back to tmux.
-
-    Args:
-        async_mode: If True (default), returns immediately with task_id.
-                   If False, waits for completion (legacy sync mode).
-    """
+    """Send a prompt to Claude Code running in the container via tmux."""
     try:
         validate_session_name(name)
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    # Use NATS if enabled and connected
-    if settings.nats.enabled and _nats_client and _nats_client.is_connected:
-        return await _query_via_nats(request, name, body, async_mode=async_mode)
-    else:
-        return await _query_via_tmux(request, name, body)
+    return await _query_via_tmux(request, name, body)
 
 
 def _parse_claude_output(raw_output: str) -> str:
@@ -957,207 +817,6 @@ def _parse_claude_output(raw_output: str) -> str:
     response_text = re.sub(r"\n{3,}", "\n\n", response_text)
 
     return response_text.strip()
-
-
-async def _query_via_nats(
-    request: Request, name: str, body: QuerySessionRequest, async_mode: bool = True
-):
-    """Query container via NATS (Phase 2).
-
-    Args:
-        async_mode: If True, publish command and return immediately.
-                   If False, use request/reply pattern and wait for result.
-    """
-    start_time = time.time()
-
-    # Verify container exists and is running
-    prefix = settings.resolved_prefix
-    container_name = f"{prefix}{name}"
-    try:
-        client = _docker()
-        container = client.containers.get(container_name)
-        if container.status != "running":
-            raise HTTPException(
-                status_code=400,
-                detail=f"Container '{name}' is not running (status: {container.status})",
-            )
-    except docker.errors.NotFound:
-        _audit_log(request, "session.query", session_name=name, success=False, error="not_found")
-        raise HTTPException(status_code=404, detail=f"Container '{name}' not found")
-
-    # Create task
-    task_id = f"query-{int(time.time() * 1000)}"  # Use milliseconds for uniqueness
-    command = {
-        "command": "execute_task",
-        "task_id": task_id,
-        "prompt": body.prompt,
-        "working_dir": body.working_dir or f"/home/developer/workspace/{name}",
-        "timeout": body.timeout,
-    }
-
-    if async_mode:
-        # Async mode: publish command and return immediately
-        try:
-            # Store task as queued
-            _store_task(
-                task_id,
-                status="queued",
-                session_name=name,
-                prompt=body.prompt,
-                submitted_at=start_time,
-            )
-
-            # Publish command to container (fire-and-forget)
-            await _nats_client.publish_command(name, command)
-
-            _audit_log(request, "session.query", session_name=name, success=True)
-
-            return {
-                "task_id": task_id,
-                "status": "queued",
-                "message": "Task submitted for execution. Subscribe to /api/events or poll /api/tasks/{task_id} for results.",
-            }
-
-        except Exception as e:
-            _audit_log(request, "session.query", session_name=name, success=False, error=str(e))
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to submit task: {e}",
-            )
-
-    else:
-        # Sync mode: wait for result (legacy behavior)
-        try:
-            result = await _nats_client.send_command(name, command, timeout=float(body.timeout))
-
-            duration = time.time() - start_time
-            _audit_log(
-                request, "session.query", session_name=name, success=result.get("success", False)
-            )
-
-            # Parse the Claude CLI output for clean presentation
-            raw_output = result.get("output", "")
-            parsed_response = _parse_claude_output(raw_output) if raw_output else ""
-
-            return {
-                "success": result.get("success", True),
-                "conversation_id": result.get("task_id", task_id),
-                "response": parsed_response,  # Clean, parsed assistant response
-                "output": raw_output,  # Keep raw output for debugging
-                "error": result.get("error"),
-                "exit_code": result.get("exit_code", 0),
-                "duration_seconds": duration,
-                "files_modified": result.get("files_modified", []),
-            }
-
-        except TimeoutError:
-            _audit_log(request, "session.query", session_name=name, success=False, error="timeout")
-            raise HTTPException(
-                status_code=408,
-                detail=f"Query execution timed out after {body.timeout}s",
-            )
-        except Exception as e:
-            _audit_log(request, "session.query", session_name=name, success=False, error=str(e))
-            raise HTTPException(
-                status_code=500,
-                detail=f"Query execution failed: {e}",
-            )
-
-
-@app.get("/api/tasks/{task_id}")
-@limiter.limit("30/minute")
-async def api_get_task_status(request: Request, task_id: str):
-    """Get status of an async task.
-
-    Returns task metadata including status, result (if completed), and progress.
-    """
-    task = _get_task(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
-
-    # Parse response if task is completed
-    if task.get("status") == "completed" and task.get("output"):
-        parsed_response = _parse_claude_output(task["output"])
-        task["response"] = parsed_response
-
-    return task
-
-
-@app.get("/api/tasks")
-@limiter.limit("30/minute")
-async def api_list_tasks(
-    request: Request,
-    status: str | None = Query(
-        None, description="Filter by status (queued, in_progress, completed, failed)"
-    ),
-    limit: int = Query(50, description="Maximum number of tasks to return", ge=1, le=500),
-):
-    """List all tasks with optional status filter."""
-    tasks = list(_tasks.values())
-
-    # Filter by status if provided
-    if status:
-        tasks = [t for t in tasks if t.get("status") == status]
-
-    # Sort by creation time (newest first)
-    tasks.sort(key=lambda t: t.get("created_at", 0), reverse=True)
-
-    # Limit results
-    tasks = tasks[:limit]
-
-    return {
-        "tasks": tasks,
-        "total": len(tasks),
-        "filtered": len(_tasks)
-        if not status
-        else len([t for t in _tasks.values() if t.get("status") == status]),
-    }
-
-
-@app.delete("/api/tasks/{task_id}")
-@limiter.limit("30/minute")
-async def api_cancel_task(request: Request, task_id: str, _key=Depends(require_api_key)):
-    """Cancel a running or queued task.
-
-    Sends cancellation signal to the container executing the task.
-    """
-    task = _get_task(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
-
-    current_status = task.get("status")
-
-    # Can only cancel queued or in-progress tasks
-    if current_status not in ["queued", "in_progress"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot cancel task with status '{current_status}'. Only queued/in_progress tasks can be cancelled.",
-        )
-
-    session_name = task.get("session_name")
-    if not session_name:
-        raise HTTPException(status_code=500, detail="Task missing session_name metadata")
-
-    # Send cancel command via NATS if available
-    if _nats_client and _nats_client.is_connected:
-        try:
-            await _nats_client.publish_command(
-                session_name, {"command": "cancel_task", "task_id": task_id}
-            )
-
-            _update_task(task_id, status="cancelled", cancelled_at=time.time())
-            log.info("task.cancelled", task_id=task_id, session=session_name)
-
-            return {
-                "task_id": task_id,
-                "status": "cancelled",
-                "message": "Cancellation signal sent to container",
-            }
-        except Exception as e:
-            log.error("task.cancel_failed", task_id=task_id, error=str(e))
-            raise HTTPException(status_code=500, detail=f"Failed to send cancel signal: {e}")
-    else:
-        raise HTTPException(status_code=503, detail="NATS not available. Cannot cancel task.")
 
 
 async def _query_via_tmux(request: Request, name: str, body: QuerySessionRequest):
