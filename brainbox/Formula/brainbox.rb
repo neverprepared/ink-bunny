@@ -1,8 +1,8 @@
 class Brainbox < Formula
   desc "Docker-based sandboxed Claude Code session manager"
   homepage "https://github.com/neverprepared/ink-bunny"
-  url "https://github.com/neverprepared/ink-bunny/releases/download/brainbox/v0.7.2/brainbox-0.7.2.tar.gz"
-  sha256 "0708a4fd71ab6cce0dcbcbfa91a5a130d5d34dab223d95b70c529ef819eb583b"
+  url "https://github.com/neverprepared/ink-bunny/releases/download/brainbox/v0.8.0/brainbox-0.8.0.tar.gz"
+  sha256 "4428dce03c502aff1f16118867560d52fcede8241298abad6de860995d62d0eb"
   license "MIT"
   version "0.7.1"
 
