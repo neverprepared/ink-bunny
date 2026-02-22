@@ -89,6 +89,7 @@ jobs:
 
           sed -i "s|url \".*\"|url \"${URL}\"|" "$FORMULA"
           sed -i "s/sha256 \".*\"/sha256 \"${SHA}\"/" "$FORMULA"
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" "$FORMULA"
 
       - name: Commit formula update
         run: |

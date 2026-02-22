@@ -4,7 +4,7 @@ class Brainbox < Formula
   url "https://github.com/neverprepared/ink-bunny/releases/download/brainbox/v0.8.0/brainbox-0.8.0.tar.gz"
   sha256 "4428dce03c502aff1f16118867560d52fcede8241298abad6de860995d62d0eb"
   license "MIT"
-  version "0.7.1"
+  version "0.8.0"
 
   depends_on "docker"
 
