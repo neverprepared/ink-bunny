@@ -192,7 +192,9 @@ def _status_daemon(args: argparse.Namespace) -> None:
         print(json.dumps(manager.to_dict(status), indent=2))
     else:
         if status.running:
-            uptime_str = _format_uptime(status.uptime_seconds) if status.uptime_seconds else "unknown"
+            uptime_str = (
+                _format_uptime(status.uptime_seconds) if status.uptime_seconds else "unknown"
+            )
             print("✓ Daemon running")
             print(f"  PID: {status.pid}")
             print(f"  URL: http://{status.host}:{status.port}")

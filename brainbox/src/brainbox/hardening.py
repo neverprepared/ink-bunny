@@ -58,4 +58,4 @@ def get_hardening_kwargs(*, user: str | None = None) -> dict[str, Any]:
 
 def get_legacy_kwargs() -> dict[str, Any]:
     """Return Docker SDK kwargs for legacy/dev mode (no hardening)."""
-    return {"ipc_mode": "host"}
+    return {}

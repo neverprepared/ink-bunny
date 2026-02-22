@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "PHASE_1/phase-roadmap.md",
+                "file": "REFLEX/reflex-gap-analysis.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "phase-roadmap"
+              "title": "reflex-gap-analysis"
             }
           }
         ]
@@ -185,12 +185,17 @@
   },
   "active": "f08e5e543373ea7c",
   "lastOpenFiles": [
+    "REFLEX/reflex-strengths.md",
+    "REFLEX/reflex-phase1-coverage.md",
+    "REFLEX/reflex-overview.md",
+    "REFLEX/reflex-gap-analysis.md",
+    "PHASE_2/agentic-architecture.md",
+    "PHASE_1/arch-brainbox.md",
+    "PHASE_1/agentic-architecture.md",
+    "PHASE_1/phase-roadmap.md",
     "PHASE_1/arch-shared-state.md",
     "PHASE_1/arch-secrets-management.md",
     "PHASE_1/arch-observability.md",
-    "PHASE_1/agentic-architecture.md",
-    "PHASE_1/arch-brainbox.md",
-    "REFLEX/reflex-gap-analysis.md",
     "PHASE_3/arch-brainbox.md",
     "PHASE_2/arch-brainbox.md",
     "shell-profiler/internal/ui/prompts.go",
@@ -212,12 +217,8 @@
     "shell-profiler/cmd/shell-profiler/README.md",
     "shell-profiler/README.md",
     "shell-profiler/CLAUDE.md",
-    "REFLEX/reflex-phase1-coverage.md",
-    "REFLEX/reflex-strengths.md",
-    "REFLEX/reflex-overview.md",
     "PHASE_1/arch-orchestration.md",
     "PHASE_1/arch-identity-and-trust.md",
-    "PHASE_1/phase-roadmap.md",
     "PHASE_1/arch-agent-communication.md",
     "SECOND_PHASE/agentic-architecture.md"
   ]

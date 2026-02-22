@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import stat
 import time
 import uuid
 
@@ -37,7 +38,28 @@ def load_agents() -> dict[str, AgentDefinition]:
         if not f.suffix == ".json":
             continue
         try:
+            # Check file permissions — warn if world-writable
+            mode = f.stat().st_mode
+            if mode & stat.S_IWOTH:
+                log.warning(
+                    "registry.agent_world_writable",
+                    metadata={"file": f.name, "mode": oct(mode)},
+                )
+
             raw = json.loads(f.read_text())
+
+            # Validate required fields
+            if not raw.get("name") or not raw.get("image"):
+                log.warning(
+                    "registry.agent_missing_fields",
+                    metadata={
+                        "file": f.name,
+                        "has_name": bool(raw.get("name")),
+                        "has_image": bool(raw.get("image")),
+                    },
+                )
+                continue
+
             agent = AgentDefinition(**raw)
             _agents[agent.name] = agent
             log.info("registry.agent_loaded", metadata={"name": agent.name, "file": f.name})

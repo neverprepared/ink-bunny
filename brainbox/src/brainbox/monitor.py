@@ -44,15 +44,16 @@ async def _monitor_loop() -> None:
     import time
 
     interval = settings.health_check_interval
+    timeout = settings.health_check_timeout
 
     while _tracked:
         for name, ctx in list(_tracked.items()):
             slog = get_logger(session_name=name, container_name=ctx.container_name)
 
             try:
-                # Delegate health check to backend
+                # Delegate health check to backend with timeout
                 backend = create_backend(ctx.backend)
-                health = await backend.health_check(ctx)
+                health = await asyncio.wait_for(backend.health_check(ctx), timeout=timeout)
 
                 if not health.get("healthy", False):
                     ctx.health_failures += 1
@@ -106,6 +107,16 @@ async def _monitor_loop() -> None:
                     )
                     ctx.state = SessionState.RECYCLING
 
+            except asyncio.TimeoutError:
+                ctx.health_failures += 1
+                slog.warning(
+                    "monitor.health_check_timeout",
+                    metadata={
+                        "backend": ctx.backend,
+                        "timeout": timeout,
+                        "failures": ctx.health_failures,
+                    },
+                )
             except Exception as exc:
                 slog.warning(
                     "monitor.check_failed",

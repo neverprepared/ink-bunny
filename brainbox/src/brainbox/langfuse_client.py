@@ -8,6 +8,9 @@ from dataclasses import dataclass, field
 import httpx
 
 from .config import settings
+from .log import get_logger
+
+_log = get_logger()
 
 # ---------------------------------------------------------------------------
 # Cached HTTPx client for connection pooling
@@ -66,8 +69,17 @@ def _client() -> httpx.Client:
     """Get cached httpx client with connection pooling and auth."""
     global _httpx_client
     if _httpx_client is None:
+        base_url = settings.langfuse.base_url
+        if base_url.startswith("http://") and not base_url.startswith("http://localhost"):
+            _log.warning(
+                "langfuse.insecure_connection",
+                metadata={
+                    "base_url": base_url,
+                    "detail": "HTTP Basic Auth credentials sent in cleartext over HTTP",
+                },
+            )
         _httpx_client = httpx.Client(
-            base_url=settings.langfuse.base_url,
+            base_url=base_url,
             headers={"Authorization": _auth_header()},
             timeout=10.0,
         )

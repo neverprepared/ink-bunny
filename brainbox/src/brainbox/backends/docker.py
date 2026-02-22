@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import shlex
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -155,13 +156,21 @@ class DockerBackend:
         if ctx.hardened:
             # Write each secret to /run/secrets
             for name, value in secrets.items():
+                # Validate secret name — only allow safe characters
+                if not re.match(r"^[A-Za-z0-9_.-]+$", name):
+                    slog.warning(
+                        "container.secret_name_rejected",
+                        metadata={"secret": name, "reason": "invalid characters"},
+                    )
+                    continue
+                safe_name = shlex.quote(name)
                 try:
                     await _run(
                         container.exec_run,
                         [
                             "sh",
                             "-c",
-                            f"echo {shlex.quote(value)} > /run/secrets/{name} && chmod 400 /run/secrets/{name}",
+                            f"echo {shlex.quote(value)} > /run/secrets/{safe_name} && chmod 400 /run/secrets/{safe_name}",
                         ],
                     )
                 except Exception as exc:

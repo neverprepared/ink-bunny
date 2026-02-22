@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from collections import deque
@@ -21,8 +22,21 @@ log = get_logger()
 # Pending messages keyed by token_id
 _pending: dict[str, list[dict[str, Any]]] = {}
 
-# Audit log (capped ring buffer)
+# Audit log (capped ring buffer — in-memory)
 _message_log: deque[dict[str, Any]] = deque(maxlen=settings.hub.message_retention)
+
+# Persistent audit log file (append-only JSONL)
+_audit_log_path = settings.config_dir / "message-audit.jsonl"
+
+
+def _persist_log_entry(entry: dict[str, Any]) -> None:
+    """Append an audit log entry to the persistent JSONL file."""
+    try:
+        _audit_log_path.parent.mkdir(parents=True, exist_ok=True)
+        with _audit_log_path.open("a") as f:
+            f.write(json.dumps(entry, default=str) + "\n")
+    except Exception as exc:
+        log.warning("messages.persist_failed", metadata={"reason": str(exc)})
 
 
 # ---------------------------------------------------------------------------
@@ -46,6 +60,7 @@ def route(envelope: dict[str, Any]) -> dict[str, Any]:
             "reason": "invalid_token",
         }
         _message_log.append(entry)
+        _persist_log_entry(entry)
         log.warning("messages.rejected", metadata=entry)
         raise ValueError("Invalid or expired token")
 
@@ -62,6 +77,7 @@ def route(envelope: dict[str, Any]) -> dict[str, Any]:
             "reason": check.reason,
         }
         _message_log.append(entry)
+        _persist_log_entry(entry)
         log.warning("messages.rejected", metadata=entry)
         raise ValueError(check.reason)
 
@@ -93,6 +109,7 @@ def route(envelope: dict[str, Any]) -> dict[str, Any]:
         "status": "delivered",
     }
     _message_log.append(log_entry)
+    _persist_log_entry(log_entry)
     log.info("messages.routed", metadata=log_entry)
 
     return {"delivered": True, "message_id": message_id, "message": message}

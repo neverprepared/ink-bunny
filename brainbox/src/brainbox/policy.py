@@ -39,6 +39,12 @@ def evaluate_message(
             return PolicyResult(
                 allowed=False, reason=f"Recipient '{recipient_name}' is not a registered agent"
             )
+        # Cross-agent messaging requires the "message_agents" capability
+        if "message_agents" not in sender_token.capabilities:
+            return PolicyResult(
+                allowed=False,
+                reason=f"Agent '{sender_token.agent_name}' lacks 'message_agents' capability for cross-agent messaging",
+            )
 
     if not payload or "type" not in payload:
         return PolicyResult(allowed=False, reason="Payload must have a type field")

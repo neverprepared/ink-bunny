@@ -130,6 +130,27 @@ def validate_volume_mount(volume_spec: str) -> Tuple[str, str, str]:
     if not host_path_obj.is_absolute():
         raise ValidationError(f"Host path must be absolute: '{host_path}'")
 
+    # Prevent path traversal
+    if ".." in host_path_obj.parts:
+        raise ValidationError(f"Host path cannot contain '..': '{host_path}'")
+
+    # Deny-list: sensitive host paths that should never be mounted
+    _DENIED_HOST_PATHS = {
+        "/",
+        "/etc",
+        "/var/run/docker.sock",
+        "/run/docker.sock",
+        "/var/run",
+        "/proc",
+        "/sys",
+        "/dev",
+        "/boot",
+        "/root",
+    }
+    resolved = str(host_path_obj.resolve())
+    if resolved in _DENIED_HOST_PATHS:
+        raise ValidationError(f"Host path is denied for security: '{resolved}'")
+
     # Validate container path
     if not container_path:
         raise ValidationError("Container path cannot be empty")

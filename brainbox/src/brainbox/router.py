@@ -6,6 +6,7 @@ import time
 import uuid
 from typing import Any, Callable
 
+from .config import settings
 from .log import get_logger
 from .models import Task, TaskStatus
 from .policy import evaluate_task_assignment
@@ -68,8 +69,8 @@ async def submit_task(description: str, agent_name: str) -> Task:
     if not check.allowed:
         raise ValueError(f"Policy denied: {check.reason}")
 
-    # Issue token
-    token = issue_token(agent_name, task_id)
+    # Issue token with configurable TTL
+    token = issue_token(agent_name, task_id, ttl=settings.hub.token_ttl)
     task.token_id = token.token_id
 
     # Build session name

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import stat
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -91,6 +92,18 @@ def _read_cache_vars(
     cache_env = Path(tmpdir) / "sp-profiles" / workspace_profile / ".env"
     if not cache_env.is_file():
         return {}
+
+    # Warn if cache file is world-readable
+    try:
+        mode = cache_env.stat().st_mode
+        if mode & stat.S_IROTH:
+            slog = get_logger()
+            slog.warning(
+                "lifecycle.profile_cache_world_readable",
+                metadata={"path": str(cache_env), "mode": oct(mode)},
+            )
+    except OSError:
+        pass
 
     result: dict[str, str] = {}
     for raw_line in cache_env.read_text().splitlines():
@@ -204,9 +217,15 @@ def _resolve_profile_mounts(
         "terraform": "/home/developer/.terraform.d",
     }
 
+    # Credential mounts default to read-only to prevent containers
+    # from modifying host credentials.  Gitconfig stays rw so git can
+    # write commit metadata.
+    _RW_MOUNTS = {"gitconfig"}
+
     for enabled, name, env_vars, fallback, use_parent in mount_specs:
         if not enabled:
             continue
+        mode = "rw" if name in _RW_MOUNTS else "ro"
         # gitconfig is a file mount, not a directory
         if name == "gitconfig":
             found = None
@@ -219,13 +238,13 @@ def _resolve_profile_mounts(
             if found is None and fallback.is_file():
                 found = fallback
             if found is not None:
-                mounts[str(found)] = {"bind": container_targets[name], "mode": "rw"}
+                mounts[str(found)] = {"bind": container_targets[name], "mode": mode}
         else:
             host_dir = _resolve_dir(
                 env_vars, fallback, use_parent=use_parent, env_override=env_override
             )
             if host_dir is not None:
-                mounts[str(host_dir)] = {"bind": container_targets[name], "mode": "rw"}
+                mounts[str(host_dir)] = {"bind": container_targets[name], "mode": mode}
 
     # When workspace_home differs from the real home, AWS SSO tokens live in
     # the real $HOME/.aws/sso/cache/ (aws sso login always writes there).
@@ -284,6 +303,18 @@ def _resolve_profile_env(workspace_profile: str | None = None) -> str | None:
     cache_env = Path(tmpdir) / "sp-profiles" / profile / ".env"
     if not cache_env.is_file():
         return None
+
+    # Warn if cache file is world-readable
+    try:
+        mode = cache_env.stat().st_mode
+        if mode & stat.S_IROTH:
+            slog = get_logger()
+            slog.warning(
+                "lifecycle.profile_cache_world_readable",
+                metadata={"path": str(cache_env), "mode": oct(mode)},
+            )
+    except OSError:
+        pass
 
     lines: list[str] = []
     # Prepend workspace identity
