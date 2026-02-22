@@ -13,6 +13,7 @@ import json
 import os
 import re
 import sys
+import uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse
@@ -376,7 +377,8 @@ def store_to_qdrant(content: str, metadata: Dict) -> None:
         embedding = list(embedder.embed([content]))[0]
 
         # Generate point ID from content hash (prevents duplicates)
-        point_id = hashlib.md5(content.encode()).hexdigest()
+        # Qdrant requires UUID or unsigned int — convert MD5 hex to UUID
+        point_id = str(uuid.UUID(hex=hashlib.md5(content.encode()).hexdigest()))
 
         # Create point
         point = PointStruct(
