@@ -517,8 +517,9 @@ async def api_delete_session(request: Request, body: DeleteSessionRequest, _key=
         )
         try:
             client = _docker()
-            container = client.containers.get(name)
-            container.remove()
+            container_name = f"{settings.resolved_prefix}{session_name}"
+            container = client.containers.get(container_name)
+            container.remove(force=True)
             _audit_log(request, "session.delete", session_name=session_name, success=True)
             return {"success": True}
         except docker.errors.NotFound:
@@ -529,8 +530,8 @@ async def api_delete_session(request: Request, body: DeleteSessionRequest, _key=
                 success=False,
                 error="not_found",
             )
-            log.error("session.delete_failed.not_found", metadata={"container": name})
-            raise HTTPException(status_code=404, detail=f"Container not found: {name}")
+            log.error("session.delete_failed.not_found", metadata={"container": session_name})
+            raise HTTPException(status_code=404, detail=f"Container not found: {session_name}")
         except docker.errors.DockerException as docker_exc:
             _audit_log(
                 request,
