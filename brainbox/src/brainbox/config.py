@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _default_config_dir() -> Path:
@@ -115,8 +115,10 @@ class ProfileSettings(BaseSettings):
 
 
 class OllamaSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="OLLAMA_")
+
     host: str = "http://host.docker.internal:11434"
-    model: str = "qwen3-coder"
+    model: str = "qwen3:8b"
 
 
 class UTMSettings(BaseSettings):
