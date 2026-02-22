@@ -93,12 +93,15 @@ sequenceDiagram
     Router->>Router: task.status = RUNNING
 
     Router->>LC: run_pipeline(session_name, hardened, token)
+    Note over Router,LC: If run_pipeline fails, task → FAILED
     LC-->>Router: SessionContext
 
     Router->>Router: emit("task.started", task)
     Router-->>API: Task
     API-->>Client: 201 {task}
 ```
+
+**Note:** The task is set to `RUNNING` *before* `run_pipeline()` is called. If the container launch fails, `submit_task()` catches the exception, sets the task to `FAILED`, revokes the token, and re-raises.
 
 ## Task State Machine
 
@@ -107,7 +110,7 @@ Tasks progress through a strict lifecycle. Terminal states (`COMPLETED`, `FAILED
 ```mermaid
 stateDiagram-v2
     [*] --> PENDING: submit_task()
-    PENDING --> RUNNING: container launched
+    PENDING --> RUNNING: token issued, launching container
     RUNNING --> COMPLETED: complete_task(result)
     RUNNING --> FAILED: fail_task(error)
     RUNNING --> CANCELLED: cancel_task()
@@ -151,18 +154,19 @@ sequenceDiagram
     Msg->>Registry: validate_token(sender_token_id)
     Registry-->>Msg: Token
 
-    Msg->>Policy: evaluate_message(token, recipient, envelope)
+    Msg->>Policy: evaluate_message(token, recipient, payload)
     Policy-->>Msg: PolicyResult{allowed: true}
 
     Msg->>Msg: create message with UUID
     Msg->>Msg: enqueue for recipient's tokens
+    Msg->>Msg: append to audit log
+    Msg-->>API: {delivered: true, message_id}
 
     alt payload.event == "task.completed"
+        Note over API: Side effect in api.py, not messages.py
         API->>API: complete_task(task_id, result)
     end
 
-    Msg->>Msg: append to audit log
-    Msg-->>API: {delivered: true, message_id}
     API-->>Agent: 200
 ```
 
@@ -171,7 +175,7 @@ sequenceDiagram
 - **Sending:** Agent POSTs with Bearer token. Token is validated, policy is checked, message is queued.
 - **Receiving:** Agent GETs `/api/hub/messages` with Bearer token. Pending messages are drained (removed from queue after retrieval).
 - **Audit log:** Capped ring buffer (`settings.hub.message_retention`, default 100 entries). Records both delivered and rejected messages.
-- **Task completion side effect:** When `payload.event == "task.completed"`, the API calls `complete_task()` which recycles the container and revokes the token.
+- **Task completion side effect:** After `messages.route()` returns, `api.py` checks if `payload.event == "task.completed"` and calls `complete_task()` which recycles the container and revokes the token. This logic lives in the API layer, not in `messages.py`.
 
 ## State Persistence
 
@@ -286,7 +290,7 @@ Three policy checks enforce authorization:
 |-------|----------|-----------|
 | `evaluate_task_assignment` | `router.submit_task()` | Agent exists, is registered, task has description |
 | `evaluate_message` | `messages.route()` | Token valid, not expired, recipient is agent or "hub", payload has type |
-| `evaluate_capability` | — (available for extensions) | Token has required capability in its list |
+| `evaluate_capability` | Not currently called (available for extensions) | Token has required capability in its list |
 
 All checks return `PolicyResult(allowed: bool, reason: str | None)`.
 

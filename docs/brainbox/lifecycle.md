@@ -147,16 +147,19 @@ Image signature verification runs during provision (Phase 1). The verification m
 flowchart TD
     Start([Provision Phase]) --> CheckMode{cosign mode?}
     CheckMode -->|off| Skip[Skip verification]
-    CheckMode -->|warn / enforce| CheckConfig{keyless config<br/>available?}
+    CheckMode -->|warn / enforce| EvalStrategies[Evaluate both strategies]
 
-    CheckConfig -->|yes: cert_identity +<br/>oidc_issuer| Keyless[verify_image_keyless<br/>Sigstore Fulcio + Rekor]
-    CheckConfig -->|no| CheckKey{key file<br/>exists?}
+    EvalStrategies --> CheckKeyless{cert_identity +<br/>oidc_issuer set?}
+    EvalStrategies --> CheckKey{key path set?}
 
-    CheckKey -->|yes| KeyBased[verify_image<br/>PEM public key]
-    CheckKey -->|no| NoConfig{mode?}
+    CheckKeyless -->|yes| Keyless[verify_image_keyless<br/>Sigstore Fulcio + Rekor]
+    CheckKeyless -->|no| Neither
 
-    NoConfig -->|enforce| Fail1[Raise ValueError]
-    NoConfig -->|warn| Skip
+    CheckKey -->|yes + key file exists| KeyBased[verify_image<br/>PEM public key]
+    CheckKey -->|no| Neither
+
+    Neither{neither<br/>configured?} -->|enforce| Fail1[Raise ValueError]
+    Neither -->|warn| Skip
 
     Keyless --> Result{verified?}
     KeyBased --> Result
@@ -175,7 +178,7 @@ flowchart TD
     class Pass,Skip passStyle
     class Fail1,Fail2 failStyle
     class Warn warnStyle
-    class CheckMode,CheckConfig,CheckKey,NoConfig,Result,ModeCheck checkStyle
+    class CheckMode,CheckKeyless,CheckKey,Neither,Result,ModeCheck checkStyle
 ```
 
 **Verification strategies:**
@@ -231,7 +234,7 @@ graph TB
 | Azure | `AZURE_CONFIG_DIR` | `~/.azure` | `/home/developer/.azure` | on |
 | Kube | `KUBECONFIG` | `~/.kube` | `/home/developer/.kube` | on |
 | SSH | — | `$WORKSPACE_HOME/.ssh` | `/home/developer/.ssh` | on |
-| Gitconfig | `GIT_CONFIG_GLOBAL` | `$WORKSPACE_HOME/.gitconfig` | `/home/developer/.gitconfig` | on |
+| Gitconfig (file) | `GIT_CONFIG_GLOBAL` | `$WORKSPACE_HOME/.gitconfig` | `/home/developer/.gitconfig` | on |
 | GCloud | `CLOUDSDK_CONFIG` | `~/.gcloud` | `/home/developer/.gcloud` | off |
 | Terraform | `TF_CLI_CONFIG_FILE` | `~/.terraform.d` | `/home/developer/.terraform.d` | off |
 
@@ -254,6 +257,9 @@ Two modes controlled by `SessionContext.hardened`:
 | tmpfs | `/workspace` (500M), `/tmp` (100M) | None |
 | Secret mount | `/run/secrets` (tmpfs, 0o400, ro) | `.env` file |
 | Profile env | `/run/profile` (tmpfs, 0o644, rw) | Inline in `.env` |
+| Web terminal (ttyd) | Not launched — no web access | Launched on port 7681 |
+
+**Note:** `LANGFUSE_SESSION_ID` is written to `~/.env` in both modes (for LangFuse trace correlation), even when other secrets go to `/run/secrets` in hardened mode.
 
 ## Configuration
 
@@ -262,11 +268,12 @@ All settings use the `CL_` env prefix with `__` as nested delimiter.
 | Setting | Env Var | Default | Description |
 |---------|---------|---------|-------------|
 | `role` | `CL_ROLE` | `developer` | Default container role |
-| `image` | `CL_IMAGE` | `brainbox-{role}` | Docker image name |
-| `container_prefix` | `CL_CONTAINER_PREFIX` | `{role}-` | Container name prefix |
+| `image` | `CL_IMAGE` | `""` (resolves to `brainbox-{role}`) | Docker image name |
+| `container_prefix` | `CL_CONTAINER_PREFIX` | `""` (resolves to `{role}-`) | Container name prefix |
 | `ttl` | `CL_TTL` | `3600` | Session TTL in seconds |
 | `api_port` | `CL_API_PORT` | `9999` | API listen port |
 | `health_check_interval` | `CL_HEALTH_CHECK_INTERVAL` | `30` | Health loop interval (seconds) |
+| `health_check_retries` | `CL_HEALTH_CHECK_RETRIES` | `3` | Failures before recycling |
 | `cosign.mode` | `CL_COSIGN__MODE` | `warn` | `off` / `warn` / `enforce` |
 | `resources.memory` | `CL_RESOURCES__MEMORY` | `2g` | Container memory limit |
 | `resources.cpus` | `CL_RESOURCES__CPUS` | `2` | Container CPU limit |

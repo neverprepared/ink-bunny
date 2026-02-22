@@ -66,6 +66,8 @@ Response (UTM): `{"success": true, "backend": "utm", "ssh_port": 2200, "url": nu
 
 Sends a prompt to Claude Code running inside the container. Uses NATS if enabled, falls back to tmux.
 
+**Query parameter:** `?async_mode=true` (default). When `true`, returns immediately with a `task_id` for polling. When `false`, blocks until completion (legacy sync mode).
+
 ```json
 {
   "prompt": "Implement the login page",
@@ -185,13 +187,13 @@ Rate limiting uses [slowapi](https://github.com/laurentS/slowapi) keyed by clien
 | Task status/list/cancel | 30/minute |
 | Artifact upload/download/delete | 30/minute |
 
-Exceeded requests receive a `429` response:
+Exceeded requests receive a `429` response with a `Retry-After` header:
 
 ```json
 {
-  "error": "rate_limit_exceeded",
-  "detail": "Rate limit exceeded: 10 per 1 minute",
-  "retry_after": 42
+  "error": "Rate limit exceeded",
+  "detail": "Too many requests. Please try again later.",
+  "retry_after": null
 }
 ```
 
@@ -203,9 +205,9 @@ Request bodies are validated via Pydantic models in `models_api.py`.
 |-----------|-------|
 | `validate_session_name` | Alphanumeric start, `[a-zA-Z0-9_.-]*`, 1–64 chars, no `..` |
 | `validate_role` | Must be `developer`, `researcher`, or `performer` |
-| `validate_volume_mount` | `host:container[:mode]`, both absolute, mode `rw` or `ro` |
+| `validate_volume_mount` | `host:container[:mode]`, both absolute, mode `rw` (default) or `ro` |
 | `validate_port` | 1024–65535 |
-| `validate_artifact_key` | No `..`, no `/`, no null bytes |
+| `validate_artifact_key` | No `..`, no leading `/`, no null bytes, normalized |
 
 ## MCP Server
 

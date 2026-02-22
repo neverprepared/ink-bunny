@@ -271,6 +271,8 @@ The LangFuse client (`langfuse_client.py`) queries traces and observations via t
 
 ## NATS Integration
 
+**Status:** `nats_client.py` is imported by `api.py` but the implementation file is not yet present in the repository. The NATS integration code in `api.py` (handlers, subscriptions) is complete, but the `BrainboxNATSClient` class itself needs to be implemented.
+
 When NATS is enabled (`CL_NATS__ENABLED=true`), brainbox subscribes to container event channels and can publish commands.
 
 **Subscriptions (set up during lifespan):**

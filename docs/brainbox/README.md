@@ -164,7 +164,7 @@ mindmap
 | `policy.py` | Task assignment, message, and capability authorization | [hub.md](hub.md) |
 | `langfuse_client.py` | LangFuse trace/observation queries via HTTP | [observability.md](observability.md) |
 | `artifacts.py` | MinIO S3 artifact upload/download/list/delete | [observability.md](observability.md) |
-| `nats_client.py` | NATS pub/sub for container command dispatch | [observability.md](observability.md) |
+| `nats_client.py` | NATS pub/sub for container command dispatch (imported by `api.py` but not yet implemented) | [observability.md](observability.md) |
 | `config.py` | Pydantic settings from `CL_*` env vars | [lifecycle.md](lifecycle.md) |
 | `models.py` | Domain models (Agent, Session, Task, Token, Message) | [hub.md](hub.md) |
 | `log.py` | structlog JSON logging with session context | [observability.md](observability.md) |
