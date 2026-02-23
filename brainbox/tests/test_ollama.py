@@ -52,7 +52,7 @@ class TestOllamaSettings:
     def test_defaults(self):
         s = OllamaSettings()
         assert s.host == "http://host.docker.internal:11434"
-        assert s.model == "qwen3-coder"
+        assert s.model == "qwen3:8b"
 
     def test_env_override(self):
         with patch.dict(
