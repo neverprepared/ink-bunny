@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any
 
 from .config import settings
+from .log import get_logger
+
+log = get_logger()
 
 
 @dataclass
@@ -151,8 +154,8 @@ class DaemonManager:
             # Kill the process if we can't write PID file
             try:
                 process.kill()
-            except Exception:
-                pass
+            except Exception as kill_exc:
+                log.debug("daemon.kill_failed", metadata={"reason": str(kill_exc)})
             raise DaemonError(f"Failed to write PID file: {e}") from e
 
         url = f"http://{host}:{port}"
@@ -253,8 +256,8 @@ class DaemonManager:
             port = int(lines[1])
             host = lines[2]
             started_at = lines[3]
-        except Exception:
-            # Corrupted PID file
+        except Exception as exc:
+            log.debug("daemon.pid_file_corrupt", metadata={"reason": str(exc)})
             self._cleanup_pid_file()
             return DaemonStatus(running=False, log_file=self.log_file)
 
@@ -274,7 +277,8 @@ class DaemonManager:
             started = datetime.fromisoformat(started_at)
             now = datetime.now(timezone.utc)
             uptime_seconds = int((now - started).total_seconds())
-        except Exception:
+        except Exception as exc:
+            log.debug("daemon.uptime_parse_failed", metadata={"reason": str(exc)})
             uptime_seconds = None
 
         return DaemonStatus(
@@ -326,8 +330,8 @@ class DaemonManager:
         try:
             if self.pid_file.exists():
                 self.pid_file.unlink()
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug("daemon.cleanup_failed", metadata={"reason": str(exc)})
 
     def to_dict(self, status: DaemonStatus) -> dict[str, Any]:
         """Convert status to dictionary format.

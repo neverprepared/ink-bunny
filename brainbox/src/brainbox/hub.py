@@ -37,7 +37,7 @@ _check_task: asyncio.Task[None] | None = None
 async def init() -> None:
     """Initialize the hub: load agents, restore state, start background tasks."""
     load_agents()
-    _restore_state()
+    await _restore_state()
 
     loop = asyncio.get_running_loop()
     global _flush_task, _check_task
@@ -60,7 +60,7 @@ async def shutdown() -> None:
         _check_task.cancel()
         _check_task = None
 
-    _flush_state()
+    await _flush_state()
     log.info("hub.shutdown")
 
 
@@ -69,7 +69,7 @@ async def shutdown() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _flush_state() -> None:
+async def _flush_state() -> None:
     import time
 
     state = {
@@ -81,19 +81,20 @@ def _flush_state() -> None:
 
     state_file = settings.state_file
     tmp_file = state_file.with_suffix(".tmp")
+    content = json.dumps(state, indent=2, default=str)
 
     try:
         state_file.parent.mkdir(parents=True, exist_ok=True)
-        tmp_file.write_text(json.dumps(state, indent=2, default=str))
-        tmp_file.rename(state_file)
+        await asyncio.to_thread(tmp_file.write_text, content)
+        await asyncio.to_thread(tmp_file.rename, state_file)
     except Exception as exc:
         log.warning("hub.flush_failed", metadata={"reason": str(exc)})
 
 
-def _restore_state() -> None:
+async def _restore_state() -> None:
     state_file = settings.state_file
     try:
-        raw = state_file.read_text()
+        raw = await asyncio.to_thread(state_file.read_text)
     except FileNotFoundError:
         return
 
@@ -123,7 +124,7 @@ async def _periodic_flush() -> None:
     try:
         while True:
             await asyncio.sleep(settings.hub.flush_interval)
-            _flush_state()
+            await _flush_state()
     except asyncio.CancelledError:
         pass
 

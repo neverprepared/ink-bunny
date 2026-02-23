@@ -9,6 +9,9 @@ import boto3
 from botocore.exceptions import ClientError
 
 from .config import settings
+from .log import get_logger
+
+log = get_logger()
 
 # ---------------------------------------------------------------------------
 # Cached Boto3 S3 client for connection pooling
@@ -145,5 +148,6 @@ def health_check() -> bool:
     try:
         ensure_bucket()
         return True
-    except Exception:
+    except Exception as exc:
+        log.debug("artifacts.health_check_failed", metadata={"reason": str(exc)})
         return False

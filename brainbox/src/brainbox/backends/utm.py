@@ -248,6 +248,18 @@ def _find_available_ssh_port(start_port: int = None) -> int:
     return port
 
 
+def _plist_load(path: Path) -> dict:
+    """Read and parse a plist file (sync — use asyncio.to_thread in async contexts)."""
+    with path.open("rb") as f:
+        return plistlib.load(f)
+
+
+def _plist_dump(path: Path, config: dict) -> None:
+    """Write a plist file (sync — use asyncio.to_thread in async contexts)."""
+    with path.open("wb") as f:
+        plistlib.dump(config, f)
+
+
 def _clone_vm_template(template_path: Path, vm_path: Path, slog) -> None:
     """Clone a UTM VM template directory, preserving symlinks."""
     slog.info("utm.cloning_template", metadata={"template": template_path.stem})
@@ -469,8 +481,8 @@ class UTMBackend:
         # Clone template (preserve symlinks)
         _clone_vm_template(template_path, vm_path, slog)
 
-        # Allocate SSH port
-        ssh_port = _find_available_ssh_port()
+        # Allocate SSH port (I/O-bound; run off the event loop)
+        ssh_port = await asyncio.to_thread(_find_available_ssh_port)
 
         # Edit config.plist
         config_plist = vm_path / "config.plist"
@@ -478,8 +490,7 @@ class UTMBackend:
             raise FileNotFoundError(f"config.plist not found in cloned VM: {config_plist}")
 
         try:
-            with config_plist.open("rb") as f:
-                config = plistlib.load(f)
+            config = await asyncio.to_thread(_plist_load, config_plist)
 
             # Update VM name
             config["Name"] = vm_name
@@ -537,8 +548,7 @@ class UTMBackend:
             ctx._virtiofs_mounts = _configure_shared_dirs(config, volumes)  # type: ignore
 
             # Write updated config
-            with config_plist.open("wb") as f:
-                plistlib.dump(config, f)
+            await asyncio.to_thread(_plist_dump, config_plist, config)
 
             # Register VM with UTM by opening it
             subprocess.run(["open", vm_path], capture_output=True)

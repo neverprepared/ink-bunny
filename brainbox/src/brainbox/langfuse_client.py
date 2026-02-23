@@ -92,7 +92,8 @@ def health_check() -> bool:
         c = _client()
         resp = c.get("/api/public/health")
         return resp.status_code == 200
-    except Exception:
+    except Exception as exc:
+        _log.debug("langfuse.health_check_failed", metadata={"reason": str(exc)})
         return False
 
 
@@ -209,9 +210,9 @@ def get_session_traces_summary(session_id: str) -> SessionSummary:
                     tool_counts[name] = tool_counts.get(name, 0) + 1
                     if o.get("level") == "ERROR":
                         error_count += 1
-        except Exception:
+        except Exception as exc:
             # If batch fetch fails, return partial data from traces
-            pass
+            _log.debug("langfuse.batch_observations_failed", metadata={"reason": str(exc)})
 
         return SessionSummary(
             session_id=session_id,

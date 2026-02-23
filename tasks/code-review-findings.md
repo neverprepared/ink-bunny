@@ -30,12 +30,12 @@ Generated: 2026-02-23
 
 - [x] #9: `_query_via_tmux()` is 175 lines — complex state + polling logic, difficult to test — `brainbox/src/brainbox/api.py:833` _(fixed: extracted `_tmux_verify_container()`, `_tmux_send_and_wait()`, `_tmux_parse_output()` helpers; `_query_via_tmux()` is now an orchestrator)_
 - [x] #10: `query()` is 174 lines — `brainbox/src/brainbox/container_api.py:55` _(fixed: extracted `_prepare_working_dir()`, `_build_claude_command()`, `_run_and_capture()`, `_format_query_response()` helpers)_
-- [ ] #11: `provision()` is 179 lines — `brainbox/src/brainbox/backends/utm.py:254`
-- [ ] #12: `configure()` is 168 lines — `brainbox/src/brainbox/backends/utm.py:434`
+- [x] #11: `provision()` is 179 lines — `brainbox/src/brainbox/backends/utm.py:254` _(fixed: extracted `_clone_vm_template()`, `_configure_shared_dirs()`, `_start_vm_and_wait()` helpers; provision() reduced to 151 lines)_
+- [x] #12: `configure()` is 168 lines — `brainbox/src/brainbox/backends/utm.py:434` _(fixed: extracted `_inject_env_file()`, `_patch_claude_config()` helpers; configure() reduced to 84 lines)_
 - [x] #13: `_resolve_profile_mounts()` is 132 lines — `brainbox/src/brainbox/lifecycle.py:129` _(fixed: extracted `_compute_mount_context()` and `_build_volume_map()` helpers)_
 - [x] #14: Silent `except Exception: pass` in task completion routing — silently drops completed tasks — `brainbox/src/brainbox/api.py:1205` _(fixed: replaced with `log.warning("hub.task_completion_error", ...)`)_
 - [x] #15: Silent `except Exception: pass` in Docker event watcher — hides stream errors — `brainbox/src/brainbox/api.py:159,164` _(fixed: replaced with `log.warning("docker.events.watcher_error", ...)`)_
-- [x] #16: PARTIALLY FIXED — broad `except Exception` clauses in utm.py replaced with structured `log.debug`/`log.warning`; daemon.py, artifacts.py, langfuse_client.py not yet addressed — multiple files
+- [x] #16: Broad `except Exception` clauses replaced with structured logging throughout utm.py, daemon.py, artifacts.py, langfuse_client.py — multiple files
 - [ ] #17: TODO: git-based modified-file detection not implemented — `brainbox/src/brainbox/api.py:999`, `brainbox/src/brainbox/container_api.py:214`
 - [x] #18: SA token passed via environment variable; visible to privileged processes and subprocess env dicts — `brainbox/src/brainbox/secrets.py:32,50,96` _(documented: added docstring to `_op_run()` warning that SA token is visible in subprocess env dict)_
 - [x] #19: Secure file write pattern (`mkdir + write + chmod 0o600`) duplicated in auth.py and manage_secrets.py — `brainbox/src/brainbox/auth.py:25-29`, `manage_secrets.py:121` _(fixed: extracted `write_secure_file(path, content, mode=0o600)` in auth.py; manage_secrets.py now imports and uses it)_
@@ -44,7 +44,7 @@ Generated: 2026-02-23
 
 ## Low — Optimizations
 
-- [x] #20: PARTIALLY FIXED — blocking `read_text()` in lifecycle.py wrapped with `run_in_executor`; utm.py and hub.py not yet addressed — `brainbox/src/brainbox/lifecycle.py:109,325`, `backends/utm.py:230-231,325-326,838-839`, `hub.py:96,101`
+- [x] #20: Blocking file I/O in async functions wrapped with `asyncio.to_thread` — lifecycle.py `read_text()`, utm.py `plistlib.load/dump` and `_find_available_ssh_port()`, hub.py `_flush_state()` and `_restore_state()` — `brainbox/src/brainbox/lifecycle.py:109,325`, `backends/utm.py:230-231,481-541`, `hub.py:87-88,96`
 - [x] #21: N+1 pattern: `_get_container_metrics()` calls `c.stats(stream=False)` + LangFuse HTTP request individually per container — `brainbox/src/brainbox/api.py:1053-1106` _(fixed: stats calls now run concurrently via `ThreadPoolExecutor(max_workers=min(len(containers), 8))`)_
 - [x] #22: Race condition: `_trace_cache` dict mutated without locks in concurrent ThreadPoolExecutor context — `brainbox/src/brainbox/api.py:1014,1040` _(fixed: added `_trace_cache_lock = threading.Lock()`; reads and writes wrapped with `with _trace_cache_lock`)_
 - [x] #23: `MetricsTable` polls every 5 s independently instead of subscribing to existing SSE stream — `brainbox/dashboard/src/lib/MetricsTable.svelte:42` _(fixed: replaced `setInterval` with `EventSource` subscription; metrics refresh on Docker events)_
