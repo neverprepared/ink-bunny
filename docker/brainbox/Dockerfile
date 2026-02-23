@@ -172,7 +172,7 @@ USER developer
 # The qdrant-websearch hook uses sentence-transformers/all-MiniLM-L6-v2 (384-dim).
 # Without pre-caching, the first hook run triggers a 30+ second download which
 # exceeds the 5-second hook timeout, causing silent failure.
-RUN uvx --python 3.12 --with fastembed python3 -c "\
+RUN uvx --python 3.12 --with fastembed python -c "\
 from fastembed import TextEmbedding; \
 from pathlib import Path; \
 cache = str(Path.home() / '.cache' / 'fastembed'); \
