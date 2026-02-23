@@ -447,7 +447,9 @@ async def api_get_session(name: str):
 
 @app.post("/api/stop")
 @limiter.limit("10/minute")
-async def api_stop_session(request: Request, body: StopSessionRequest, _key=Depends(require_api_key)):
+async def api_stop_session(
+    request: Request, body: StopSessionRequest, _key=Depends(require_api_key)
+):
     name = body.name
     session_name = _extract_session_name(name)
     try:
@@ -499,7 +501,9 @@ async def api_stop_session(request: Request, body: StopSessionRequest, _key=Depe
 
 @app.post("/api/delete")
 @limiter.limit("10/minute")
-async def api_delete_session(request: Request, body: DeleteSessionRequest, _key=Depends(require_api_key)):
+async def api_delete_session(
+    request: Request, body: DeleteSessionRequest, _key=Depends(require_api_key)
+):
     name = body.name
     session_name = _extract_session_name(name)
     try:
@@ -559,7 +563,9 @@ async def api_delete_session(request: Request, body: DeleteSessionRequest, _key=
 
 @app.post("/api/start")
 @limiter.limit("10/minute")
-async def api_start_session(request: Request, body: StartSessionRequest, _key=Depends(require_api_key)):
+async def api_start_session(
+    request: Request, body: StartSessionRequest, _key=Depends(require_api_key)
+):
     name = body.name
     session_name = _extract_session_name(name)
     try:
@@ -629,7 +635,9 @@ async def api_start_session(request: Request, body: StartSessionRequest, _key=De
 
 @app.post("/api/create")
 @limiter.limit("10/minute")
-async def api_create_session(request: Request, body: CreateSessionRequest, _key=Depends(require_api_key)):
+async def api_create_session(
+    request: Request, body: CreateSessionRequest, _key=Depends(require_api_key)
+):
     try:
         ctx = await run_pipeline(
             session_name=body.name,
@@ -669,7 +677,9 @@ async def api_create_session(request: Request, body: CreateSessionRequest, _key=
 
 @app.post("/api/sessions/{name}/exec")
 @limiter.limit("10/minute")
-async def api_exec_session(request: Request, name: str, body: ExecSessionRequest, _key=Depends(require_api_key)):
+async def api_exec_session(
+    request: Request, name: str, body: ExecSessionRequest, _key=Depends(require_api_key)
+):
     """Execute a command inside a running container."""
     try:
         validate_session_name(name)
