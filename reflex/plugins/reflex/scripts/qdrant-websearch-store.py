@@ -29,7 +29,7 @@ def get_collection_name() -> str:
     # Try workspace-specific collection first
     workspace = os.getenv("WORKSPACE_PROFILE", "")
     if workspace:
-        workspace_name = os.path.basename(workspace.rstrip("/"))
+        workspace_name = os.path.basename(workspace.rstrip("/")).lower()
         return f"{workspace_name}_memories"
 
     # Fallback to default
@@ -408,12 +408,26 @@ def parse_tool_response(tool_response) -> List[Dict]:
     """
     Normalize tool_response to a list of result dicts.
 
-    Claude Code sends WebSearch tool_response as either:
+    Claude Code sends WebSearch tool_response as:
+    - A dict: {"query": ..., "results": [{"tool_use_id": ..., "content": [{"title": ..., "url": ...}, ...]}, "text summary"]}
     - A list of dicts: [{"title": ..., "url": ..., "snippet": ...}, ...]
     - A string: "Web search results for query: ...\n\nLinks: [{...}, ...]"
 
-    Returns a list of result dicts (may be empty if parsing fails).
+    Returns a list of result dicts with "title" and "url" keys (may be empty if parsing fails).
     """
+    if isinstance(tool_response, dict):
+        # Modern format: {"query": ..., "results": [...]}
+        # results contains dicts with "content" lists and/or plain strings
+        results = tool_response.get("results", [])
+        extracted = []
+        for item in results:
+            if isinstance(item, dict):
+                content = item.get("content", [])
+                if isinstance(content, list):
+                    extracted.extend([r for r in content if isinstance(r, dict) and ("url" in r or "title" in r)])
+        if extracted:
+            return extracted
+
     if isinstance(tool_response, list):
         # Already a list — filter to dicts with at least a url or title
         return [r for r in tool_response if isinstance(r, dict)]
