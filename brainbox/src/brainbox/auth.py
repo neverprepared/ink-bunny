@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import secrets
-import stat
 from pathlib import Path
 
 from fastapi import HTTPException, Request
@@ -22,11 +21,11 @@ def generate_api_key() -> str:
     return secrets.token_hex(32)
 
 
-def _write_key_file(key: str, path: Path) -> None:
-    """Write API key to file with 0o600 permissions."""
+def write_secure_file(path: Path, content: str, mode: int = 0o600) -> None:
+    """Write *content* to *path* with restricted permissions."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(key)
-    path.chmod(stat.S_IRUSR | stat.S_IWUSR)  # 0o600
+    path.write_text(content)
+    path.chmod(mode)
 
 
 def load_or_create_key() -> str:
@@ -56,7 +55,7 @@ def load_or_create_key() -> str:
 
     # 3. Generate new key
     _api_key = generate_api_key()
-    _write_key_file(_api_key, key_file)
+    write_secure_file(key_file, _api_key)
     log.info("auth.key_created", metadata={"path": str(key_file)})
     return _api_key
 

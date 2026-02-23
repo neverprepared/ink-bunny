@@ -217,8 +217,8 @@ def _find_available_ssh_port(start_port: int = None) -> int:
                     for b in bindings:
                         if b.get("HostPort"):
                             used_ports.add(int(b["HostPort"]))
-    except Exception:
-        pass  # Docker not available or other error - continue
+    except Exception as e:
+        log.debug("utm.port_scan_docker_failed", metadata={"reason": str(e)})
 
     # Scan existing UTM VMs for used SSH ports (read from config.plist)
     try:
@@ -238,14 +238,175 @@ def _find_available_ssh_port(start_port: int = None) -> int:
                             host_port = rule.get("HostPort")
                             if host_port:
                                 used_ports.add(int(host_port))
-    except Exception:
-        pass  # Ignore errors reading configs
+    except Exception as e:
+        log.debug("utm.port_scan_utm_config_failed", metadata={"reason": str(e)})
 
     # Find first available port
     port = start_port
     while port in used_ports:
         port += 1
     return port
+
+
+def _clone_vm_template(template_path: Path, vm_path: Path, slog) -> None:
+    """Clone a UTM VM template directory, preserving symlinks."""
+    slog.info("utm.cloning_template", metadata={"template": template_path.stem})
+    try:
+        shutil.copytree(template_path, vm_path, symlinks=True)
+    except Exception as exc:
+        slog.error("utm.clone_failed", metadata={"reason": str(exc)})
+        raise
+
+
+def _configure_shared_dirs(
+    config: dict, volumes: dict[str, dict[str, str]]
+) -> list[tuple[str, str]]:
+    """Populate SharedDirectories in a VM config dict and return mount mappings.
+
+    Modifies *config* in place.  Returns a list of ``(share_tag, container_path)``
+    tuples consumed during the configure phase.
+    """
+    shared_dirs = config.setdefault("SharedDirectories", [])
+    shared_dirs.clear()
+    virtiofs_mounts: list[tuple[str, str]] = []
+
+    for host_path, mount_spec in volumes.items():
+        container_path = mount_spec["bind"]
+        mode = mount_spec.get("mode", "rw")
+        read_only = mode == "ro"
+        share_tag = f"share-{len(shared_dirs)}"
+        shared_dirs.append(
+            {
+                "DirectoryURL": f"file://{host_path}",
+                "ReadOnly": read_only,
+                "Name": share_tag,
+            }
+        )
+        virtiofs_mounts.append((share_tag, container_path))
+
+    return virtiofs_mounts
+
+
+async def _start_vm_and_wait(
+    vm_name: str, utmctl: str, ctx: SessionContext, slog
+) -> tuple[str, int]:
+    """Start a UTM VM and wait for SSH to become available.
+
+    Returns ``(ssh_host, ssh_port)`` for subsequent SSH operations.
+    Raises TimeoutError if SSH is not reachable within 120 s.
+    """
+    slog.info("utm.booting_for_config")
+    await _run_subprocess([utmctl, "start", vm_name], timeout=60)
+
+    if ctx.mac_address:
+        # Bridged networking - discover IP via ARP
+        slog.info("utm.discovering_ip_for_config", metadata={"mac": ctx.mac_address})
+        vm_ip = await _discover_vm_ip(ctx.mac_address, timeout=60)
+        ctx.vm_ip = vm_ip
+        ssh_host: str = vm_ip
+        ssh_port: int = 22
+        slog.info("utm.ip_discovered", metadata={"ip": vm_ip})
+    else:
+        # Port forwarding
+        ssh_host = "localhost"
+        ssh_port = ctx.ssh_port
+
+    slog.info("utm.waiting_for_ssh", metadata={"host": ssh_host, "port": ssh_port})
+    ssh_ready = await _wait_for_ssh(ssh_host, ssh_port, timeout=120)
+    if not ssh_ready:
+        slog.error("utm.ssh_timeout")
+        raise TimeoutError(f"SSH not available at {ssh_host}:{ssh_port} after 120s")
+
+    return ssh_host, ssh_port
+
+
+async def _inject_env_file(
+    ctx: SessionContext,
+    secrets: dict[str, str],
+    ssh_host: str,
+    ssh_port: int,
+    ssh_key: Path,
+    slog,
+) -> None:
+    """Write secrets to ``~/.env`` (and ``~/.agent-token``) on the VM via SSH."""
+    try:
+        # Create/clear .env
+        await _ssh_execute(
+            ssh_host,
+            ssh_port,
+            ctx.ssh_user,
+            ssh_key,
+            "rm -f ~/.env && touch ~/.env && chmod 600 ~/.env",
+        )
+
+        # Write each secret
+        for key, value in secrets.items():
+            if key == "agent-token":
+                # Write agent-token to separate file
+                escaped_value = shlex.quote(value)
+                await _ssh_execute(
+                    "localhost",
+                    ctx.ssh_port,
+                    ctx.ssh_user,
+                    ssh_key,
+                    f"echo {escaped_value} > ~/.agent-token && chmod 400 ~/.agent-token",
+                )
+            else:
+                # Write to .env
+                escaped_value = shlex.quote(value)
+                await _ssh_execute(
+                    "localhost",
+                    ctx.ssh_port,
+                    ctx.ssh_user,
+                    ssh_key,
+                    f"echo 'export {key}={escaped_value}' >> ~/.env",
+                )
+
+        slog.info("utm.secrets_injected", metadata={"count": len(secrets)})
+
+    except Exception as exc:
+        slog.error("utm.secret_injection_failed", metadata={"reason": str(exc)})
+        raise
+
+
+async def _patch_claude_config(
+    ctx: SessionContext,
+    oauth_account: dict[str, Any] | None,
+    ssh_key: Path,
+    slog,
+) -> None:
+    """Merge OAuth account data into ``~/.claude.json`` on the VM via SSH.
+
+    No-ops when *oauth_account* is ``None``.
+    """
+    if not oauth_account:
+        return
+
+    try:
+        claude_json_patch = {
+            "hasCompletedOnboarding": True,
+            "bypassPermissionsModeAccepted": True,
+            "oauthAccount": oauth_account,
+        }
+        patch_json = json.dumps(claude_json_patch)
+        escaped_patch = shlex.quote(patch_json)
+
+        await _ssh_execute(
+            "localhost",
+            ctx.ssh_port,
+            ctx.ssh_user,
+            ssh_key,
+            f"echo {escaped_patch} | python3 -c '"
+            "import json, pathlib, sys; "
+            "p = pathlib.Path.home() / '.claude.json'; "
+            "d = json.loads(p.read_text()) if p.exists() else {{}}; "
+            "d.update(json.load(sys.stdin)); "
+            "p.write_text(json.dumps(d, indent=2))"
+            "'",
+        )
+        slog.info("utm.claude_config_patched")
+    except Exception as exc:
+        slog.warning("utm.claude_config_patch_failed", metadata={"reason": str(exc)})
 
 
 class UTMBackend:
@@ -306,12 +467,7 @@ class UTMBackend:
                 slog.warning("utm.remove_failed", metadata={"reason": str(exc)})
 
         # Clone template (preserve symlinks)
-        slog.info("utm.cloning_template", metadata={"template": image_or_template})
-        try:
-            shutil.copytree(template_path, vm_path, symlinks=True)
-        except Exception as exc:
-            slog.error("utm.clone_failed", metadata={"reason": str(exc)})
-            raise
+        _clone_vm_template(template_path, vm_path, slog)
 
         # Allocate SSH port
         ssh_port = _find_available_ssh_port()
@@ -378,30 +534,7 @@ class UTMBackend:
                 )
 
             # Add VirtioFS shared directories for volume mounts
-            shared_dirs = config.setdefault("SharedDirectories", [])
-            # Clear existing shares
-            shared_dirs.clear()
-
-            for host_path, mount_spec in volumes.items():
-                container_path = mount_spec["bind"]
-                mode = mount_spec.get("mode", "rw")
-                read_only = mode == "ro"
-
-                # Generate share tag (used for mount_virtiofs)
-                share_tag = f"share-{len(shared_dirs)}"
-
-                shared_dirs.append(
-                    {
-                        "DirectoryURL": f"file://{host_path}",
-                        "ReadOnly": read_only,
-                        "Name": share_tag,
-                    }
-                )
-
-                # Store mapping for configure phase
-                if not hasattr(ctx, "_virtiofs_mounts"):
-                    ctx._virtiofs_mounts = []  # type: ignore
-                ctx._virtiofs_mounts.append((share_tag, container_path))  # type: ignore
+            ctx._virtiofs_mounts = _configure_shared_dirs(config, volumes)  # type: ignore
 
             # Write updated config
             with config_plist.open("wb") as f:
@@ -463,98 +596,14 @@ class UTMBackend:
                 "Generate a key pair and add the public key to the template VM's ~/.ssh/authorized_keys"
             )
 
-        # Boot VM temporarily
-        slog.info("utm.booting_for_config")
-        await _run_subprocess([utmctl, "start", vm_name], timeout=60)
-
-        # Determine SSH connection parameters
-        if ctx.mac_address:
-            # Bridged networking - discover IP
-            slog.info("utm.discovering_ip_for_config", metadata={"mac": ctx.mac_address})
-            vm_ip = await _discover_vm_ip(ctx.mac_address, timeout=60)
-            ctx.vm_ip = vm_ip
-            ssh_host = vm_ip
-            ssh_port = 22
-            slog.info("utm.ip_discovered", metadata={"ip": vm_ip})
-        else:
-            # Port forwarding
-            ssh_host = "localhost"
-            ssh_port = ctx.ssh_port
-
-        # Wait for SSH
-        slog.info("utm.waiting_for_ssh", metadata={"host": ssh_host, "port": ssh_port})
-        ssh_ready = await _wait_for_ssh(ssh_host, ssh_port, timeout=120)
-        if not ssh_ready:
-            slog.error("utm.ssh_timeout")
-            raise TimeoutError(f"SSH not available at {ssh_host}:{ssh_port} after 120s")
+        # Boot VM and wait for SSH
+        ssh_host, ssh_port = await _start_vm_and_wait(vm_name, utmctl, ctx, slog)
 
         # Inject secrets to ~/.env
-        try:
-            # Create/clear .env
-            await _ssh_execute(
-                ssh_host,
-                ssh_port,
-                ctx.ssh_user,
-                ssh_key,
-                "rm -f ~/.env && touch ~/.env && chmod 600 ~/.env",
-            )
-
-            # Write each secret
-            for key, value in secrets.items():
-                if key == "agent-token":
-                    # Write agent-token to separate file
-                    escaped_value = shlex.quote(value)
-                    await _ssh_execute(
-                        "localhost",
-                        ctx.ssh_port,
-                        ctx.ssh_user,
-                        ssh_key,
-                        f"echo {escaped_value} > ~/.agent-token && chmod 400 ~/.agent-token",
-                    )
-                else:
-                    # Write to .env
-                    escaped_value = shlex.quote(value)
-                    await _ssh_execute(
-                        "localhost",
-                        ctx.ssh_port,
-                        ctx.ssh_user,
-                        ssh_key,
-                        f"echo 'export {key}={escaped_value}' >> ~/.env",
-                    )
-
-            slog.info("utm.secrets_injected", metadata={"count": len(secrets)})
-
-        except Exception as exc:
-            slog.error("utm.secret_injection_failed", metadata={"reason": str(exc)})
-            raise
+        await _inject_env_file(ctx, secrets, ssh_host, ssh_port, ssh_key, slog)
 
         # Patch Claude config
-        if oauth_account:
-            try:
-                claude_json_patch = {
-                    "hasCompletedOnboarding": True,
-                    "bypassPermissionsModeAccepted": True,
-                    "oauthAccount": oauth_account,
-                }
-                patch_json = json.dumps(claude_json_patch)
-                escaped_patch = shlex.quote(patch_json)
-
-                await _ssh_execute(
-                    "localhost",
-                    ctx.ssh_port,
-                    ctx.ssh_user,
-                    ssh_key,
-                    f"echo {escaped_patch} | python3 -c '"
-                    "import json, pathlib, sys; "
-                    "p = pathlib.Path.home() / '.claude.json'; "
-                    "d = json.loads(p.read_text()) if p.exists() else {{}}; "
-                    "d.update(json.load(sys.stdin)); "
-                    "p.write_text(json.dumps(d, indent=2))"
-                    "'",
-                )
-                slog.info("utm.claude_config_patched")
-            except Exception as exc:
-                slog.warning("utm.claude_config_patch_failed", metadata={"reason": str(exc)})
+        await _patch_claude_config(ctx, oauth_account, ssh_key, slog)
 
         # Mount VirtioFS shared directories
         if hasattr(ctx, "_virtiofs_mounts"):
@@ -663,8 +712,8 @@ class UTMBackend:
 
         try:
             await _run_subprocess([utmctl, "stop", vm_name], timeout=60)
-        except Exception:
-            pass  # Ignore errors (VM might already be stopped)
+        except Exception as e:
+            log.debug("utm.stop_failed", metadata={"reason": str(e)})
 
         return ctx
 
@@ -685,8 +734,8 @@ class UTMBackend:
         try:
             await _run_subprocess([utmctl, "stop", vm_name], timeout=60, check=False)
             await asyncio.sleep(2)  # Give VM time to fully stop
-        except Exception:
-            pass
+        except Exception as e:
+            slog.debug("utm.stop_before_remove_failed", metadata={"reason": str(e)})
 
         # Delete .utm package
         if ctx.vm_path:
@@ -743,7 +792,8 @@ class UTMBackend:
                 sock.close()
 
                 ssh_reachable = result == 0
-            except Exception:
+            except Exception as e:
+                log.debug("utm.health_ssh_check_failed", metadata={"reason": str(e)})
                 ssh_reachable = False
 
             return {
@@ -826,7 +876,8 @@ class UTMBackend:
                         result.stdout.strip().lower() if result.returncode == 0 else "unknown"
                     )
                     is_running = vm_state == "running"
-                except Exception:
+                except Exception as e:
+                    log.debug("utm.vm_status_check_failed", metadata={"reason": str(e)})
                     vm_state = "unknown"
                     is_running = False
 
@@ -844,8 +895,8 @@ class UTMBackend:
                             if isinstance(rule, dict) and rule.get("GuestPort") == 22:
                                 ssh_port = rule.get("HostPort")
                                 break
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug("utm.vm_config_read_failed", metadata={"reason": str(e)})
 
                 sessions.append(
                     {

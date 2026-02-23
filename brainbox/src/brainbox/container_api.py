@@ -52,27 +52,14 @@ async def health():
     }
 
 
-@app.post("/query", response_model=QueryResponse)
-async def query(request: QueryRequest) -> QueryResponse:
-    """Execute a Claude Code query via tmux and return results.
-
-    This endpoint:
-    1. Sends prompt to the running Claude instance in tmux session "main"
-    2. Waits for Claude to process the request
-    3. Captures output from the tmux pane
-    4. Returns results to the orchestrator
-    """
-    conversation_id = str(uuid.uuid4())
-    start_time = datetime.now(timezone.utc)
-
-    # Prepare working directory
+async def _prepare_working_dir(request: QueryRequest) -> str:
+    """Resolve and validate the working directory; verify the tmux session is live."""
     working_dir = request.working_dir or os.getcwd()
     if not Path(working_dir).exists():
         raise HTTPException(
             status_code=400, detail=f"Working directory does not exist: {working_dir}"
         )
 
-    # Check if tmux session exists
     session_check = await asyncio.create_subprocess_exec(
         "tmux",
         "has-session",
@@ -89,32 +76,74 @@ async def query(request: QueryRequest) -> QueryResponse:
             detail="Claude tmux session not found. Is the container running?",
         )
 
-    try:
-        # Clear any existing input in the prompt
+    return working_dir
+
+
+async def _build_claude_command(request: QueryRequest, working_dir: str) -> int:
+    """Prime the tmux session and send the prompt; return the pre-prompt line count."""
+    # Clear any existing input in the prompt
+    await asyncio.create_subprocess_exec(
+        "tmux",
+        "send-keys",
+        "-t",
+        "main",
+        "C-c",
+    )
+    await asyncio.sleep(0.5)
+
+    # Change to working directory if specified
+    if request.working_dir:
+        cd_cmd = f"cd {shlex.quote(request.working_dir)}"
         await asyncio.create_subprocess_exec(
             "tmux",
             "send-keys",
             "-t",
             "main",
-            "C-c",
+            cd_cmd,
+            "Enter",
         )
         await asyncio.sleep(0.5)
 
-        # Change to working directory if specified
-        if request.working_dir:
-            cd_cmd = f"cd {shlex.quote(request.working_dir)}"
-            await asyncio.create_subprocess_exec(
-                "tmux",
-                "send-keys",
-                "-t",
-                "main",
-                cd_cmd,
-                "Enter",
-            )
-            await asyncio.sleep(0.5)
+    # Capture pane before sending prompt (to compare later)
+    before_process = await asyncio.create_subprocess_exec(
+        "tmux",
+        "capture-pane",
+        "-t",
+        "main",
+        "-p",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    before_output, _ = await before_process.communicate()
+    before_line_count = len(before_output.decode("utf-8", errors="replace").splitlines())
 
-        # Capture pane before sending prompt (to compare later)
-        before_process = await asyncio.create_subprocess_exec(
+    # Send prompt to tmux session
+    await asyncio.create_subprocess_exec(
+        "tmux",
+        "send-keys",
+        "-t",
+        "main",
+        request.prompt,
+        "Enter",
+    )
+
+    return before_line_count
+
+
+async def _run_and_capture(before_line_count: int, timeout: int) -> str:
+    """Poll the tmux pane until output stabilises; return the final pane text."""
+    stable_count = 0
+    last_line_count = before_line_count
+    max_wait = timeout
+    waited = 0
+    poll_interval = 1.0
+
+    while waited < max_wait:
+        await asyncio.sleep(poll_interval)
+        waited += poll_interval
+
+        # Capture current pane content
+        capture_process = await asyncio.create_subprocess_exec(
             "tmux",
             "capture-pane",
             "-t",
@@ -123,108 +152,101 @@ async def query(request: QueryRequest) -> QueryResponse:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        before_output, _ = await before_process.communicate()
-        before_line_count = len(before_output.decode("utf-8", errors="replace").splitlines())
+        current_output, _ = await capture_process.communicate()
+        current_lines = current_output.decode("utf-8", errors="replace").splitlines()
+        current_line_count = len(current_lines)
 
-        # Send prompt to tmux session
-        await asyncio.create_subprocess_exec(
-            "tmux",
-            "send-keys",
-            "-t",
-            "main",
-            request.prompt,
-            "Enter",
+        # Check if output has stabilized (no new lines for 3 polls)
+        # Also check for the prompt character "❯" indicating Claude is ready
+        last_line = current_lines[-1] if current_lines else ""
+
+        if current_line_count == last_line_count and "❯" in last_line:
+            stable_count += 1
+            if stable_count >= 3:  # Stable for 3 seconds
+                break
+        else:
+            stable_count = 0
+            last_line_count = current_line_count
+
+    if waited >= max_wait:
+        raise HTTPException(
+            status_code=408,
+            detail=f"Query execution timed out after {timeout}s",
         )
 
-        # Wait for Claude to process - detect when output stops changing
-        stable_count = 0
-        last_line_count = before_line_count
-        max_wait = request.timeout
-        waited = 0
-        poll_interval = 1.0
+    # Capture final output
+    final_process = await asyncio.create_subprocess_exec(
+        "tmux",
+        "capture-pane",
+        "-t",
+        "main",
+        "-p",
+        "-S",
+        "-100",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    final_output, _ = await final_process.communicate()
+    return final_output.decode("utf-8", errors="replace")
 
-        while waited < max_wait:
-            await asyncio.sleep(poll_interval)
-            waited += poll_interval
 
-            # Capture current pane content
-            capture_process = await asyncio.create_subprocess_exec(
-                "tmux",
-                "capture-pane",
-                "-t",
-                "main",
-                "-p",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            current_output, _ = await capture_process.communicate()
-            current_lines = current_output.decode("utf-8", errors="replace").splitlines()
-            current_line_count = len(current_lines)
+def _format_query_response(
+    output: str,
+    prompt: str,
+    conversation_id: str,
+    start_time: datetime,
+) -> QueryResponse:
+    """Parse the raw pane capture and build the response model."""
+    duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
-            # Check if output has stabilized (no new lines for 3 polls)
-            # Also check for the prompt character "❯" indicating Claude is ready
-            last_line = current_lines[-1] if current_lines else ""
+    # Extract just the response part (after the prompt)
+    # Look for the prompt line and extract everything after it
+    lines = output.splitlines()
+    response_lines = []
+    found_prompt = False
 
-            if current_line_count == last_line_count and "❯" in last_line:
-                stable_count += 1
-                if stable_count >= 3:  # Stable for 3 seconds
-                    break
-            else:
-                stable_count = 0
-                last_line_count = current_line_count
+    for line in lines:
+        if prompt in line and "❯" in line:
+            found_prompt = True
+            continue
+        if found_prompt:
+            response_lines.append(line)
 
-        if waited >= max_wait:
-            raise HTTPException(
-                status_code=408,
-                detail=f"Query execution timed out after {request.timeout}s",
-            )
+    cleaned_output = "\n".join(response_lines).strip()
 
-        # Capture final output
-        final_process = await asyncio.create_subprocess_exec(
-            "tmux",
-            "capture-pane",
-            "-t",
-            "main",
-            "-p",
-            "-S",
-            "-100",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        final_output, _ = await final_process.communicate()
-        output = final_output.decode("utf-8", errors="replace")
+    # TODO: Parse git status to detect modified files
+    files_modified = []
 
-        # Calculate duration
-        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+    return QueryResponse(
+        success=True,
+        conversation_id=conversation_id,
+        output=cleaned_output or output,  # Fallback to full output if parsing fails
+        error=None,
+        exit_code=0,
+        duration_seconds=duration,
+        files_modified=files_modified,
+    )
 
-        # Extract just the response part (after the prompt)
-        # Look for the prompt line and extract everything after it
-        lines = output.splitlines()
-        response_lines = []
-        found_prompt = False
 
-        for line in lines:
-            if request.prompt in line and "❯" in line:
-                found_prompt = True
-                continue
-            if found_prompt:
-                response_lines.append(line)
+@app.post("/query", response_model=QueryResponse)
+async def query(request: QueryRequest) -> QueryResponse:
+    """Execute a Claude Code query via tmux and return results.
 
-        cleaned_output = "\n".join(response_lines).strip()
+    This endpoint:
+    1. Sends prompt to the running Claude instance in tmux session "main"
+    2. Waits for Claude to process the request
+    3. Captures output from the tmux pane
+    4. Returns results to the orchestrator
+    """
+    conversation_id = str(uuid.uuid4())
+    start_time = datetime.now(timezone.utc)
 
-        # TODO: Parse git status to detect modified files
-        files_modified = []
+    working_dir = await _prepare_working_dir(request)
 
-        return QueryResponse(
-            success=True,
-            conversation_id=conversation_id,
-            output=cleaned_output or output,  # Fallback to full output if parsing fails
-            error=None,
-            exit_code=0,
-            duration_seconds=duration,
-            files_modified=files_modified,
-        )
-
+    try:
+        before_line_count = await _build_claude_command(request, working_dir)
+        output = await _run_and_capture(before_line_count, request.timeout)
+        return _format_query_response(output, request.prompt, conversation_id, start_time)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Query execution failed: {e}")
 

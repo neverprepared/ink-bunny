@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -120,6 +121,8 @@ _sse_drops: int = 0
 
 
 def _broadcast_sse(data: str) -> None:
+    if not _sse_queues:
+        return
     global _sse_drops
     for q in list(_sse_queues):
         try:
@@ -147,25 +150,44 @@ _docker_events_task: asyncio.Task | None = None
 async def _watch_docker_events() -> None:
     """Watch Docker events and broadcast to SSE clients."""
     loop = asyncio.get_running_loop()
+    retry = 0
 
-    def _blocking_watch():
-        """Run in thread — blocks on Docker event stream."""
+    def _blocking_watch() -> bool:
+        """Run in thread — blocks on Docker event stream.
+
+        Returns True if at least one event was processed successfully.
+        """
         try:
             client = _docker()
             for event in client.events(filters={"label": "brainbox.managed=true"}, decode=True):
                 action = event.get("Action", "")
                 if action in ("create", "start", "stop", "die", "destroy"):
                     loop.call_soon_threadsafe(_broadcast_sse, action)
-        except Exception:
-            pass
+            return True
+        except Exception as e:
+            log.warning(
+                "docker.events.watcher_error",
+                metadata={"reason": str(e)},
+            )
+            return False
 
-    try:
-        await loop.run_in_executor(None, _blocking_watch)
-    except Exception:
-        pass
-    # Restart after a brief delay if the stream dies
-    await asyncio.sleep(1)
-    asyncio.ensure_future(_watch_docker_events())
+    while True:
+        ok = False
+        try:
+            ok = await loop.run_in_executor(None, _blocking_watch)
+        except Exception as e:
+            log.warning(
+                "docker.events.watcher_error",
+                metadata={"reason": str(e)},
+            )
+
+        if ok:
+            retry = 0
+        else:
+            retry += 1
+
+        # Exponential backoff before restarting the stream
+        await asyncio.sleep(min(2**retry, 60))
 
 
 # ---------------------------------------------------------------------------
@@ -841,6 +863,156 @@ def _parse_claude_output(raw_output: str) -> str:
     return response_text.strip()
 
 
+def _tmux_verify_container(client, container_name: str):
+    """Validate that a container exists and is running.
+
+    Raises HTTPException(404) if the container is not found,
+    HTTPException(400) if the container exists but is not running.
+    """
+    try:
+        container = client.containers.get(container_name)
+    except docker.errors.NotFound:
+        raise HTTPException(status_code=404, detail=f"Container '{container_name}' not found")
+    if container.status != "running":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Container '{container_name}' is not running (status: {container.status})",
+        )
+    return container
+
+
+async def _tmux_send_and_wait(
+    container_name: str,
+    prompt: str,
+    timeout: float,
+    working_dir: str | None = None,
+) -> str:
+    """Send a prompt to the container's tmux session and wait for completion.
+
+    Handles send-keys, marker injection, the polling loop, and raw output
+    capture.  Raises TimeoutError if the response is not ready within
+    *timeout* seconds.
+    """
+    loop = asyncio.get_running_loop()
+    container = _docker().containers.get(container_name)
+
+    # Clear any existing input
+    await loop.run_in_executor(
+        None, lambda: container.exec_run(["tmux", "send-keys", "-t", "main", "C-c"])
+    )
+    await asyncio.sleep(0.5)
+
+    # Change to working directory if specified
+    if working_dir:
+        cd_cmd = f"cd {working_dir}"
+        await loop.run_in_executor(
+            None,
+            lambda: container.exec_run(["tmux", "send-keys", "-t", "main", cd_cmd, "Enter"]),
+        )
+        await asyncio.sleep(0.5)
+
+    # Capture pane before sending prompt
+    exit_code, before_output = await loop.run_in_executor(
+        None, lambda: container.exec_run(["tmux", "capture-pane", "-t", "main", "-p"])
+    )
+
+    # Send prompt to tmux session
+    await loop.run_in_executor(
+        None,
+        lambda: container.exec_run(["tmux", "send-keys", "-t", "main", prompt, "Enter"]),
+    )
+
+    # Wait a moment for Claude to show the permission prompt
+    await asyncio.sleep(2)
+
+    # Auto-approve permissions by pressing Enter (bypass is already on)
+    await loop.run_in_executor(
+        None, lambda: container.exec_run(["tmux", "send-keys", "-t", "main", "Enter"])
+    )
+
+    # Wait for Claude to complete - detect completion markers
+    max_wait = timeout
+    waited = 0
+    poll_interval = 0.5
+    last_output = ""
+    stable_count = 0
+    completion_markers = [
+        "● Done",  # Claude's done marker
+        "● Complete",  # Alternative completion
+        "● Error",  # Error completion
+        "● Failed",  # Failure completion
+    ]
+
+    while waited < max_wait:
+        await asyncio.sleep(poll_interval)
+        waited += poll_interval
+
+        # Capture current pane content
+        exit_code, current_output = await loop.run_in_executor(
+            None, lambda: container.exec_run(["tmux", "capture-pane", "-t", "main", "-p"])
+        )
+        output_text = current_output.decode("utf-8", errors="replace")
+
+        # Also check if prompt is back (lines with ❯ that aren't in the permission UI)
+        lines = output_text.splitlines()
+        prompt_back = False
+        for i, line in enumerate(lines):
+            # Look for prompt line that's not followed by permission UI
+            if line.strip().startswith("❯") and len(line.strip()) == 1:
+                # Check next few lines don't have permission UI
+                if i + 1 < len(lines):
+                    next_line = lines[i + 1] if i + 1 < len(lines) else ""
+                    if "bypass permissions" not in next_line and "⏵" not in next_line:
+                        prompt_back = True
+                        break
+
+        # Check if any completion marker is present
+        has_completion_marker = any(marker in output_text for marker in completion_markers)
+
+        # If output hasn't changed for 2 polls and we see completion, we're done
+        if output_text == last_output:
+            if has_completion_marker or prompt_back:
+                stable_count += 1
+                if stable_count >= 2:  # Stable for 1 second with completion
+                    break
+        else:
+            stable_count = 0
+
+        last_output = output_text
+
+    if waited >= max_wait:
+        raise TimeoutError(f"Query execution timed out after {timeout}s")
+
+    # Capture final output
+    exit_code, final_output = await loop.run_in_executor(
+        None,
+        lambda: container.exec_run(["tmux", "capture-pane", "-t", "main", "-p", "-S", "-100"]),
+    )
+    return final_output.decode("utf-8", errors="replace")
+
+
+def _tmux_parse_output(raw_output: str, start_marker: str, end_marker: str) -> str:
+    """Extract and clean Claude's response from raw tmux pane output.
+
+    Finds the response by locating *start_marker* in the prompt line, then
+    applies the regex cleanup chain via _parse_claude_output.
+    """
+    lines = raw_output.splitlines()
+    response_lines = []
+    found_prompt = False
+
+    for line in lines:
+        if start_marker in line and "❯" in line:
+            found_prompt = True
+            continue
+        if found_prompt:
+            response_lines.append(line)
+
+    cleaned_output = "\n".join(response_lines).strip()
+    raw = cleaned_output or raw_output
+    return _parse_claude_output(raw) if raw else ""
+
+
 async def _query_via_tmux(request: Request, name: str, body: QuerySessionRequest):
     """Query container via tmux (legacy fallback)."""
     prefix = settings.resolved_prefix
@@ -848,17 +1020,15 @@ async def _query_via_tmux(request: Request, name: str, body: QuerySessionRequest
     start_time = time.time()
 
     # Verify container exists and is running
+    client = _docker()
     try:
-        client = _docker()
-        container = client.containers.get(container_name)
-        if container.status != "running":
-            raise HTTPException(
-                status_code=400,
-                detail=f"Container '{name}' is not running (status: {container.status})",
+        container = _tmux_verify_container(client, container_name)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            _audit_log(
+                request, "session.query", session_name=name, success=False, error="not_found"
             )
-    except docker.errors.NotFound:
-        _audit_log(request, "session.query", session_name=name, success=False, error="not_found")
-        raise HTTPException(status_code=404, detail=f"Container '{name}' not found")
+        raise
 
     # Check if tmux session exists
     loop = asyncio.get_running_loop()
@@ -876,126 +1046,18 @@ async def _query_via_tmux(request: Request, name: str, body: QuerySessionRequest
         )
 
     try:
-        # Clear any existing input
-        await loop.run_in_executor(
-            None, lambda: container.exec_run(["tmux", "send-keys", "-t", "main", "C-c"])
+        raw_output = await _tmux_send_and_wait(
+            container_name,
+            body.prompt,
+            body.timeout,
+            working_dir=body.working_dir,
         )
-        await asyncio.sleep(0.5)
-
-        # Change to working directory if specified
-        if body.working_dir:
-            cd_cmd = f"cd {body.working_dir}"
-            await loop.run_in_executor(
-                None,
-                lambda: container.exec_run(["tmux", "send-keys", "-t", "main", cd_cmd, "Enter"]),
-            )
-            await asyncio.sleep(0.5)
-
-        # Capture pane before sending prompt
-        exit_code, before_output = await loop.run_in_executor(
-            None, lambda: container.exec_run(["tmux", "capture-pane", "-t", "main", "-p"])
-        )
-
-        # Send prompt to tmux session
-        await loop.run_in_executor(
-            None,
-            lambda: container.exec_run(["tmux", "send-keys", "-t", "main", body.prompt, "Enter"]),
-        )
-
-        # Wait a moment for Claude to show the permission prompt
-        await asyncio.sleep(2)
-
-        # Auto-approve permissions by pressing Enter (bypass is already on)
-        await loop.run_in_executor(
-            None, lambda: container.exec_run(["tmux", "send-keys", "-t", "main", "Enter"])
-        )
-
-        # Wait for Claude to complete - detect completion markers
-        max_wait = body.timeout
-        waited = 0
-        poll_interval = 0.5
-        last_output = ""
-        stable_count = 0
-
-        while waited < max_wait:
-            await asyncio.sleep(poll_interval)
-            waited += poll_interval
-
-            # Capture current pane content
-            exit_code, current_output = await loop.run_in_executor(
-                None, lambda: container.exec_run(["tmux", "capture-pane", "-t", "main", "-p"])
-            )
-            output_text = current_output.decode("utf-8", errors="replace")
-
-            # Check for completion markers that indicate Claude is done
-            completion_markers = [
-                "● Done",  # Claude's done marker
-                "● Complete",  # Alternative completion
-                "● Error",  # Error completion
-                "● Failed",  # Failure completion
-            ]
-
-            # Also check if prompt is back (lines with ❯ that aren't in the permission UI)
-            lines = output_text.splitlines()
-            prompt_back = False
-            for i, line in enumerate(lines):
-                # Look for prompt line that's not followed by permission UI
-                if line.strip().startswith("❯") and len(line.strip()) == 1:
-                    # Check next few lines don't have permission UI
-                    if i + 1 < len(lines):
-                        next_line = lines[i + 1] if i + 1 < len(lines) else ""
-                        if "bypass permissions" not in next_line and "⏵" not in next_line:
-                            prompt_back = True
-                            break
-
-            # Check if any completion marker is present
-            has_completion_marker = any(marker in output_text for marker in completion_markers)
-
-            # If output hasn't changed for 2 polls and we see completion, we're done
-            if output_text == last_output:
-                if has_completion_marker or prompt_back:
-                    stable_count += 1
-                    if stable_count >= 2:  # Stable for 1 second with completion
-                        break
-            else:
-                stable_count = 0
-
-            last_output = output_text
-
-        if waited >= max_wait:
-            _audit_log(request, "session.query", session_name=name, success=False, error="timeout")
-            raise HTTPException(
-                status_code=408,
-                detail=f"Query execution timed out after {body.timeout}s",
-            )
-
-        # Capture final output
-        exit_code, final_output = await loop.run_in_executor(
-            None,
-            lambda: container.exec_run(["tmux", "capture-pane", "-t", "main", "-p", "-S", "-100"]),
-        )
-        output = final_output.decode("utf-8", errors="replace")
 
         # Calculate duration
         duration = time.time() - start_time
 
-        # Extract response (everything after the prompt line)
-        lines = output.splitlines()
-        response_lines = []
-        found_prompt = False
-
-        for line in lines:
-            if body.prompt in line and "❯" in line:
-                found_prompt = True
-                continue
-            if found_prompt:
-                response_lines.append(line)
-
-        cleaned_output = "\n".join(response_lines).strip()
-        raw_output = cleaned_output or output
-
         # Parse the Claude CLI output for clean presentation
-        parsed_response = _parse_claude_output(raw_output) if raw_output else ""
+        parsed_response = _tmux_parse_output(raw_output, body.prompt, "")
 
         _audit_log(request, "session.query", session_name=name, success=True)
 
@@ -1010,6 +1072,12 @@ async def _query_via_tmux(request: Request, name: str, body: QuerySessionRequest
             "files_modified": [],  # TODO: Implement git-based detection
         }
 
+    except TimeoutError:
+        _audit_log(request, "session.query", session_name=name, success=False, error="timeout")
+        raise HTTPException(
+            status_code=408,
+            detail=f"Query execution timed out after {body.timeout}s",
+        )
     except Exception as e:
         _audit_log(request, "session.query", session_name=name, success=False, error=str(e))
         raise HTTPException(
@@ -1023,13 +1091,15 @@ async def _query_via_tmux(request: Request, name: str, body: QuerySessionRequest
 # ---------------------------------------------------------------------------
 
 _trace_cache: dict[str, dict[str, Any]] = {}  # session_name -> {data, ts}
+_trace_cache_lock = threading.Lock()
 _TRACE_CACHE_TTL = 60  # seconds - increased from 10s to reduce load
 
 
 def _get_trace_counts(session_name: str, timeout: float = 2.0) -> dict[str, int]:
     """Get trace/error counts for a session, cached for 60s with timeout."""
     now = time.monotonic()
-    cached = _trace_cache.get(session_name)
+    with _trace_cache_lock:
+        cached = _trace_cache.get(session_name)
     if cached and (now - cached["ts"]) < _TRACE_CACHE_TTL:
         return cached["data"]
 
@@ -1048,7 +1118,8 @@ def _get_trace_counts(session_name: str, timeout: float = 2.0) -> dict[str, int]
         # Return zeros on timeout or error, don't cache failures
         return {"trace_count": 0, "error_count": 0}
 
-    _trace_cache[session_name] = {"data": data, "ts": now}
+    with _trace_cache_lock:
+        _trace_cache[session_name] = {"data": data, "ts": now}
     return data
 
 
@@ -1104,9 +1175,7 @@ def _get_container_metrics() -> list[dict[str, Any]]:
                 return None
 
         # Process containers in parallel with a timeout per container
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=min(10, len(containers))
-        ) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(containers), 8)) as executor:
             future_to_container = {executor.submit(get_container_metrics, c): c for c in containers}
             for future in concurrent.futures.as_completed(future_to_container, timeout=10):
                 try:
@@ -1213,8 +1282,11 @@ async def hub_route_message(request: Request, token: Token = Depends(require_tok
         if task_id:
             try:
                 await complete_task(task_id, completion_result)
-            except Exception:
-                pass
+            except Exception as exc:
+                log.warning(
+                    "hub.task_completion_error",
+                    metadata={"task_id": task_id, "reason": str(exc)},
+                )
 
     return result
 

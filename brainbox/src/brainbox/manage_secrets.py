@@ -10,6 +10,7 @@ import questionary
 from rich.console import Console
 from rich.table import Table
 
+from .auth import write_secure_file
 from .config import settings
 
 console = Console()
@@ -116,9 +117,7 @@ def _setup_op() -> None:
 
     # Write token file
     token_file = settings.op_sa_token_file
-    token_file.parent.mkdir(parents=True, exist_ok=True)
-    token_file.write_text(token)
-    token_file.chmod(0o400)
+    write_secure_file(token_file, token, mode=0o400)
 
     console.print(f"\n[green]Saved to {token_file} (mode 0400)[/green]")
     console.print("[dim]Secrets will now be resolved from 1Password automatically.[/dim]\n")

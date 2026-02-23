@@ -1,10 +1,10 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { fetchContainerMetrics } from './api.js';
+  import { fetchContainerMetrics, connectSSE } from './api.js';
   import Badge from './Badge.svelte';
 
   let metrics = $state([]);
-  let timer = null;
+  let sseConn = null;
   let abortController = null;
 
   function formatUptime(seconds) {
@@ -39,11 +39,11 @@
 
   onMount(() => {
     poll();
-    timer = setInterval(poll, 5000);
+    sseConn = connectSSE(() => poll());
   });
 
   onDestroy(() => {
-    if (timer) clearInterval(timer);
+    if (sseConn) sseConn.close();
     if (abortController) abortController.abort();
   });
 </script>

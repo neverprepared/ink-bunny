@@ -46,7 +46,11 @@ def has_op_integration() -> bool:
 
 
 def _op_run(args: list[str], sa_token: str) -> str:
-    """Run an ``op`` CLI command with SA token injected via environment."""
+    """Run an ``op`` CLI command with SA token injected via environment.
+
+    Security note: the SA token is visible in the subprocess env dict passed to
+    ``subprocess.run``; callers must not log the return value or the env dict.
+    """
     env = {**os.environ, "OP_SERVICE_ACCOUNT_TOKEN": sa_token}
     result = subprocess.run(
         ["op", *args],

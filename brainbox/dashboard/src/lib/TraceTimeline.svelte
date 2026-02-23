@@ -19,7 +19,13 @@
       if (selectedSession) {
         traces = await fetchSessionTraces(selectedSession);
       } else {
-        // Fetch traces for all sessions and merge
+        // Fan-out: one request per session because the brainbox API only exposes
+        // /api/langfuse/sessions/{name}/traces (session-scoped). The underlying
+        // LangFuse client always passes sessionId, and there is no server-side
+        // /api/langfuse/traces?limit=N endpoint that returns traces across all
+        // sessions. A future batched endpoint would call langfuse_client with no
+        // sessionId filter and return the merged, time-sorted result in one round
+        // trip — e.g. GET /api/langfuse/traces?limit=50.
         const all = await Promise.all(
           sessions.map(s => fetchSessionTraces(s, 20).catch(() => []))
         );

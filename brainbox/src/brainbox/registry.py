@@ -19,6 +19,7 @@ log = get_logger()
 
 _agents: dict[str, AgentDefinition] = {}
 _tokens: dict[str, Token] = {}
+_last_token_sweep: float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -132,10 +133,13 @@ def revoke_token(token_id: str) -> bool:
 
 
 def list_tokens() -> list[Token]:
-    now = int(time.time() * 1000)
-    expired = [tid for tid, t in _tokens.items() if now > t.expiry]
-    for tid in expired:
-        _tokens.pop(tid, None)
+    global _last_token_sweep
+    if time.monotonic() - _last_token_sweep > 60 or len(_tokens) > 100:
+        now = int(time.time() * 1000)
+        expired = [tid for tid, t in _tokens.items() if now > t.expiry]
+        for tid in expired:
+            _tokens.pop(tid, None)
+        _last_token_sweep = time.monotonic()
     return list(_tokens.values())
 
 
