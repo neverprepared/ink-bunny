@@ -1568,13 +1568,26 @@ async def api_langfuse_trace_detail(trace_id: str, _key=Depends(require_api_key)
 # SPA: serve built dashboard (must be last)
 # ---------------------------------------------------------------------------
 
+
+@app.get("/api/info")
+async def api_info():
+    """Return API version and basic status. Used as a lightweight health check."""
+    return {
+        "version": "0.10.2",
+        "status": "ok",
+    }
+
+
 if _dashboard_dist.is_dir():
     # Serve static assets (JS, CSS, etc.)
     app.mount("/assets", StaticFiles(directory=str(_dashboard_dist / "assets")), name="assets")
 
-    # SPA fallback: serve index.html for any non-API route
+    # SPA fallback: serve index.html for non-API routes; return JSON 404 for unknown /api/* paths
     @app.get("/{path:path}")
     async def spa_fallback(path: str):
+        # Unknown /api/* paths get a JSON 404 so callers can distinguish API errors from HTML
+        if path.startswith("api/"):
+            raise HTTPException(status_code=404, detail=f"API endpoint not found: /{path}")
         # Try to serve exact file first (e.g. favicon.ico)
         file = _dashboard_dist / path
         if path and file.is_file():
