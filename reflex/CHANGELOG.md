@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.12.0...reflex-v1.13.0) (2026-02-23)
+
+
+### Features
+
+* remove NATS, add exec_session/get_session MCP tools, fix query timeout ([5d9d5ed](https://github.com/neverprepared/ink-bunny/commit/5d9d5edef31b16570027d06d23588dcc4b5a3059))
+
+
+### Bug Fixes
+
+* convert MD5 hash to UUID for valid Qdrant point IDs ([4a0be88](https://github.com/neverprepared/ink-bunny/commit/4a0be88c5d9a27ba4ce64caa5482186d54620590))
+* correct API field mismatches, broken paths, and doc drift across codebase ([da6e31a](https://github.com/neverprepared/ink-bunny/commit/da6e31a5f98637278a1f712fff656b4885b1fca7))
+* fix qdrant websearch hook to store real search results ([bad190e](https://github.com/neverprepared/ink-bunny/commit/bad190eba850cf2ef7183a9bef8d0567914259e5))
+* make qdrant websearch hook POSIX-compatible and handle real tool_response format ([f8602b2](https://github.com/neverprepared/ink-bunny/commit/f8602b22a136554d55f71e4444e6237cc1b62856))
+
 ## [1.12.0](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.11.0...reflex-v1.12.0) (2026-02-21)
 
 
