@@ -6,10 +6,12 @@ on:
     paths:
       - "reflex/plugins/**"
       - "reflex/VERSION"
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release (e.g. 0.0.1)"
+        description: "Version to release (e.g. 1.13.0)"
         required: true
 
 permissions:
@@ -17,75 +19,57 @@ permissions:
   pull-requests: write
 
 jobs:
+  # Runs on push to main — manages the release-please PR
   release-please:
-    if: ${{ github.event_name == 'push' }}
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
-      version: ${{ steps.release.outputs.version }}
     steps:
       - uses: googleapis/release-please-action@v4
-        id: release
         with:
           config-file: reflex/release-please-config.json
           manifest-file: reflex/.release-please-manifest.json
 
-  manual-release:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+  # Runs when a release is published (release-please creates reflex-v* tag)
+  # or when triggered manually via workflow_dispatch
+  publish:
+    if: |
+      (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'reflex-v')) ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.version.outputs.VERSION }}
-      tag_name: ${{ steps.version.outputs.TAG }}
+      version: ${{ steps.ver.outputs.VERSION }}
+      tag_name: ${{ steps.ver.outputs.TAG }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set version
-        id: version
+      - name: Resolve version and tag
+        id: ver
         run: |
-          echo "VERSION=${{ inputs.version }}" >> $GITHUB_OUTPUT
-          echo "TAG=reflex/v${{ inputs.version }}" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ inputs.version }}" >> $GITHUB_OUTPUT
+            echo "TAG=reflex-v${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            TAG="${{ github.event.release.tag_name }}"
+            echo "VERSION=${TAG#reflex-v}" >> $GITHUB_OUTPUT
+            echo "TAG=${TAG}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Create plugin archive
         run: |
-          VERSION="${{ inputs.version }}"
-          tar -czf "reflex-${VERSION}.tar.gz" \
-            reflex/plugins/ \
-            reflex/VERSION
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: reflex/v${{ inputs.version }}
-          name: "reflex v${{ inputs.version }}"
-          files: reflex-${{ inputs.version }}.tar.gz
-          generate_release_notes: true
-
-  publish:
-    needs: release-please
-    if: ${{ github.event_name == 'push' && needs.release-please.outputs.release_created }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Create plugin archive
-        run: |
-          VERSION="${{ needs.release-please.outputs.version }}"
-          tar -czf "reflex-${VERSION}.tar.gz" \
-            reflex/plugins/ \
-            reflex/VERSION
+          VERSION="${{ steps.ver.outputs.VERSION }}"
+          tar -czf "reflex-${VERSION}.tar.gz" reflex/plugins/ reflex/VERSION
 
       - name: Upload archive to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.release-please.outputs.tag_name }}
-          files: reflex-${{ needs.release-please.outputs.version }}.tar.gz
+          tag_name: ${{ steps.ver.outputs.TAG }}
+          name: "reflex v${{ steps.ver.outputs.VERSION }}"
+          files: reflex-${{ steps.ver.outputs.VERSION }}.tar.gz
+          generate_release_notes: ${{ github.event_name == 'workflow_dispatch' }}
 
   update-formula:
-    needs: [release-please, publish, manual-release]
-    if: |
-      always() &&
-      (needs.publish.result == 'success' || needs.manual-release.result == 'success')
+    needs: publish
+    if: needs.publish.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -93,22 +77,13 @@ jobs:
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve version
-        id: ver
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "VERSION=${{ inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${{ needs.release-please.outputs.version }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Update formula
         run: |
-          VERSION="${{ steps.ver.outputs.VERSION }}"
-          URL="https://github.com/neverprepared/ink-bunny/releases/download/reflex/v${VERSION}/reflex-${VERSION}.tar.gz"
+          VERSION="${{ needs.publish.outputs.version }}"
+          TAG="${{ needs.publish.outputs.tag_name }}"
+          URL="https://github.com/neverprepared/ink-bunny/releases/download/${TAG}/reflex-${VERSION}.tar.gz"
           SHA=$(curl -sL "$URL" | sha256sum | awk '{print $1}')
           FORMULA="reflex/Formula/reflex.rb"
-
           sed -i "s|url \".*\"|url \"${URL}\"|" "$FORMULA"
           sed -i "s/sha256 \".*\"/sha256 \"${SHA}\"/" "$FORMULA"
 
@@ -117,12 +92,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add reflex/Formula/reflex.rb
-          git diff --cached --quiet || git commit -m "formula: update reflex to v${{ steps.ver.outputs.VERSION }}"
+          git diff --cached --quiet || git commit -m "formula: update reflex to v${{ needs.publish.outputs.version }}"
           git push
 
       - name: Sync formula to homebrew tap
         run: |
-          VERSION="${{ steps.ver.outputs.VERSION }}"
+          VERSION="${{ needs.publish.outputs.version }}"
+          TAG="${{ needs.publish.outputs.tag_name }}"
           git clone https://x-access-token:${{ secrets.TAP_TOKEN }}@github.com/neverprepared/homebrew-ink-bunny.git /tmp/tap
           mkdir -p /tmp/tap/Formula
           cp reflex/Formula/reflex.rb /tmp/tap/Formula/reflex.rb
