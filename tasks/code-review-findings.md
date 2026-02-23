@@ -28,29 +28,29 @@ Generated: 2026-02-23
 
 ## Medium — Quality
 
-- [ ] #9: `_query_via_tmux()` is 175 lines — complex state + polling logic, difficult to test — `brainbox/src/brainbox/api.py:833`
-- [ ] #10: `query()` is 174 lines — `brainbox/src/brainbox/container_api.py:55`
+- [x] #9: `_query_via_tmux()` is 175 lines — complex state + polling logic, difficult to test — `brainbox/src/brainbox/api.py:833` _(fixed: extracted `_tmux_verify_container()`, `_tmux_send_and_wait()`, `_tmux_parse_output()` helpers; `_query_via_tmux()` is now an orchestrator)_
+- [x] #10: `query()` is 174 lines — `brainbox/src/brainbox/container_api.py:55` _(fixed: extracted `_prepare_working_dir()`, `_build_claude_command()`, `_run_and_capture()`, `_format_query_response()` helpers)_
 - [ ] #11: `provision()` is 179 lines — `brainbox/src/brainbox/backends/utm.py:254`
 - [ ] #12: `configure()` is 168 lines — `brainbox/src/brainbox/backends/utm.py:434`
-- [ ] #13: `_resolve_profile_mounts()` is 132 lines — `brainbox/src/brainbox/lifecycle.py:129`
-- [ ] #14: Silent `except Exception: pass` in task completion routing — silently drops completed tasks — `brainbox/src/brainbox/api.py:1205`
-- [ ] #15: Silent `except Exception: pass` in Docker event watcher — hides stream errors — `brainbox/src/brainbox/api.py:159,164`
-- [ ] #16: 20+ additional broad `except Exception` clauses throughout utm.py, daemon.py, artifacts.py, langfuse_client.py — multiple files
+- [x] #13: `_resolve_profile_mounts()` is 132 lines — `brainbox/src/brainbox/lifecycle.py:129` _(fixed: extracted `_compute_mount_context()` and `_build_volume_map()` helpers)_
+- [x] #14: Silent `except Exception: pass` in task completion routing — silently drops completed tasks — `brainbox/src/brainbox/api.py:1205` _(fixed: replaced with `log.warning("hub.task_completion_error", ...)`)_
+- [x] #15: Silent `except Exception: pass` in Docker event watcher — hides stream errors — `brainbox/src/brainbox/api.py:159,164` _(fixed: replaced with `log.warning("docker.events.watcher_error", ...)`)_
+- [x] #16: PARTIALLY FIXED — broad `except Exception` clauses in utm.py replaced with structured `log.debug`/`log.warning`; daemon.py, artifacts.py, langfuse_client.py not yet addressed — multiple files
 - [ ] #17: TODO: git-based modified-file detection not implemented — `brainbox/src/brainbox/api.py:999`, `brainbox/src/brainbox/container_api.py:214`
-- [ ] #18: SA token passed via environment variable; visible to privileged processes and subprocess env dicts — `brainbox/src/brainbox/secrets.py:32,50,96`
-- [ ] #19: Secure file write pattern (`mkdir + write + chmod 0o600`) duplicated in auth.py and manage_secrets.py — `brainbox/src/brainbox/auth.py:25-29`, `manage_secrets.py:121`
+- [x] #18: SA token passed via environment variable; visible to privileged processes and subprocess env dicts — `brainbox/src/brainbox/secrets.py:32,50,96` _(documented: added docstring to `_op_run()` warning that SA token is visible in subprocess env dict)_
+- [x] #19: Secure file write pattern (`mkdir + write + chmod 0o600`) duplicated in auth.py and manage_secrets.py — `brainbox/src/brainbox/auth.py:25-29`, `manage_secrets.py:121` _(fixed: extracted `write_secure_file(path, content, mode=0o600)` in auth.py; manage_secrets.py now imports and uses it)_
 
 ---
 
 ## Low — Optimizations
 
-- [ ] #20: Blocking synchronous file I/O (`read_text()`, `plistlib.load()`) called directly in async functions without `run_in_executor` — `brainbox/src/brainbox/lifecycle.py:109,325`, `backends/utm.py:230-231,325-326,838-839`, `hub.py:96,101`
-- [ ] #21: N+1 pattern: `_get_container_metrics()` calls `c.stats(stream=False)` + LangFuse HTTP request individually per container — `brainbox/src/brainbox/api.py:1053-1106`
-- [ ] #22: Race condition: `_trace_cache` dict mutated without locks in concurrent ThreadPoolExecutor context — `brainbox/src/brainbox/api.py:1014,1040`
-- [ ] #23: `MetricsTable` polls every 5 s independently instead of subscribing to existing SSE stream — `brainbox/dashboard/src/lib/MetricsTable.svelte:42`
-- [ ] #24: `TraceTimeline` fetches traces per-session in parallel rather than a batched multi-session query — `brainbox/dashboard/src/lib/TraceTimeline.svelte:23-26`
-- [ ] #25: `registry.list_tokens()` iterates and rebuilds full token list on every call to expire stale entries — `brainbox/src/brainbox/registry.py:133-136`
-- [ ] #26: `_broadcast_sse()` copies the entire queue set on every call (`list(_sse_queues)`) with no backpressure — `brainbox/src/brainbox/api.py:122-133`
-- [ ] #27: `cache_env.read_text()` called twice for same file in same module — `brainbox/src/brainbox/lifecycle.py:109,325`
-- [ ] #28: Docker event stream restart uses fixed 1 s sleep with no exponential backoff — `brainbox/src/brainbox/api.py:147-168`
-- [ ] #29: `questionary` and `rich` are main deps but only used in CLI tool `manage_secrets.py`; should be optional/extra group — `brainbox/pyproject.toml`
+- [x] #20: PARTIALLY FIXED — blocking `read_text()` in lifecycle.py wrapped with `run_in_executor`; utm.py and hub.py not yet addressed — `brainbox/src/brainbox/lifecycle.py:109,325`, `backends/utm.py:230-231,325-326,838-839`, `hub.py:96,101`
+- [x] #21: N+1 pattern: `_get_container_metrics()` calls `c.stats(stream=False)` + LangFuse HTTP request individually per container — `brainbox/src/brainbox/api.py:1053-1106` _(fixed: stats calls now run concurrently via `ThreadPoolExecutor(max_workers=min(len(containers), 8))`)_
+- [x] #22: Race condition: `_trace_cache` dict mutated without locks in concurrent ThreadPoolExecutor context — `brainbox/src/brainbox/api.py:1014,1040` _(fixed: added `_trace_cache_lock = threading.Lock()`; reads and writes wrapped with `with _trace_cache_lock`)_
+- [x] #23: `MetricsTable` polls every 5 s independently instead of subscribing to existing SSE stream — `brainbox/dashboard/src/lib/MetricsTable.svelte:42` _(fixed: replaced `setInterval` with `EventSource` subscription; metrics refresh on Docker events)_
+- [ ] #24: DEFERRED — `TraceTimeline` fetches traces per-session in parallel rather than a batched multi-session query — `brainbox/dashboard/src/lib/TraceTimeline.svelte:23-26` _(no batch endpoint exists; comment added noting a future `/api/langfuse/traces?limit=N` endpoint would eliminate the fan-out)_
+- [x] #25: `registry.list_tokens()` iterates and rebuilds full token list on every call to expire stale entries — `brainbox/src/brainbox/registry.py:133-136` _(fixed: added `_last_token_sweep` guard; expiry sweep runs at most every 60 s or when token count exceeds 100)_
+- [x] #26: `_broadcast_sse()` copies the entire queue set on every call (`list(_sse_queues)`) with no backpressure — `brainbox/src/brainbox/api.py:122-133` _(fixed: added `if not _sse_queues: return` short-circuit before snapshot)_
+- [x] #27: `cache_env.read_text()` called twice for same file in same module — `brainbox/src/brainbox/lifecycle.py:109,325` _(fixed: extracted `_load_cache_env_text()` helper; both call sites use it)_
+- [x] #28: Docker event stream restart uses fixed 1 s sleep with no exponential backoff — `brainbox/src/brainbox/api.py:147-168` _(fixed: replaced with `await asyncio.sleep(min(2**retry, 60))`; retry counter resets on successful stream run)_
+- [x] #29: `questionary` and `rich` are main deps but only used in CLI tool `manage_secrets.py`; should be optional/extra group — `brainbox/pyproject.toml` _(fixed: moved to `[project.optional-dependencies] cli = [...]`)_
