@@ -48,9 +48,8 @@ async def _run(fn: Any, *args: Any, **kwargs: Any) -> Any:
 
 
 def _load_cache_env_text(cache_env: Path) -> str:
-    """Read cache env file text off the event loop to avoid blocking."""
-    loop = asyncio.get_event_loop()
-    return loop.run_until_complete(loop.run_in_executor(None, cache_env.read_text))
+    """Read cache env file text synchronously."""
+    return cache_env.read_text()
 
 
 # ---------------------------------------------------------------------------
