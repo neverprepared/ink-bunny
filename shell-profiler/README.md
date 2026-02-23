@@ -1,7 +1,7 @@
 # Workspace Profile Switcher
 
-[![CI](https://github.com/neverprepared/shell-profile-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/neverprepared/shell-profile-manager/actions/workflows/ci.yml)
-[![Release](https://github.com/neverprepared/shell-profile-manager/actions/workflows/release.yml/badge.svg)](https://github.com/neverprepared/shell-profile-manager/actions/workflows/release.yml)
+[![CI](https://github.com/neverprepared/ink-bunny/actions/workflows/ci.yml/badge.svg)](https://github.com/neverprepared/ink-bunny/actions/workflows/ci.yml)
+[![Release](https://github.com/neverprepared/ink-bunny/actions/workflows/release.yml/badge.svg)](https://github.com/neverprepared/ink-bunny/actions/workflows/release.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/neverprepared/shell-profile-manager)](https://goreportcard.com/report/github.com/neverprepared/shell-profile-manager)
 
 A terminal shell switcher using direnv to manage workspace-specific environment variables and tool configurations.
@@ -11,20 +11,20 @@ A terminal shell switcher using direnv to manage workspace-specific environment 
 ### Homebrew (macOS/Linux)
 
 ```bash
-brew install neverprepared/shell-profiler/shell-profiler
+brew install neverprepared/ink-bunny/shell-profiler
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/neverprepared/shell-profiler.git
-cd shell-profiler
+git clone https://github.com/neverprepared/ink-bunny.git
+cd ink-bunny/shell-profiler
 make build
 ```
 
 ### From Releases
 
-Download a pre-built binary from the [releases page](https://github.com/neverprepared/shell-profiler/releases) for your platform.
+Download a pre-built binary from the [releases page](https://github.com/neverprepared/ink-bunny/releases) for your platform.
 
 ## Overview
 

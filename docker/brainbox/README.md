@@ -11,7 +11,7 @@ docker pull ghcr.io/neverprepared/brainbox:latest
 # Run brainbox
 docker run -it --rm \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v ~/.config/brainbox:/home/developer/.config \
+  -v ~/.config/developer:/home/developer/.config \
   ghcr.io/neverprepared/brainbox:latest \
   brainbox --help
 ```
@@ -66,7 +66,7 @@ docker run -it --rm brainbox:latest brainbox --help
 | Volume | Purpose |
 |--------|---------|
 | `/var/run/docker.sock` | Docker socket for container orchestration |
-| `~/.config/brainbox` | Persistent configuration and session data |
+| `~/.config/developer` | Persistent configuration and session data |
 | `/workspace` | Current working directory mount |
 
 ## Versions
@@ -81,7 +81,7 @@ Images are tagged with:
 - Runs as non-root user (`developer`)
 - No privileged mode required
 - Docker socket mounted for container management only
-- Secrets stored in `~/.config/brainbox/secrets.env`
+- Secrets stored in `~/.config/developer/.secrets/` and injected into containers as `/home/developer/.env`
 
 ## Support
 

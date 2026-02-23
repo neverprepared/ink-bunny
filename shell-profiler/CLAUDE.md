@@ -3,7 +3,7 @@
 **Project**: Shell Profile Manager (`shell-profiler` CLI)
 **Language**: Go 1.21+
 **Type**: CLI Tool for workspace environment management
-**Repository**: github.com/neverprepared/shell-profile-manager
+**Repository**: github.com/neverprepared/ink-bunny (monorepo, shell-profiler/ package)
 
 ## Project Overview
 
@@ -419,8 +419,8 @@ specify check             # Verify setup
 ### File Locations
 
 - **Binary**: `./shell-profiler`
-- **Config**: `~/.config/shell-profiler/config.yaml`
-- **Profiles**: `~/.config/shell-profiler/profiles/` (or user-configured)
+- **Config**: `~/.profile-manager` (key=value format, e.g. `profiles_dir=~/workspaces/profiles`)
+- **Profiles**: `~/workspaces/profiles` (default; configurable via `profiles_dir` in config file)
 - **Logs**: stdout/stderr (no persistent logs)
 
 ## Contributing Guidelines

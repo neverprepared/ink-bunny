@@ -453,6 +453,5 @@ brainbox api --daemon --host 0.0.0.0 --port 9999
 
 ## See Also
 
-- [API Documentation](api.md)
-- [Configuration Guide](configuration.md)
-- [Deployment Guide](deployment.md)
+- [brainbox README](../README.md)
+- [Install Guide](../INSTALL.md)

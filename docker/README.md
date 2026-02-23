@@ -1,13 +1,15 @@
-# Docker Services for Reflex
+# Docker
 
-This directory contains Docker Compose configurations for services used by Reflex.
+This directory contains Docker images and Compose configurations for the ink-bunny platform.
 
 ## Available Services
 
 | Directory | Service | Purpose |
 |-----------|---------|---------|
+| `brainbox/` | Brainbox | Container image for sandboxed Claude Code sessions |
 | `qdrant/` | Qdrant | Vector database for RAG and semantic search |
 | `langfuse/` | LangFuse | LLM observability and tracing |
+| `minio/` | MinIO | S3-compatible object storage for artifacts |
 
 ## Quick Start
 

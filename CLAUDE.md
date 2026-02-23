@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a monorepo for an agentic development platform with five packages:
 
 - **brainbox/** — FastAPI backend, Svelte dashboard, and Python package for managing sandboxed Claude Code sessions
-- **docker/** — Dockerfiles and compose configs: `docker/brainbox/` (container image + setup), `docker/qdrant/`, `docker/langfuse/`, `docker/minio/`, `docker/docker-compose.yml` (unified)
+- **docker/** — Dockerfiles and compose configs: `docker/brainbox/` (container image + setup), `docker/qdrant/`, `docker/langfuse/`, `docker/minio/` (each service has its own `docker-compose.yml`)
 - **reflex/** — Claude Code plugin providing skills, agents, slash commands, workflow orchestration, RAG integration, and MCP server management
 - **shell-profiler/** — Go CLI for managing workspace-specific environment profiles via direnv
 - **docs/** — Three-phase architectural documentation (Foundation → Hardened → Production-ready) describing the broader agentic platform vision
@@ -30,9 +30,12 @@ Four pillars, all defined as markdown files:
 Key config files:
 - `reflex/plugins/reflex/.claude-plugin/plugin.json` — plugin manifest
 - `reflex/plugins/reflex/mcp-catalog.json` — MCP server registry (17 servers)
-- `reflex/plugins/reflex/hooks/hooks.json` — hook configurations (guardrails, LangFuse, notifications)
+- `reflex/plugins/reflex/hooks/hooks.json` — hook configurations (SessionStart: dependency check + brainbox status; PreToolUse: guardrails; PostToolUse: LangFuse tracing, Qdrant web-search auto-storage, notifications)
 
-Scripts in `reflex/plugins/reflex/scripts/` implement hooks and tooling: `guardrail.py` (destructive op blocking), `ingest.py` (Qdrant ingestion), `summarize.py` (transcript summarizer), `mcp-generate.sh` (MCP registration).
+Scripts in `reflex/plugins/reflex/scripts/` implement hooks and tooling. Shell wrappers are the hook entry points; Python scripts are their implementations:
+- Hook entry points: `guardrail-hook.sh`, `langfuse-hook.sh`, `notify-hook.sh`, `qdrant-websearch-hook.sh`, `brainbox-hook.sh`, `check-dependencies.sh`
+- Python implementations: `guardrail.py` (destructive op blocking), `langfuse-trace.py` (LangFuse tracing), `ingest.py` (Qdrant ingestion), `qdrant-websearch-store.py` (auto-store search results), `summarize.py` (transcript summarizer)
+- Other tooling: `mcp-generate.sh` (MCP registration), `notify.sh`, `statusline.sh`, `brainbox-connect.sh`
 
 ### Brainbox Architecture
 

@@ -124,10 +124,13 @@ Error: permission denied while trying to connect to Docker daemon
 
 ## Configuration
 
-Brainbox stores configuration in `~/.config/brainbox/`:
-- `sessions/` - Session data
-- `secrets.env` - Environment variables
-- `config.yaml` - Global configuration
+Brainbox stores configuration in `~/.config/developer/` (or `$XDG_CONFIG_HOME/developer/`):
+- `sessions/` - Session state files
+- `.secrets/` - Resolved secret files
+- `logs/brainbox.log` - API server log
+- `brainbox.pid` - Daemon PID file
+
+Configuration is controlled via environment variables (see `brainbox/src/brainbox/config.py`).
 
 ---
 
@@ -138,7 +141,7 @@ Brainbox stores configuration in `~/.config/brainbox/`:
 brew uninstall brainbox
 
 # Remove config
-rm -rf ~/.config/brainbox
+rm -rf ~/.config/developer
 
 # Remove Docker images
 docker rmi brainbox:latest

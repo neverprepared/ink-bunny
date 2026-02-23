@@ -69,8 +69,8 @@ Key skills include:
 | `/reflex:certcollect <hostname>` | Collect SSL certificates |
 | `/reflex:notify <on\|off\|status\|test>` | macOS popup notifications |
 | `/reflex:speak <on\|off\|status\|test>` | Spoken notifications via `say` |
-| `/reflex:qdrant <on\|off\|status>` | Control Qdrant MCP connection |
-| `/reflex:langfuse <on\|off\|status>` | Enable/disable LangFuse tracing |
+| `/reflex:qdrant [status]` | Show Qdrant connection status |
+| `/reflex:langfuse [status]` | Show LangFuse observability status and configuration |
 | `/reflex:guardrail <on\|off\|status>` | Control destructive operation guardrails |
 | `/reflex:ingest <path>` | Ingest files into Qdrant |
 | `/reflex:update-mcp <check\|apply>` | Check/apply MCP package updates |
@@ -101,19 +101,21 @@ Notifications auto-trigger on:
 
 ### Docker Services
 
-Docker compose files are stored at `~/.claude/docker/`:
+Docker compose files are in the `docker/` directory at the monorepo root:
 
 ```bash
 # Start Qdrant vector database
-/reflex:qdrant start
+just reflex-qdrant
+# or: cd docker/qdrant && docker compose up -d
 
 # Start LangFuse observability stack
-/reflex:langfuse-docker start
+just reflex-langfuse
+# or: cd docker/langfuse && docker compose up -d
 ```
 
 ### MCP Servers
 
-Reflex includes a catalog of 15 MCP servers. Use `/reflex:mcp select` to choose which to install, or `/reflex:mcp install <name>` for individual servers.
+Reflex includes a catalog of 17 MCP servers. Use `/reflex:mcp select` to choose which to install, or `/reflex:mcp install <name>` for individual servers.
 
 | Server | Category | Purpose |
 |--------|----------|---------|
@@ -132,6 +134,8 @@ Reflex includes a catalog of 15 MCP servers. Use `/reflex:mcp select` to choose 
 | kubernetes | cloud | Kubernetes cluster management |
 | spacelift | cloud | Spacelift IaC management and deployment |
 | google-workspace | collaboration | Gmail, Calendar, Drive, Docs |
+| brainbox | development | Container session management |
+| uptime-kuma | cloud | Uptime Kuma v2 monitoring |
 
 Configure credentials with `/reflex:init <service>`. See `/reflex:mcp status` for current state.
 

@@ -1,12 +1,14 @@
 # ink-bunny
 
-A monorepo for an agentic development platform with three tools:
+A monorepo for an agentic development platform:
 
 | Package | Description |
 |---------|-------------|
 | **[brainbox](brainbox/)** | Sandboxed Docker container orchestration for Claude Code with a web dashboard |
 | **[reflex](reflex/)** | Claude Code plugin providing skills, agents, slash commands, and MCP server management |
 | **[shell-profiler](shell-profiler/)** | Go CLI for managing workspace-specific environment profiles via direnv |
+| **[docker](docker/)** | Container images and Compose configs for brainbox, Qdrant, LangFuse, and MinIO |
+| **[docs](docs/)** | Three-phase architectural documentation for the broader agentic platform vision |
 
 ## Install
 
