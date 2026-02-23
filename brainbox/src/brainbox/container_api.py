@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import os
 import subprocess
+import shlex
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -101,7 +102,7 @@ async def query(request: QueryRequest) -> QueryResponse:
 
         # Change to working directory if specified
         if request.working_dir:
-            cd_cmd = f"cd {request.working_dir}"
+            cd_cmd = f"cd {shlex.quote(request.working_dir)}"
             await asyncio.create_subprocess_exec(
                 "tmux",
                 "send-keys",

@@ -408,7 +408,7 @@ class UTMBackend:
                 plistlib.dump(config, f)
 
             # Register VM with UTM by opening it
-            os.system(f"open '{vm_path}' 2>/dev/null")
+            subprocess.run(["open", vm_path], capture_output=True)
             await asyncio.sleep(2)  # Give UTM time to register the VM
 
         except Exception as exc:

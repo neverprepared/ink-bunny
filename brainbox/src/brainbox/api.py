@@ -263,7 +263,18 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 @app.get("/api/auth/key")
 async def api_get_key(request: Request):
-    """Return the API key — only accessible from loopback addresses."""
+    """Return the API key — only accessible from loopback addresses.
+
+    Note: ``request.client`` may be ``None`` when the ASGI server cannot
+    determine the peer address (e.g. some UNIX-socket transports).  In that
+    case we fail closed (403) rather than granting access.
+
+    If brainbox is deployed behind a reverse proxy on the same host the proxy
+    IP will typically be 127.0.0.1 or ::1 and the check passes as expected.
+    If the proxy lives on a different host you will need to add trusted-proxy
+    header support (e.g. ``X-Real-IP``) guarded by an explicit opt-in config
+    flag — do not blindly trust forwarding headers without that guard.
+    """
     client_ip = request.client.host if request.client else ""
     if client_ip not in ("127.0.0.1", "::1"):
         raise HTTPException(status_code=403, detail="Only accessible from localhost")
@@ -1152,13 +1163,13 @@ async def hub_submit_task(body: TaskCreate, _key=Depends(require_api_key)):
 
 
 @app.get("/api/hub/tasks")
-async def hub_list_tasks(status: str | None = None):
+async def hub_list_tasks(status: str | None = None, _key=Depends(require_api_key)):
     tasks = list_tasks(status=status)
     return [t.model_dump() for t in tasks]
 
 
 @app.get("/api/hub/tasks/{task_id}")
-async def hub_get_task(task_id: str):
+async def hub_get_task(task_id: str, _key=Depends(require_api_key)):
     task = get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
@@ -1217,7 +1228,7 @@ async def hub_get_messages(token: Token = Depends(require_token)):
 
 
 @app.get("/api/hub/tokens")
-async def hub_list_tokens():
+async def hub_list_tokens(_key=Depends(require_api_key)):
     return [t.model_dump() for t in list_tokens()]
 
 
@@ -1225,7 +1236,7 @@ async def hub_list_tokens():
 
 
 @app.get("/api/hub/state")
-async def hub_state():
+async def hub_state(_key=Depends(require_api_key)):
     return {
         "agents": [a.model_dump() for a in list_agents()],
         "tasks": [t.model_dump() for t in list_tasks()],
@@ -1273,7 +1284,7 @@ async def api_artifact_health():
 
 
 @app.get("/api/artifacts")
-async def api_list_artifacts(prefix: str = Query(default="")):
+async def api_list_artifacts(prefix: str = Query(default=""), _key=Depends(require_api_key)):
     """List artifacts, optionally filtered by key prefix."""
     result = await _artifact_op(list_artifacts, prefix)
     if result is None:
@@ -1406,7 +1417,9 @@ async def api_qdrant_health():
 
 
 @app.get("/api/langfuse/sessions/{session_name}/traces")
-async def api_langfuse_session_traces(session_name: str, limit: int = Query(default=50)):
+async def api_langfuse_session_traces(
+    session_name: str, limit: int = Query(default=50), _key=Depends(require_api_key)
+):
     """List traces for a container session."""
     result = await _langfuse_op(langfuse_list_traces, session_name, limit)
     if result is None:
@@ -1426,7 +1439,7 @@ async def api_langfuse_session_traces(session_name: str, limit: int = Query(defa
 
 
 @app.get("/api/langfuse/sessions/{session_name}/summary")
-async def api_langfuse_session_summary(session_name: str):
+async def api_langfuse_session_summary(session_name: str, _key=Depends(require_api_key)):
     """Trace count, error count, and tool breakdown for a session."""
     result = await _langfuse_op(get_session_traces_summary, session_name)
     if result is None:
@@ -1447,7 +1460,7 @@ async def api_langfuse_session_summary(session_name: str):
 
 
 @app.get("/api/langfuse/traces/{trace_id}")
-async def api_langfuse_trace_detail(trace_id: str):
+async def api_langfuse_trace_detail(trace_id: str, _key=Depends(require_api_key)):
     """Single trace detail with observations."""
     result = await _langfuse_op(langfuse_get_trace, trace_id)
     if result is None:

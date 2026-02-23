@@ -29,6 +29,14 @@ function protectedHeaders() {
 }
 
 /**
+ * Build headers for authenticated read requests (no Content-Type needed).
+ */
+function readHeaders() {
+  if (!_apiKey) return {};
+  return { 'X-API-Key': _apiKey };
+}
+
+/**
  * Helper to handle fetch responses with proper error handling.
  * @param {string} url - API endpoint URL
  * @param {RequestInit} options - Fetch options
@@ -93,7 +101,7 @@ export async function fetchContainerMetrics(signal = null) {
 }
 
 export async function fetchHubState() {
-  return fetchJSON('/api/hub/state');
+  return fetchJSON('/api/hub/state', { headers: readHeaders() });
 }
 
 export async function fetchLangfuseHealth() {
@@ -105,15 +113,15 @@ export async function fetchQdrantHealth() {
 }
 
 export async function fetchSessionTraces(sessionName, limit = 50) {
-  return fetchJSON(`/api/langfuse/sessions/${encodeURIComponent(sessionName)}/traces?limit=${limit}`);
+  return fetchJSON(`/api/langfuse/sessions/${encodeURIComponent(sessionName)}/traces?limit=${limit}`, { headers: readHeaders() });
 }
 
 export async function fetchSessionSummary(sessionName) {
-  return fetchJSON(`/api/langfuse/sessions/${encodeURIComponent(sessionName)}/summary`);
+  return fetchJSON(`/api/langfuse/sessions/${encodeURIComponent(sessionName)}/summary`, { headers: readHeaders() });
 }
 
 export async function fetchTraceDetail(traceId) {
-  return fetchJSON(`/api/langfuse/traces/${encodeURIComponent(traceId)}`);
+  return fetchJSON(`/api/langfuse/traces/${encodeURIComponent(traceId)}`, { headers: readHeaders() });
 }
 
 /**

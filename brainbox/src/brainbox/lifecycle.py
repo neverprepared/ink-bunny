@@ -93,7 +93,7 @@ def _read_cache_vars(
     if not cache_env.is_file():
         return {}
 
-    # Warn if cache file is world-readable
+    # Warn if cache file is world-readable and enforce 0o600 permissions
     try:
         mode = cache_env.stat().st_mode
         if mode & stat.S_IROTH:
@@ -102,6 +102,7 @@ def _read_cache_vars(
                 "lifecycle.profile_cache_world_readable",
                 metadata={"path": str(cache_env), "mode": oct(mode)},
             )
+            cache_env.chmod(0o600)
     except OSError:
         pass
 
@@ -304,7 +305,7 @@ def _resolve_profile_env(workspace_profile: str | None = None) -> str | None:
     if not cache_env.is_file():
         return None
 
-    # Warn if cache file is world-readable
+    # Warn if cache file is world-readable and enforce 0o600 permissions
     try:
         mode = cache_env.stat().st_mode
         if mode & stat.S_IROTH:
@@ -313,6 +314,7 @@ def _resolve_profile_env(workspace_profile: str | None = None) -> str | None:
                 "lifecycle.profile_cache_world_readable",
                 metadata={"path": str(cache_env), "mode": oct(mode)},
             )
+            cache_env.chmod(0o600)
     except OSError:
         pass
 

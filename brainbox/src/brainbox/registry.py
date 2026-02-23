@@ -45,6 +45,8 @@ def load_agents() -> dict[str, AgentDefinition]:
                     "registry.agent_world_writable",
                     metadata={"file": f.name, "mode": oct(mode)},
                 )
+                # Enforce safe permissions — strip world-write bit
+                f.chmod(mode & ~stat.S_IWOTH)
 
             raw = json.loads(f.read_text())
 
