@@ -88,9 +88,10 @@ if [[ "$MIGRATE" == true ]] || [[ ! -f "$CONFIG_PATH" ]]; then
     echo "First run: creating config with all catalog servers..."
     CATALOG_SERVERS=$(jq -r '.servers | keys[]' "$CATALOG_PATH")
     CONFIG='{"version":1,"servers":{}}'
-    for server in $CATALOG_SERVERS; do
+    while IFS= read -r server; do
+        [[ -z "$server" ]] && continue
         CONFIG=$(echo "$CONFIG" | jq --arg s "$server" '.servers[$s] = {"installed": true, "enabled": true}')
-    done
+    done <<< "$CATALOG_SERVERS"
     echo "$CONFIG" | jq '.' > "$CONFIG_PATH"
     echo "Created config with $(echo "$CONFIG" | jq '.servers | length') servers at $CONFIG_PATH"
 fi
@@ -118,7 +119,8 @@ SKIPPED=0
 TOTAL=$(jq '.servers | length' "$CATALOG_PATH")
 
 # Add enabled servers
-for server in $ENABLED_SERVERS; do
+while IFS= read -r server; do
+    [[ -z "$server" ]] && continue
     DEFINITION=$(jq -c ".servers[\"$server\"].definition // empty" "$CATALOG_PATH")
     if [[ -z "$DEFINITION" ]]; then
         echo "Warning: Server '$server' not found in catalog, skipping." >&2
@@ -138,10 +140,11 @@ for server in $ENABLED_SERVERS; do
             echo "Error adding server '$server'" >&2
         fi
     fi
-done
+done <<< "$ENABLED_SERVERS"
 
 # Remove disabled/uninstalled servers that are catalog-managed
-for server in $DISABLED_SERVERS; do
+while IFS= read -r server; do
+    [[ -z "$server" ]] && continue
     # Only remove servers that exist in our catalog (don't touch user's own servers)
     if ! echo "$CATALOG_SERVERS" | grep -qx "$server"; then
         continue
@@ -156,10 +159,11 @@ for server in $DISABLED_SERVERS; do
             REMOVED=$((REMOVED + 1))
         fi
     fi
-done
+done <<< "$DISABLED_SERVERS"
 
 # Also remove catalog servers not in config at all (fully uninstalled)
-for server in $CATALOG_SERVERS; do
+while IFS= read -r server; do
+    [[ -z "$server" ]] && continue
     if ! jq -e ".servers[\"$server\"]" "$CONFIG_PATH" &>/dev/null; then
         if [[ "$DRY_RUN" == true ]]; then
             echo "[dry-run] Would remove (not in config): $server"
@@ -171,7 +175,7 @@ for server in $CATALOG_SERVERS; do
             fi
         fi
     fi
-done
+done <<< "$CATALOG_SERVERS"
 
 ENABLED_COUNT=$(echo "$ENABLED_SERVERS" | grep -c . 2>/dev/null || echo "0")
 

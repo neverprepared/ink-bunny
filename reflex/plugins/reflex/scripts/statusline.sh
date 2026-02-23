@@ -187,7 +187,7 @@ printf '%b\n' "$output"
 # Show last user message on second line
 if [[ -n "$transcript_path" && -f "$transcript_path" ]]; then
     plain_output="${model} | 📁${dir}"
-    [[ -n "$branch" ]] && plain_output+=" | 🔀${branch} ${git_status}"
+    [[ -n "$branch" ]] && plain_output+=" | 🔀${branch} ${git_status_indicators}"
     plain_output+=" | xxxxxxxxxx ${pct}% of ${max_k}k tokens"
     max_len=${#plain_output}
     last_user_msg=$(jq -rs '

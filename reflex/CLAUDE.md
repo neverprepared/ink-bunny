@@ -17,6 +17,7 @@ reflex/
 │   ├── skills/               # 42 skill definitions (SKILL.md files)
 │   ├── hooks/                # Session hooks (hooks.json)
 │   ├── scripts/              # Helper scripts (bash)
+│   ├── workflow-templates/   # 5 workflow templates + step fragments
 │   ├── mcp-catalog.json      # MCP server catalog (registry)
 │   └── CLAUDE.md             # Plugin-specific instructions
 ├── ../docker/                # Docker Compose services (at monorepo root)

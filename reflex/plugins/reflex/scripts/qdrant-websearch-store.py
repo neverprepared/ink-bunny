@@ -14,7 +14,7 @@ import os
 import re
 import sys
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse
@@ -89,7 +89,7 @@ def extract_domain(url: str) -> Optional[str]:
         if domain.startswith('www.'):
             domain = domain[4:]
         return domain
-    except:
+    except Exception:
         return None
 
 
@@ -261,7 +261,7 @@ def build_metadata(tool_input: Dict, tool_response: List[Dict]) -> Dict:
         # Required
         "source": "web_search",
         "content_type": "text",
-        "harvested_at": datetime.now().isoformat(),
+        "harvested_at": datetime.now(timezone.utc).isoformat(),
 
         # Search context
         "query": query,

@@ -473,9 +473,8 @@ def load_patterns() -> List[Pattern]:
                     tool=p["tool"],
                     field=p["field"],
                 ))
-        except (json.JSONDecodeError, KeyError):
-            # Invalid config - use defaults only
-            pass
+        except (json.JSONDecodeError, KeyError) as e:
+            sys.stderr.write(f'Warning: guardrail-config.json is invalid, using defaults: {e}\n')
 
     return patterns
 
@@ -537,10 +536,8 @@ def match_patterns(
 
         # Try regex match (case insensitive for SQL)
         flags = re.IGNORECASE if pattern.category == "database_destructive" else 0
-        if re.search(pattern.pattern, text, flags):
-            # Extract context (up to 100 chars around match)
-            match_obj = re.search(pattern.pattern, text, flags)
-            if match_obj:
+        match_obj = re.search(pattern.pattern, text, flags)
+        if match_obj:
                 start = max(0, match_obj.start() - 20)
                 end = min(len(text), match_obj.end() + 20)
                 context = text[start:end]
@@ -647,7 +644,9 @@ def list_patterns():
         print("| Pattern | Category | Description |")
         print("|---------|----------|-------------|")
         for p in items:
-            print(f"| {p.name} | {p.category} | {p.description} |")
+            cat = p.category.replace('|', r'\|')
+            desc = p.description.replace('|', r'\|')
+            print(f"| {p.name} | {cat} | {desc} |")
         print()
 
 

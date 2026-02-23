@@ -35,9 +35,9 @@ GIT_USER_EMAIL=$(get_git_config "user.email")
 
 # Persist git user info to session environment if CLAUDE_ENV_FILE is available
 if [[ -n "${CLAUDE_ENV_FILE:-}" ]] && [[ -n "$GIT_USER_NAME" ]]; then
-  # Use double quotes with escaped inner quotes to handle names with apostrophes
-  escaped_name="${GIT_USER_NAME//\\/\\\\}"
-  escaped_name="${escaped_name//\"/\\\"}"
+  # Escape backslash, double-quote, dollar sign, and backtick so the env file
+  # is safe to source without triggering variable expansion or command execution.
+  escaped_name=$(printf '%s' "$GIT_USER_NAME" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\$/\\$/g; s/`/\\`/g')
   {
     echo "export GIT_AUTHOR_NAME=\"${escaped_name}\""
     echo "export GIT_COMMITTER_NAME=\"${escaped_name}\""
@@ -93,9 +93,20 @@ fi
 # =============================================================================
 # Compare installed version against latest on GitHub to notify users of updates.
 INSTALLED_VERSION=$(jq -r '.version // empty' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null || true)
-LATEST_VERSION=$(curl -sf --max-time 3 \
-  "https://raw.githubusercontent.com/mindmorass/reflex/main/plugins/reflex/.claude-plugin/plugin.json" \
-  | jq -r '.version // empty' 2>/dev/null) || LATEST_VERSION=""
+VERSION_CACHE="${CLAUDE_DIR}/reflex/.version-checked"
+LATEST_VERSION=""
+# Only hit GitHub when the cache is missing or older than 24 hours (1440 minutes)
+if [[ ! -f "$VERSION_CACHE" ]] || [[ -n "$(find "$VERSION_CACHE" -mmin +1440 2>/dev/null)" ]]; then
+  LATEST_VERSION=$(curl -sf --max-time 3 \
+    "https://raw.githubusercontent.com/mindmorass/reflex/main/plugins/reflex/.claude-plugin/plugin.json" \
+    | jq -r '.version // empty' 2>/dev/null) || LATEST_VERSION=""
+  if [[ -n "$LATEST_VERSION" ]]; then
+    mkdir -p "${CLAUDE_DIR}/reflex"
+    printf '%s\n' "$LATEST_VERSION" > "$VERSION_CACHE"
+  fi
+else
+  LATEST_VERSION=$(cat "$VERSION_CACHE")
+fi
 
 UPDATE_AVAILABLE=""
 if [[ -n "$LATEST_VERSION" && -n "$INSTALLED_VERSION" && "$INSTALLED_VERSION" != "$LATEST_VERSION" ]]; then
@@ -132,8 +143,11 @@ if [[ -f "$MCP_CATALOG" ]]; then
 
   if [[ ! -f "$MCP_CONFIG" ]] && [[ -x "$MCP_GENERATE" ]]; then
     # First run: migrate to create config with all servers installed+enabled
-    "$MCP_GENERATE" --migrate --catalog "$MCP_CATALOG" --config "$MCP_CONFIG" >/dev/null 2>&1 || true
-    MCP_STATUS="MCP servers migrated: all ${TOTAL_SERVERS} servers installed and enabled. Customize with /reflex:mcp select"
+    if "$MCP_GENERATE" --migrate --catalog "$MCP_CATALOG" --config "$MCP_CONFIG" >/dev/null 2>&1; then
+      MCP_STATUS="MCP servers migrated: all ${TOTAL_SERVERS} servers installed and enabled. Customize with /reflex:mcp select"
+    else
+      MCP_STATUS="MCP server migration failed. Run manually: /reflex:mcp select"
+    fi
   elif [[ -f "$MCP_CONFIG" ]]; then
     INSTALLED=$(jq '[.servers | to_entries[] | select(.value.installed == true)] | length' "$MCP_CONFIG" 2>/dev/null || echo "0")
     ENABLED=$(jq '[.servers | to_entries[] | select(.value.installed == true and .value.enabled == true)] | length' "$MCP_CONFIG" 2>/dev/null || echo "0")

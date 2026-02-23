@@ -59,7 +59,11 @@ def debug_log(msg: str) -> None:
         os.environ.get("CLAUDE_CONFIG_DIR", os.path.expanduser("~/.claude")),
         "reflex", "langfuse-debug.log"
     )
-    with open(log_path, "a") as f:
+    if os.path.exists(log_path) and os.path.getsize(log_path) > 1_000_000:
+        with open(log_path, "w") as f:
+            pass
+    fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+    with open(fd, "a") as f:
         f.write(f"[PYTHON] {msg}\n")
 
 
@@ -92,7 +96,7 @@ def send_trace(tool_data: dict) -> None:
 
         # SDK v3 uses start_as_current_observation with context manager
         # Use propagate_attributes for session_id and user_id
-        user_id = os.environ.get("LANGFUSE_USER_ID", os.environ.get("HOME", "unknown"))
+        user_id = os.environ.get("LANGFUSE_USER_ID") or os.environ.get("USER") or os.environ.get("LOGNAME") or "unknown"
         debug_log(f"Creating span for tool:{parsed['tool_name']}")
         debug_log(f"user_id={user_id}")
 

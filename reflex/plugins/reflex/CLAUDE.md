@@ -98,7 +98,8 @@ plugins/reflex/
 ├── commands/                    # Slash commands
 ├── skills/                      # 42 skill definitions
 ├── hooks/                       # Session hooks
-├── scripts/                     # Helper scripts (mcp-generate.sh)
+├── scripts/                     # Helper scripts (15 scripts: hook entry points + Python implementations)
+├── workflow-templates/          # 5 workflow templates + step fragments
 ├── mcp-catalog.json             # MCP server catalog (registry)
 └── CLAUDE.md                    # These instructions
 ```

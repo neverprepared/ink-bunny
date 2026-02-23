@@ -48,7 +48,7 @@ CHUNK_TARGET_WORDS = 20_000
 DEFAULT_MODELS = {
     "ollama": "llama3.2",
     "openai": "gpt-4o-mini",
-    "anthropic": "claude-haiku-4-20250414",
+    "anthropic": "claude-haiku-4-5-20251001",
 }
 
 SYSTEM_PROMPT = """\

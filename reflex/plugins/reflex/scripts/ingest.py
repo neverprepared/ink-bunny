@@ -30,7 +30,8 @@ import os
 import re
 import sys
 import time
-from datetime import datetime
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -211,7 +212,10 @@ def extract_docx(path: Path) -> Tuple[str, Dict]:
 
 def extract_notebook(path: Path) -> Tuple[str, Dict]:
     """Extract text from Jupyter notebook."""
-    content = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        content = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise IngestError(f"Failed to parse Jupyter notebook {path.name}: {e}") from e
 
     cells = []
     code_cells = 0
@@ -632,7 +636,7 @@ def ingest_to_qdrant(
 
     for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
         # Create unique ID from file hash + chunk index
-        point_id = hashlib.md5(f"{file_hash}_{i}".encode()).hexdigest()
+        point_id = str(uuid.UUID(hex=hashlib.md5(f"{file_hash}_{i}".encode()).hexdigest()))
 
         # Build metadata
         metadata = {
@@ -640,7 +644,7 @@ def ingest_to_qdrant(
             "content_type": file_metadata.get("format", "text"),
             "original_path": str(file_path.absolute()),
             "filename": file_path.name,
-            "harvested_at": datetime.now().isoformat(),
+            "harvested_at": datetime.now(timezone.utc).isoformat(),
             "chunk_index": i,
             "total_chunks": len(chunks),
             "word_count": chunk["word_count"],
@@ -769,10 +773,13 @@ def main():
             print(f"Unsupported format: {args.path.suffix}")
             sys.exit(1)
     elif args.path.is_dir():
-        pattern = "**/*" if args.recursive else "*"
-        for p in args.path.glob(pattern):
-            if p.is_file() and is_supported(p):
-                files.append(p)
+        for dirpath, dirnames, filenames in os.walk(args.path, followlinks=False):
+            if not args.recursive:
+                dirnames.clear()
+            for filename in filenames:
+                p = Path(dirpath) / filename
+                if is_supported(p):
+                    files.append(p)
 
         if not files:
             print(f"No supported files found in {args.path}")

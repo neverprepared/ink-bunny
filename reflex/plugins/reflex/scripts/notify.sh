@@ -35,7 +35,9 @@ esac
 
 # Send macOS notification if enabled
 if [ -f "$NOTIFY_ENABLED" ]; then
-    osascript -e "display notification \"$MESSAGE\" with title \"$TITLE\" sound name \"Glass\"" 2>/dev/null || true
+    ESCAPED_MESSAGE=$(printf '%s' "$MESSAGE" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    ESCAPED_TITLE=$(printf '%s' "$TITLE" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    osascript -e "display notification \"${ESCAPED_MESSAGE}\" with title \"${ESCAPED_TITLE}\" sound name \"Glass\"" 2>/dev/null || true
 fi
 
 # Speak notification if enabled

@@ -41,8 +41,6 @@ Reflex works best with these plugins (checked on session start):
 | `rag-proxy` | RAG wrapper for any agent, enriches with Qdrant context |
 | `workflow-orchestrator` | Orchestrates multi-step workflows across specialized subagents |
 
-Use `/reflex:task "your task" --rag` to enrich tasks with stored knowledge before delegating to official plugin agents.
-
 ### 42 Skills
 
 Skills provide reusable knowledge patterns. Run `/reflex:skills` to list all.
@@ -62,6 +60,7 @@ Key skills include:
 
 | Command | Description |
 |---------|-------------|
+| `/reflex:container <start\|stop\|status\|create\|query\|dashboard\|health\|config>` | Manage brainbox API and sandboxed containers |
 | `/reflex:agents` | List available agents |
 | `/reflex:skills` | List available skills |
 | `/reflex:mcp` | Manage MCP servers (list/install/uninstall/enable/disable/select) |
@@ -74,6 +73,7 @@ Key skills include:
 | `/reflex:guardrail <on\|off\|status>` | Control destructive operation guardrails |
 | `/reflex:ingest <path>` | Ingest files into Qdrant |
 | `/reflex:update-mcp <check\|apply>` | Check/apply MCP package updates |
+| `/reflex:workflow <apply\|list\|create\|edit\|delete\|sync\|compose\|status\|variables\|diff\|steps>` | Manage workflow templates |
 | `/reflex:init <service\|workflow>` | Initialize MCP server credentials or project workflows |
 | `/reflex:handoff [path]` | Generate handoff document for session continuation |
 | `/reflex:statusline <on\|off\|status\|color>` | Configure the Reflex status line |
@@ -144,14 +144,15 @@ Configure credentials with `/reflex:init <service>`. See `/reflex:mcp status` fo
 ```
 plugins/reflex/
 ├── .claude-plugin/
-│   └── plugin.json      # Plugin manifest
-├── agents/              # 2 agents
-├── commands/            # Slash commands
-├── skills/              # 42 skill definitions
-├── hooks/               # Session hooks
-├── scripts/             # Helper scripts
-├── mcp-catalog.json     # MCP server catalog (registry)
-└── CLAUDE.md            # Claude Code instructions
+│   └── plugin.json        # Plugin manifest
+├── agents/                # 2 agents
+├── commands/              # Slash commands
+├── skills/                # 42 skill definitions
+├── hooks/                 # Session hooks
+├── scripts/               # Helper scripts
+├── workflow-templates/    # 5 workflow templates + step fragments
+├── mcp-catalog.json       # MCP server catalog (registry)
+└── CLAUDE.md              # Claude Code instructions
 ```
 
 ## How It Works
