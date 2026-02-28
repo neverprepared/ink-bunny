@@ -161,8 +161,15 @@ if [ -n "$VOLUMES" ] && [ "$VOLUMES" != "[]" ]; then
 fi
 PAYLOAD="${PAYLOAD}}"
 
+API_KEY_FILE="${WORKSPACE_HOME:-$HOME}/.config/developer/.api-key"
+API_KEY=""
+if [ -f "$API_KEY_FILE" ]; then
+  API_KEY=$(cat "$API_KEY_FILE")
+fi
+
 RESULT=$(curl -sf -X POST "${URL}/api/create" \
   -H 'Content-Type: application/json' \
+  ${API_KEY:+-H "X-API-Key: ${API_KEY}"} \
   -d "$PAYLOAD" --max-time 60 2>&1)
 
 echo "$RESULT"
@@ -219,8 +226,15 @@ fi
 # Build JSON payload
 PAYLOAD=$(jq -n --arg q "$QUERY" '{prompt: $q, timeout: 300}')
 
+API_KEY_FILE="${WORKSPACE_HOME:-$HOME}/.config/developer/.api-key"
+API_KEY=""
+if [ -f "$API_KEY_FILE" ]; then
+  API_KEY=$(cat "$API_KEY_FILE")
+fi
+
 RESULT=$(curl -sf -X POST "${URL}/api/sessions/${SESSION_NAME}/query" \
   -H 'Content-Type: application/json' \
+  ${API_KEY:+-H "X-API-Key: ${API_KEY}"} \
   -d "$PAYLOAD" --max-time 320 2>&1)
 
 echo "$RESULT"

@@ -37,6 +37,30 @@ def _api_key() -> str:
     return ""
 
 
+def _request_raw(
+    method: str, path: str, data: bytes, content_type: str = "text/plain", timeout: int = 30
+) -> Any:
+    """Make an HTTP request with raw bytes body."""
+    url = f"{_api_url()}{path}"
+    headers = {"Content-Type": content_type}
+    key = _api_key()
+    if key:
+        headers["X-API-Key"] = key
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode() if exc.fp else str(exc)
+        try:
+            detail = json.loads(detail).get("detail", detail)
+        except (json.JSONDecodeError, AttributeError):
+            pass
+        return {"error": detail, "status": exc.code}
+    except urllib.error.URLError as exc:
+        return {"error": f"Cannot reach API at {url}: {exc.reason}"}
+
+
 def _request(method: str, path: str, body: dict[str, Any] | None = None, timeout: int = 30) -> Any:
     """Make an HTTP request to the brainbox API."""
     url = f"{_api_url()}{path}"
@@ -232,6 +256,131 @@ def get_qdrant_health() -> dict[str, Any]:
 def list_agents() -> list[dict[str, Any]]:
     """List all registered agents in the hub."""
     return _request("GET", "/api/hub/agents")
+
+
+@mcp.tool()
+def get_agent(name: str) -> dict[str, Any]:
+    """Get info for a single registered hub agent.
+
+    Args:
+        name: Agent name (e.g. developer)
+    """
+    return _request("GET", f"/api/hub/agents/{name}")
+
+
+@mcp.tool()
+def list_tokens() -> list[dict[str, Any]]:
+    """List all registered hub tokens (agent identities)."""
+    return _request("GET", "/api/hub/tokens")
+
+
+@mcp.tool()
+def refresh_secrets(name: str) -> dict[str, Any]:
+    """Re-inject secrets into a running container session from the host environment.
+
+    Args:
+        name: Session name (e.g. test-1)
+    """
+    return _request("POST", f"/api/sessions/{name}/refresh-secrets")
+
+
+@mcp.tool()
+def api_info() -> dict[str, Any]:
+    """Get API version and basic health status."""
+    return _request("GET", "/api/info")
+
+
+# ---------------------------------------------------------------------------
+# Artifact tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def artifact_health() -> dict[str, Any]:
+    """Check artifact storage (MinIO) health and connectivity."""
+    return _request("GET", "/api/artifacts/health")
+
+
+@mcp.tool()
+def list_artifacts(prefix: str = "") -> list[dict[str, Any]]:
+    """List stored artifacts, optionally filtered by key prefix.
+
+    Args:
+        prefix: Key prefix to filter by (e.g. "myproject/")
+    """
+    path = "/api/artifacts"
+    if prefix:
+        path += f"?prefix={prefix}"
+    return _request("GET", path)
+
+
+@mcp.tool()
+def upload_artifact(key: str, content: str) -> dict[str, Any]:
+    """Upload a text artifact to storage.
+
+    Args:
+        key: Storage key / path (e.g. "myproject/report.md")
+        content: Text content to store
+    """
+    return _request_raw(
+        "POST", f"/api/artifacts/{key}", content.encode(), content_type="text/plain"
+    )
+
+
+@mcp.tool()
+def download_artifact(key: str) -> dict[str, Any]:
+    """Download an artifact from storage.
+
+    Args:
+        key: Storage key / path (e.g. "myproject/report.md")
+    """
+    return _request("GET", f"/api/artifacts/{key}")
+
+
+@mcp.tool()
+def delete_artifact(key: str) -> dict[str, Any]:
+    """Delete an artifact from storage.
+
+    Args:
+        key: Storage key / path (e.g. "myproject/report.md")
+    """
+    return _request("DELETE", f"/api/artifacts/{key}")
+
+
+# ---------------------------------------------------------------------------
+# LangFuse trace tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def get_langfuse_session_traces(session_name: str, limit: int = 50) -> list[dict[str, Any]]:
+    """List LangFuse traces for a container session.
+
+    Args:
+        session_name: Session name (e.g. test-1)
+        limit: Maximum number of traces to return (default: 50)
+    """
+    return _request("GET", f"/api/langfuse/sessions/{session_name}/traces?limit={limit}")
+
+
+@mcp.tool()
+def get_langfuse_session_summary(session_name: str) -> dict[str, Any]:
+    """Get trace count, error count, and tool breakdown for a session.
+
+    Args:
+        session_name: Session name (e.g. test-1)
+    """
+    return _request("GET", f"/api/langfuse/sessions/{session_name}/summary")
+
+
+@mcp.tool()
+def get_langfuse_trace_detail(trace_id: str) -> dict[str, Any]:
+    """Get full detail for a single LangFuse trace including observations.
+
+    Args:
+        trace_id: LangFuse trace ID
+    """
+    return _request("GET", f"/api/langfuse/traces/{trace_id}")
 
 
 def run() -> None:
