@@ -27,14 +27,29 @@ def _api_url() -> str:
 
 
 def _api_key() -> str:
-    """Load API key from CL_API_KEY env, or from key file on disk."""
+    """Load API key from CL_API_KEY env, key file on disk, or loopback /api/auth/key."""
     key = os.environ.get("CL_API_KEY", "")
     if key:
         return key
-    key_file = Path.home() / ".config" / "developer" / ".api-key"
-    if key_file.exists():
-        return key_file.read_text().strip()
-    return ""
+    # Try common key file locations (XDG, WORKSPACE_HOME, home)
+    for candidate in [
+        os.environ.get("XDG_CONFIG_HOME", ""),
+        os.path.join(os.environ.get("WORKSPACE_HOME", ""), ".config"),
+        os.path.join(str(Path.home()), ".config"),
+    ]:
+        if not candidate:
+            continue
+        key_file = Path(candidate) / "developer" / ".api-key"
+        if key_file.exists():
+            return key_file.read_text().strip()
+    # Fall back to loopback endpoint (works regardless of which profile started brainbox)
+    try:
+        req = urllib.request.Request(f"{_api_url()}/api/auth/key")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode())
+            return data.get("key", "")
+    except Exception:
+        return ""
 
 
 def _request_raw(
