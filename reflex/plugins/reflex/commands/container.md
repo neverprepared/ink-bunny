@@ -165,7 +165,7 @@ API_KEY=$(curl -sf "${URL}/api/auth/key" --max-time 3 2>/dev/null | jq -r '.key 
 
 RESULT=$(curl -sf -X POST "${URL}/api/create" \
   -H 'Content-Type: application/json' \
-  ${API_KEY:+-H "X-API-Key: ${API_KEY}"} \
+  -H "X-API-Key: ${API_KEY}" \
   -d "$PAYLOAD" --max-time 60 2>&1)
 
 echo "$RESULT"
@@ -226,7 +226,7 @@ API_KEY=$(curl -sf "${URL}/api/auth/key" --max-time 3 2>/dev/null | jq -r '.key 
 
 RESULT=$(curl -sf -X POST "${URL}/api/sessions/${SESSION_NAME}/query" \
   -H 'Content-Type: application/json' \
-  ${API_KEY:+-H "X-API-Key: ${API_KEY}"} \
+  -H "X-API-Key: ${API_KEY}" \
   -d "$PAYLOAD" --max-time 320 2>&1)
 
 echo "$RESULT"
