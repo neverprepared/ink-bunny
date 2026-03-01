@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.1](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.13.0...reflex-v1.13.1) (2026-03-01)
+
+
+### Bug Fixes
+
+* address security and correctness findings from reflex code review ([54113ce](https://github.com/neverprepared/ink-bunny/commit/54113ce0a5993228d7dd0c26659c96f9d30d40a8))
+* resolve API key via loopback endpoint across profiles ([6e7d064](https://github.com/neverprepared/ink-bunny/commit/6e7d0648f676e091c37d312429ac3c87188f84ba))
+* sync reflex skills and MCP with brainbox API ([ef8e093](https://github.com/neverprepared/ink-bunny/commit/ef8e093ca222afd286ec8bb86eaf73d79fc02cae))
+* use direct header instead of conditional expansion for API key ([6515dfd](https://github.com/neverprepared/ink-bunny/commit/6515dfdbfde8250bbacafa0106d6ee37ad12ddd9))
+
+
+### Documentation
+
+* correct inaccuracies across package documentation ([ac905a6](https://github.com/neverprepared/ink-bunny/commit/ac905a6d3af7c6d97c61fc84a3ed0994ba17b57c))
+
 ## [1.13.0](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.12.0...reflex-v1.13.0) (2026-02-23)
 
 
