@@ -31,16 +31,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN useradd -m -s /bin/bash developer \
     && echo 'developer ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/developer
 
-USER developer
 WORKDIR /home/developer
 
 # =============================================================================
-# Homebrew
+# Homebrew — install as root (required for QEMU cross-arch builds), then
+# hand ownership to developer so brew works normally at runtime.
 # =============================================================================
-RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" \
+    && chown -R developer:developer /home/linuxbrew/.linuxbrew
 
 ENV PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:${PATH}"
 ENV HOMEBREW_NO_AUTO_UPDATE=1
+
+USER developer
 
 RUN brew install \
     fd \
