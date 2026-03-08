@@ -525,6 +525,7 @@ async def provision(
     backend: str = "docker",
     vm_template: str | None = None,
     ports: dict[str, int] | None = None,
+    repo_url: str | None = None,
 ) -> SessionContext:
     from .backends import create_backend
 
@@ -542,6 +543,15 @@ async def provision(
     else:
         image_or_template = settings.image or f"brainbox-{resolved_role}"
         resolved_port = port or _find_available_port()
+
+    # Resolve role prompt and teams configuration
+    from .registry import get_agent, get_role_prompt
+
+    teams_enabled = settings.hub.enable_teams
+    role_prompt_file = None
+    agent_def = get_agent(resolved_role)
+    if agent_def and agent_def.role_prompt:
+        role_prompt_file = str(settings.agents_dir / agent_def.role_prompt)
 
     ctx = SessionContext(
         session_name=session_name,
@@ -562,6 +572,9 @@ async def provision(
         backend=backend,
         vm_template=vm_template,
         ports=ports,
+        teams_enabled=teams_enabled,
+        role_prompt_file=role_prompt_file,
+        repo_url=repo_url,
     )
 
     slog = get_logger(session_name=session_name, container_name=container_name)
@@ -658,6 +671,17 @@ async def configure(ctx_or_name: SessionContext | str) -> SessionContext:
         resolved["ANTHROPIC_API_KEY"] = ""
         resolved["ANTHROPIC_BASE_URL"] = ctx.ollama_host or settings.ollama.host
         resolved["CLAUDE_MODEL"] = ctx.llm_model or settings.ollama.model
+
+    # Phase 1: Enable Claude Code Teams experimental feature
+    if ctx.teams_enabled:
+        resolved["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
+
+    # Inject hub URL for agent communication
+    resolved["BRAINBOX_HUB_URL"] = f"http://host.docker.internal:{settings.api_port}"
+
+    # Inject repo URL if associated
+    if ctx.repo_url:
+        resolved["BRAINBOX_REPO_URL"] = ctx.repo_url
 
     ctx.secrets.update(resolved)
     if not ctx.hardened:
@@ -784,6 +808,7 @@ async def run_pipeline(
     backend: str = "docker",
     vm_template: str | None = None,
     ports: dict[str, int] | None = None,
+    repo_url: str | None = None,
 ) -> SessionContext:
     ctx = await provision(
         session_name=session_name,
@@ -801,6 +826,7 @@ async def run_pipeline(
         backend=backend,
         vm_template=vm_template,
         ports=ports,
+        repo_url=repo_url,
     )
     await configure(ctx)
     await start(ctx)

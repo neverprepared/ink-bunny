@@ -45,21 +45,29 @@ from .validation import (
 from .log import get_logger, setup_logging
 from .models import TaskCreate, Token
 from .models_api import (
+    CreateRepoRequest,
     CreateSessionRequest,
     DeleteSessionRequest,
     ExecSessionRequest,
     QuerySessionRequest,
     StartSessionRequest,
     StopSessionRequest,
+    UpdateRepoRequest,
 )
 from .registry import get_agent, list_agents, list_tokens, validate_token
 from .router import (
+    add_repo,
     cancel_task,
     complete_task,
+    ensure_repo_agents,
+    get_repo,
     get_task,
+    list_repos,
     list_tasks,
     on_event,
+    remove_repo,
     submit_task,
+    update_repo,
 )
 from .artifacts import (
     ArtifactError,
@@ -1225,7 +1233,11 @@ async def hub_get_agent(name: str):
 @app.post("/api/hub/tasks", status_code=201)
 async def hub_submit_task(body: TaskCreate, _key=Depends(require_api_key)):
     try:
-        task = await submit_task(body.description, body.agent_name)
+        task = await submit_task(
+            body.description,
+            body.agent_name,
+            repo_url=getattr(body, "repo_url", None),
+        )
         return task.model_dump()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -1314,7 +1326,90 @@ async def hub_state(_key=Depends(require_api_key)):
         "tasks": [t.model_dump() for t in list_tasks()],
         "tokens": [t.model_dump() for t in list_tokens()],
         "messages": get_message_log(),
+        "repos": [r.model_dump() for r in list_repos()],
     }
+
+
+# --- Repositories ---
+
+
+@app.get("/api/hub/repos")
+async def hub_list_repos(_key=Depends(require_api_key)):
+    return [r.model_dump() for r in list_repos()]
+
+
+@app.post("/api/hub/repos", status_code=201)
+async def hub_add_repo(body: CreateRepoRequest, _key=Depends(require_api_key)):
+    try:
+        repo = add_repo(
+            body.url,
+            name=body.name,
+            merge_queue=body.merge_queue,
+            pr_shepherd=body.pr_shepherd,
+            target_branch=body.target_branch,
+            is_fork=body.is_fork,
+            upstream_url=body.upstream_url,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    # Launch persistent agents for this repo
+    launched = []
+    try:
+        launched = await ensure_repo_agents(repo.name)
+    except Exception as exc:
+        log.warning(
+            "hub.repo_agent_launch_failed",
+            metadata={"repo": repo.name, "reason": str(exc)},
+        )
+
+    return {
+        "repo": repo.model_dump(),
+        "launched_tasks": [t.model_dump() for t in launched],
+    }
+
+
+@app.get("/api/hub/repos/{name}")
+async def hub_get_repo(name: str, _key=Depends(require_api_key)):
+    repo = get_repo(name)
+    if not repo:
+        raise HTTPException(status_code=404, detail=f"Repository '{name}' not found")
+    return repo.model_dump()
+
+
+@app.patch("/api/hub/repos/{name}")
+async def hub_update_repo(name: str, body: UpdateRepoRequest, _key=Depends(require_api_key)):
+    try:
+        repo = update_repo(
+            name,
+            merge_queue=body.merge_queue,
+            pr_shepherd=body.pr_shepherd,
+            target_branch=body.target_branch,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    # Launch any newly enabled agents
+    launched = []
+    try:
+        launched = await ensure_repo_agents(repo.name)
+    except Exception as exc:
+        log.warning(
+            "hub.repo_agent_launch_failed",
+            metadata={"repo": repo.name, "reason": str(exc)},
+        )
+
+    return {
+        "repo": repo.model_dump(),
+        "launched_tasks": [t.model_dump() for t in launched],
+    }
+
+
+@app.delete("/api/hub/repos/{name}")
+async def hub_remove_repo(name: str, _key=Depends(require_api_key)):
+    if not remove_repo(name):
+        raise HTTPException(status_code=404, detail=f"Repository '{name}' not found")
+    return {"deleted": True}
 
 
 # ---------------------------------------------------------------------------

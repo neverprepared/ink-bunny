@@ -41,6 +41,8 @@ Scripts in `reflex/plugins/reflex/scripts/` implement hooks and tooling. Shell w
 
 Docker container (Ubuntu 24.04, Dockerfile at `docker/brainbox/Dockerfile`) with non-root `developer` user, pre-installed Claude Code, and Playwright MCP. Container setup files (`.bashrc`, `settings.json`, `ttyd-wrapper.sh`, `CLAUDE.md`) live in `docker/brainbox/setup/`. Sessions are named and isolated with persistent data in `~/.config/developer/sessions/`. Secrets are injected as `/home/developer/.env` at container startup.
 
+**Multi-agent evolution:** The hub supports a role-based agent system (absorbed from Dan Lorenc's multiclaude) with 6 roles — `developer` (default), `supervisor`, `worker`, `merge-queue`, `pr-shepherd`, `reviewer`. Agent definitions live in `brainbox/agents/*.json` with markdown role prompts in `brainbox/agents/roles/`. Persistent agents (`supervisor`, `merge-queue`, `pr-shepherd`) auto-restart on failure; transient agents (`worker`, `reviewer`) clean up. Claude Code Teams (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) is injected into all containers. A multi-repo hub tracks repositories via CRUD endpoints (`/api/hub/repos`) with per-repo agent containers.
+
 ### Dashboard Architecture
 
 Svelte 5 SPA (runes, no stores library) with a sidebar-driven control panel layout:
@@ -56,7 +58,7 @@ Sidebar (220px / 60px collapsed)  |  Main Content (active panel)
 | Panel | Component | Purpose |
 |-------|-----------|---------|
 | Containers | `ContainersPanel.svelte` | Session cards, terminal iframes, create/stop/delete, SSE updates |
-| Dashboard | `DashboardPanel.svelte` | StatsGrid + MetricsTable (polls `/api/metrics/containers` every 5s) + HubActivity (SSE-refreshed) |
+| Dashboard | `DashboardPanel.svelte` | StatsGrid + MetricsTable (polls `/api/metrics/containers` every 5s) + HubActivity (SSE-refreshed, repo count + persistent indicators) + Repos panel |
 | Observability | `ObservabilityPanel.svelte` | LangFuse + Qdrant health, session traces, trace detail |
 
 Key files:
@@ -68,7 +70,12 @@ Key files:
 Backend API:
 - `GET /api/sessions` — container list with ports, volumes, status
 - `GET /api/metrics/containers` — per-container CPU %, memory, uptime (reuses `monitor.py` helpers)
-- `GET /api/hub/state` — tasks, agents, tokens, messages
+- `GET /api/hub/state` — tasks, agents, tokens, messages, repos
+- `GET /api/hub/repos` — list tracked repositories
+- `POST /api/hub/repos` — register a repository
+- `GET /api/hub/repos/{name}` — get repository details
+- `PATCH /api/hub/repos/{name}` — update repository settings
+- `DELETE /api/hub/repos/{name}` — remove a repository
 - `GET /api/events` — SSE stream for Docker + hub events
 - Hub state cleanup: terminal tasks (completed/failed/cancelled) and stale messages are dropped on startup
 

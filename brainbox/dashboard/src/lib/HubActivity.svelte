@@ -38,6 +38,7 @@
 
   let agentCount = $derived(hubState ? (hubState.agents || []).length : 0);
   let messageCount = $derived(hubState ? (hubState.messages || []).length : 0);
+  let repoCount = $derived(hubState ? (hubState.repos || []).length : 0);
 </script>
 
 <div class="hub-section">
@@ -63,7 +64,9 @@
   </div>
 
   <div class="hub-meta">
-    <span>{agentCount} agent{agentCount !== 1 ? 's' : ''} registered</span>
+    <span>{agentCount} agent{agentCount !== 1 ? 's' : ''}</span>
+    <span class="sep">&middot;</span>
+    <span>{repoCount} repo{repoCount !== 1 ? 's' : ''}</span>
     <span class="sep">&middot;</span>
     <span>{messageCount} message{messageCount !== 1 ? 's' : ''}</span>
   </div>
@@ -71,7 +74,10 @@
   {#if hubState && (hubState.agents || []).length > 0}
     <div class="agent-list">
       {#each hubState.agents as agent (agent.name)}
-        <span class="agent-tag">{agent.name}</span>
+        <span class="agent-tag" class:persistent={agent.persistent}>
+          {agent.name}
+          {#if agent.persistent}<span class="persist-dot" title="persistent"></span>{/if}
+        </span>
       {/each}
     </div>
   {/if}
@@ -140,5 +146,18 @@
     border-radius: 12px;
     font-size: 12px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .agent-tag.persistent {
+    border-color: rgba(16, 185, 129, 0.3);
+  }
+  .persist-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    display: inline-block;
   }
 </style>

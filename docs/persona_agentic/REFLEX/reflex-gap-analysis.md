@@ -26,6 +26,8 @@ Gaps that would need to be addressed to bring Reflex up to full [[PHASE_1/agenti
 
 **Current Reflex state**: Agents are Claude Code sub-processes. Claude's runtime provides basic execution timeouts but no container-level lifecycle management. The `docker-patterns` and `kubernetes-patterns` skills provide guidance for writing Dockerfiles and manifests, but nothing provisions or manages agent containers.
 
+**Update**: Brainbox now implements container lifecycle management with role-aware crash recovery (persistent roles auto-restart, transient roles clean up), multi-repo hub with per-repo agent containers, and Claude Code Teams integration. This closes the lifecycle gap for brainbox-managed agents — Reflex agents running as Claude Code sub-processes remain outside this lifecycle.
+
 ---
 
 ## 2. Agent Identity System
@@ -37,6 +39,8 @@ Gaps that would need to be addressed to bring Reflex up to full [[PHASE_1/agenti
 **PHASE_1 requirement**: [[PHASE_1/arch-orchestration]] specifies that the orchestrator generates a container token on provisioning, injects it via `/run/secrets/agent-token`, and validates it on every request. Token fields: Token ID, Agent name, Task ID, Capabilities, Expiry.
 
 **Current Reflex state**: Trust is implicit. If Claude dispatches a task via the Task tool, the sub-agent is trusted. LangFuse traces identify operations by tool name and session, not by agent identity.
+
+**Update**: Brainbox now has a role-based agent system (supervisor, worker, merge-queue, pr-shepherd, reviewer) with JSON definitions and token issuance via the registry. This partially addresses the identity gap at the brainbox level, though Reflex agents (running as Claude Code sub-processes) still lack container tokens.
 
 ---
 

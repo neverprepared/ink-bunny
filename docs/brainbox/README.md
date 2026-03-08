@@ -111,10 +111,13 @@ mindmap
       Profile credentials
     Hub / Orchestration
       Agent registry
+      Role system (6 roles)
+      Role prompts (markdown)
       Token issuance
       Task routing
       Message routing
       Policy engine
+      Multi-repo hub
       State persistence
     Observability
       LangFuse traces
@@ -134,6 +137,7 @@ mindmap
       Real-time SSE
       Container metrics
       Terminal access
+      Repos panel
       Trace timeline
       Tool breakdown
 ```
@@ -156,14 +160,14 @@ mindmap
 | `backends/docker.py` | Docker SDK: provision, configure, start, stop, health, exec | [lifecycle.md](lifecycle.md) |
 | `backends/utm.py` | UTM/SSH: provision, configure, start, stop, health, exec | [lifecycle.md](lifecycle.md) |
 | `hub.py` | Hub init/shutdown, state persistence, periodic flush | [hub.md](hub.md) |
-| `registry.py` | Agent loading, token issuance/validation/revocation | [hub.md](hub.md) |
-| `router.py` | Task submit, complete, fail, cancel, check running | [hub.md](hub.md) |
+| `registry.py` | Agent loading, role prompt loading, token issuance/validation/revocation | [hub.md](hub.md) |
+| `router.py` | Task submit, complete, fail, cancel, check running, repo management, role-aware recovery | [hub.md](hub.md) |
 | `messages.py` | Message routing with pending queue and audit log | [hub.md](hub.md) |
 | `policy.py` | Task assignment, message, and capability authorization | [hub.md](hub.md) |
 | `langfuse_client.py` | LangFuse trace/observation queries via HTTP | [observability.md](observability.md) |
 | `artifacts.py` | MinIO S3 artifact upload/download/list/delete | [observability.md](observability.md) |
 | `config.py` | Pydantic settings from `CL_*` env vars | [lifecycle.md](lifecycle.md) |
-| `models.py` | Domain models (Agent, Session, Task, Token, Message) | [hub.md](hub.md) |
+| `models.py` | Domain models (AgentRole, AgentDefinition, Repository, Session, Task, Token, Message) | [hub.md](hub.md) |
 | `log.py` | structlog JSON logging with session context | [observability.md](observability.md) |
 | `dashboard/` | Svelte 5 SPA with 3 panels | [dashboard.md](dashboard.md) |
 

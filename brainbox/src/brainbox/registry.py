@@ -1,4 +1,8 @@
-"""Agent registry and token issuance."""
+"""Agent registry and token issuance.
+
+Extended to support markdown role prompts absorbed from multiclaude
+(Dan Lorenc, github.com/dlorenc/multiclaude).
+"""
 
 from __future__ import annotations
 
@@ -6,6 +10,7 @@ import json
 import stat
 import time
 import uuid
+from pathlib import Path
 
 from .config import settings
 from .log import get_logger
@@ -20,6 +25,8 @@ log = get_logger()
 _agents: dict[str, AgentDefinition] = {}
 _tokens: dict[str, Token] = {}
 _last_token_sweep: float = 0.0
+# Loaded role prompt content keyed by agent name
+_role_prompts: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -29,6 +36,7 @@ _last_token_sweep: float = 0.0
 
 def load_agents() -> dict[str, AgentDefinition]:
     _agents.clear()
+    _role_prompts.clear()
     agents_dir = settings.agents_dir
 
     if not agents_dir.is_dir():
@@ -65,11 +73,49 @@ def load_agents() -> dict[str, AgentDefinition]:
 
             agent = AgentDefinition(**raw)
             _agents[agent.name] = agent
-            log.info("registry.agent_loaded", metadata={"name": agent.name, "file": f.name})
+
+            # Load role prompt if specified
+            if agent.role_prompt:
+                _load_role_prompt(agent)
+
+            log.info(
+                "registry.agent_loaded",
+                metadata={
+                    "name": agent.name,
+                    "file": f.name,
+                    "has_role_prompt": agent.name in _role_prompts,
+                    "persistent": agent.persistent,
+                },
+            )
         except Exception as exc:
             log.warning("registry.agent_load_failed", metadata={"file": f.name, "reason": str(exc)})
 
     return _agents
+
+
+def _load_role_prompt(agent: AgentDefinition) -> None:
+    """Load the markdown role prompt for an agent definition."""
+    if not agent.role_prompt:
+        return
+    prompt_path = settings.agents_dir / agent.role_prompt
+    if not prompt_path.is_file():
+        log.warning(
+            "registry.role_prompt_not_found",
+            metadata={"agent": agent.name, "path": str(prompt_path)},
+        )
+        return
+    try:
+        _role_prompts[agent.name] = prompt_path.read_text()
+    except Exception as exc:
+        log.warning(
+            "registry.role_prompt_load_failed",
+            metadata={"agent": agent.name, "reason": str(exc)},
+        )
+
+
+def get_role_prompt(agent_name: str) -> str | None:
+    """Get the loaded role prompt content for an agent."""
+    return _role_prompts.get(agent_name)
 
 
 def get_agent(name: str) -> AgentDefinition | None:

@@ -104,6 +104,33 @@ export async function fetchHubState() {
   return fetchJSON('/api/hub/state', { headers: readHeaders() });
 }
 
+export async function fetchRepos() {
+  return fetchJSON('/api/hub/repos', { headers: readHeaders() });
+}
+
+export async function addRepo({ url, name, merge_queue, pr_shepherd, target_branch, is_fork, upstream_url }) {
+  return fetchJSON('/api/hub/repos', {
+    method: 'POST',
+    headers: protectedHeaders(),
+    body: JSON.stringify({ url, name, merge_queue, pr_shepherd, target_branch, is_fork, upstream_url }),
+  });
+}
+
+export async function updateRepo(name, { merge_queue, pr_shepherd, target_branch }) {
+  return fetchJSON(`/api/hub/repos/${encodeURIComponent(name)}`, {
+    method: 'PATCH',
+    headers: protectedHeaders(),
+    body: JSON.stringify({ merge_queue, pr_shepherd, target_branch }),
+  });
+}
+
+export async function deleteRepo(name) {
+  return fetchJSON(`/api/hub/repos/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+    headers: protectedHeaders(),
+  });
+}
+
 export async function fetchLangfuseHealth() {
   return fetchJSON('/api/langfuse/health');
 }

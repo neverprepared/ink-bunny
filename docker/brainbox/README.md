@@ -60,6 +60,9 @@ docker run -it --rm brainbox:latest brainbox --help
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BRAINBOX_IMAGE` | `brainbox:latest` | Override Docker image to use |
+| `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` | `1` | Enable Claude Code Teams (injected automatically) |
+| `BRAINBOX_HUB_URL` | — | Hub API URL for agent communication (injected automatically) |
+| `BRAINBOX_REPO_URL` | — | Associated repo URL for repo-specific agents (injected automatically) |
 
 ## Volumes
 

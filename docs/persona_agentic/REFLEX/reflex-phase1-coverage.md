@@ -7,11 +7,11 @@ How Reflex maps to each architectural topic in [[PHASE_1/agentic-architecture|PH
 | PHASE_1 Topic                    | Coverage           | Reflex Implementation                                                       |
 | -------------------------------- | ------------------ | --------------------------------------------------------------------------- |
 | Orchestration — Task Dispatch    | Partial            | Workflow orchestrator + semantic router via Claude Code's Task tool         |
-| Orchestration — Agent Registry   | Partial            | Static catalog (2 agents + 43 skills in markdown). No dynamic registration. |
+| Orchestration — Agent Registry   | Partial            | Static catalog (2 agents + 43 skills in markdown). No dynamic registration. Brainbox now has a role-based registry (supervisor, worker, merge-queue, pr-shepherd, reviewer) with JSON definitions — separate from Reflex's plugin-level agents. |
 | Orchestration — Container Tokens | Gap                | No agent identity system                                                    |
 | Orchestration — Message Routing  | Partial            | Claude Code IS the message bus (Task tool = star topology)                  |
 | Orchestration — Policy Engine    | Partial            | Guardrails block destructive ops. No agent-to-agent authorization.          |
-| Brainbox Lifecycle               | Gap                | No container provisioning, monitoring, or recycling                         |
+| Brainbox Lifecycle               | Gap (Reflex) / Partial (Brainbox) | Reflex has no container lifecycle. Brainbox now implements role-aware lifecycle with persistent/transient agent recovery, multi-repo hub, and Claude Code Teams. |
 | Brainbox Hardening               | Gap                | Docker patterns skill has guidance, no enforcement                          |
 | Image Verification (cosign)      | Gap                | No image signing or verification                                            |
 | Secrets Management               | Different Approach | `.env` files + `/reflex:init` credential setup                              |

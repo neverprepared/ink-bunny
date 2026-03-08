@@ -13,12 +13,29 @@ from pydantic import BaseModel, Field
 # ---------------------------------------------------------------------------
 
 
+class AgentRole(str, Enum):
+    """Agent roles absorbed from multiclaude's agent type system.
+
+    Attribution: Role system originated from Dan Lorenc's multiclaude project
+    (github.com/dlorenc/multiclaude).
+    """
+    DEVELOPER = "developer"       # Interactive session (existing default)
+    SUPERVISOR = "supervisor"     # Orchestrates agents, persistent
+    WORKER = "worker"            # Task executor, transient
+    MERGE_QUEUE = "merge-queue"  # PR automation, persistent
+    PR_SHEPHERD = "pr-shepherd"  # Fork PR coordination, persistent
+    REVIEWER = "reviewer"        # Code review, transient
+
+
 class AgentDefinition(BaseModel):
     name: str
     image: str
     description: str = ""
     capabilities: list[str] = Field(default_factory=list)
     hardened: bool = False
+    role_prompt: str | None = None  # Path to role prompt markdown (relative to agents dir)
+    persistent: bool = False  # Persistent roles auto-restart; transient roles clean up
+    repo_url: str | None = None  # GitHub repo URL for repo-specific agents
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +72,9 @@ class SessionContext(BaseModel):
     container_name: str
     port: int
     role: str = "developer"
+    teams_enabled: bool = False  # Claude Code Teams experimental feature
+    role_prompt_file: str | None = None  # Path to role prompt injected into container
+    repo_url: str | None = None  # Associated repository URL
     state: SessionState = SessionState.PROVISIONING
     created_at: int  # epoch ms
     ttl: int  # seconds
@@ -97,6 +117,7 @@ class TaskStatus(str, Enum):
 class TaskCreate(BaseModel):
     description: str
     agent_name: str
+    repo_url: str | None = None  # Optional repo association
 
 
 class Task(BaseModel):
@@ -110,6 +131,27 @@ class Task(BaseModel):
     session_name: str | None = None
     result: Any = None
     error: str | None = None
+    repo_url: str | None = None  # Associated repository
+
+
+# ---------------------------------------------------------------------------
+# Repositories
+# ---------------------------------------------------------------------------
+
+
+class Repository(BaseModel):
+    """A tracked repository with associated agent containers.
+
+    Attribution: Multi-repo awareness originated from Dan Lorenc's multiclaude project.
+    """
+    url: str  # GitHub repo URL (e.g., "https://github.com/owner/repo")
+    name: str  # Short name derived from URL (e.g., "repo")
+    containers: dict[str, str] = Field(default_factory=dict)  # role -> session_name
+    merge_queue_enabled: bool = False
+    pr_shepherd_enabled: bool = False
+    target_branch: str = "main"
+    is_fork: bool = False
+    upstream_url: str | None = None
 
 
 # ---------------------------------------------------------------------------

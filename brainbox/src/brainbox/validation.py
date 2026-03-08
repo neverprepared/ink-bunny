@@ -203,7 +203,11 @@ def validate_role(role: str) -> str:
     Raises:
         ValidationError: If role is invalid
     """
-    allowed_roles = {"developer", "researcher", "performer"}
+    allowed_roles = {
+        "developer", "researcher", "performer",
+        # Roles absorbed from multiclaude (Dan Lorenc)
+        "supervisor", "worker", "merge-queue", "pr-shepherd", "reviewer",
+    }
     if role not in allowed_roles:
         raise ValidationError(
             f"Invalid role '{role}': must be one of {', '.join(sorted(allowed_roles))}"

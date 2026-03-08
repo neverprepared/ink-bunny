@@ -3,6 +3,7 @@
   import Sidebar from './Sidebar.svelte';
   import ContainersPanel from './ContainersPanel.svelte';
   import DashboardPanel from './DashboardPanel.svelte';
+  import ReposPanel from './ReposPanel.svelte';
   import ObservabilityPanel from './ObservabilityPanel.svelte';
 </script>
 
@@ -13,6 +14,8 @@
       <ContainersPanel />
     {:else if currentPanel.value === 'dashboard'}
       <DashboardPanel />
+    {:else if currentPanel.value === 'repos'}
+      <ReposPanel />
     {:else if currentPanel.value === 'observability'}
       <ObservabilityPanel />
     {/if}

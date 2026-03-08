@@ -27,7 +27,7 @@ graph TB
             PostToolUse["PostToolUse<br/><i>langfuse tracing, notifications</i>"]
         end
 
-        MCPCatalog["MCP Catalog<br/><i>16 server definitions</i>"]
+        MCPCatalog["MCP Catalog<br/><i>17 server definitions</i>"]
         Scripts["Scripts<br/><i>guardrail.py, ingest.py,<br/>summarize.py, langfuse-trace.py</i>"]
     end
 

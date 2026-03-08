@@ -276,6 +276,48 @@ class DockerBackend:
         except Exception as exc:
             slog.warning("container.langfuse_session_id_failed", metadata={"reason": str(exc)})
 
+        # Inject role prompt file for --append-system-prompt-file
+        if ctx.role_prompt_file:
+            try:
+                from ..registry import get_role_prompt
+
+                prompt_content = get_role_prompt(ctx.role)
+                if prompt_content:
+                    await _run(
+                        container.exec_run,
+                        [
+                            "sh",
+                            "-c",
+                            f"mkdir -p /home/developer/.brainbox"
+                            f" && echo {shlex.quote(prompt_content)} > /home/developer/.brainbox/role-prompt.md"
+                            f" && chmod 644 /home/developer/.brainbox/role-prompt.md",
+                        ],
+                    )
+                    # Configure Claude Code to use the role prompt
+                    await _run(
+                        container.exec_run,
+                        [
+                            "sh",
+                            "-c",
+                            'python3 -c "'
+                            "import json, pathlib; "
+                            "p = pathlib.Path('/home/developer/.claude/settings.json'); "
+                            "d = json.loads(p.read_text()) if p.exists() else {}; "
+                            "d['appendSystemPromptFiles'] = ['/home/developer/.brainbox/role-prompt.md']; "
+                            "p.write_text(json.dumps(d, indent=2))"
+                            '"',
+                        ],
+                    )
+                    slog.info(
+                        "container.role_prompt_injected",
+                        metadata={"role": ctx.role},
+                    )
+            except Exception as exc:
+                slog.warning(
+                    "container.role_prompt_injection_failed",
+                    metadata={"role": ctx.role, "reason": str(exc)},
+                )
+
         ctx.state = SessionState.STARTING
         slog.info("container.configured", metadata={"hardened": ctx.hardened})
         return ctx

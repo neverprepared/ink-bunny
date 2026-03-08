@@ -1,0 +1,9 @@
+{
+  "name": "worker",
+  "image": "brainbox-developer",
+  "description": "Executes assigned tasks, creates PRs, signals completion",
+  "capabilities": ["shell_exec", "read_code", "write_code"],
+  "hardened": false,
+  "role_prompt": "roles/worker.md",
+  "persistent": false
+}

@@ -1,0 +1,9 @@
+{
+  "name": "pr-shepherd",
+  "image": "brainbox-developer",
+  "description": "Coordinates PRs for fork repos, gets them ready for upstream merge",
+  "capabilities": ["shell_exec", "read_code", "hub_messaging"],
+  "hardened": false,
+  "role_prompt": "roles/pr-shepherd.md",
+  "persistent": true
+}

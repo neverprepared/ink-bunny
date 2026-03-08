@@ -1,6 +1,6 @@
 # Svelte 5 Dashboard
 
-The brainbox dashboard is a Svelte 5 SPA (Single Page Application) using runes-based reactive state. It provides real-time monitoring and control of sessions across three panels: **Containers**, **Dashboard**, and **Observability**.
+The brainbox dashboard is a Svelte 5 SPA (Single Page Application) using runes-based reactive state. It provides real-time monitoring and control of sessions across panels: **Containers**, **Dashboard** (with Repos panel), and **Observability**.
 
 **Key characteristics:**
 - Hash-based routing (`#containers`, `#dashboard`, `#observability`)
@@ -162,7 +162,7 @@ flowchart LR
 |-----------|----------|---------|---------|
 | All panels | `/api/sessions` | Event-driven | SSE Docker events |
 | MetricsTable | `/api/metrics/containers` | 5s | Interval |
-| HubActivity | `/api/hub/state` | Event-driven | SSE hub events |
+| HubActivity | `/api/hub/state` | Event-driven | SSE hub events (shows repo count + persistent agent indicators) |
 | TraceTimeline | `/api/langfuse/sessions/*/traces` | 10s | Interval |
 | ToolBreakdown | `/api/langfuse/sessions/*/summary` | 10s | Interval |
 | ObservabilityPanel | `/api/langfuse/health`, `/api/qdrant/health` | Once | On mount |

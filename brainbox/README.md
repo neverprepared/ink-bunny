@@ -1,6 +1,6 @@
 # brainbox
 
-Managed Docker lifecycle for sandboxed Claude Code sessions with a 5-phase pipeline (provision → configure → start → monitor → recycle), container hardening, and a web dashboard.
+Managed Docker lifecycle for sandboxed Claude Code sessions with a 5-phase pipeline (provision → configure → start → monitor → recycle), container hardening, multi-agent orchestration (6 roles with role-aware recovery), multi-repo hub, and a web dashboard.
 
 ## Quick Start
 
@@ -73,3 +73,5 @@ For complete documentation, examples, troubleshooting, and system service integr
 ## Acknowledgements
 
 Initial scaffolding (Dockerfile, dashboard, session scripts) derived from [claude-code-tips](https://github.com/ykdojo/claude-code-tips) by [@ykdojo](https://github.com/ykdojo).
+
+Agent role system and multi-repo awareness absorbed from [multiclaude](https://github.com/dlorenc/multiclaude) by [@dlorenc](https://github.com/dlorenc).

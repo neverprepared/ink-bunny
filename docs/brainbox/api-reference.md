@@ -116,7 +116,12 @@ flowchart TD
 | `POST` | `/api/hub/messages` | — | **Yes** | Route a message (Bearer token required) |
 | `GET` | `/api/hub/messages` | — | **Yes** | Get pending messages for token |
 | `GET` | `/api/hub/tokens` | — | No | List active tokens |
-| `GET` | `/api/hub/state` | — | No | Full hub state (agents, tasks, tokens, messages) |
+| `GET` | `/api/hub/repos` | — | **Yes** | List tracked repositories |
+| `POST` | `/api/hub/repos` | — | **Yes** | Register a repository |
+| `GET` | `/api/hub/repos/{name}` | — | **Yes** | Get repository details |
+| `PATCH` | `/api/hub/repos/{name}` | — | **Yes** | Update repo settings (merge_queue, pr_shepherd, target_branch) |
+| `DELETE` | `/api/hub/repos/{name}` | — | **Yes** | Remove a tracked repository |
+| `GET` | `/api/hub/state` | — | No | Full hub state (agents, tasks, tokens, messages, repos) |
 
 ### Artifacts (MinIO)
 
@@ -185,7 +190,7 @@ Request bodies are validated via Pydantic models in `models_api.py`.
 | Validator | Rules |
 |-----------|-------|
 | `validate_session_name` | Alphanumeric start, `[a-zA-Z0-9_.-]*`, 1–64 chars, no `..` |
-| `validate_role` | Must be `developer`, `researcher`, or `performer` |
+| `validate_role` | Must be a known role (`developer`, `supervisor`, `worker`, `merge-queue`, `pr-shepherd`, `reviewer`, `researcher`, `performer`) |
 | `validate_volume_mount` | `host:container[:mode]`, both absolute, mode `rw` (default) or `ro` |
 | `validate_port` | 1024–65535 |
 | `validate_artifact_key` | No `..`, no leading `/`, no null bytes, normalized |

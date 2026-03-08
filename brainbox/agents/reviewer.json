@@ -1,0 +1,9 @@
+{
+  "name": "reviewer",
+  "image": "brainbox-developer",
+  "description": "Reviews PRs, posts comments, reports blocking issues",
+  "capabilities": ["shell_exec", "read_code"],
+  "hardened": false,
+  "role_prompt": "roles/reviewer.md",
+  "persistent": false
+}

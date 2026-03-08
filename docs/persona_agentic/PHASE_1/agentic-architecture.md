@@ -30,8 +30,16 @@ graph TD
 
 | Layer | Description | Detail |
 |---|---|---|
-| **Orchestration** | Task routing, agent registry, brainbox tokens, message routing, star topology | [[arch-orchestration]] |
+| **Orchestration** | Task routing, agent registry (now with role-based agents), brainbox tokens, message routing, star topology | [[arch-orchestration]] |
 | **Brainbox Lifecycle** | Provision (cosign), configure, start, monitor, recycle — brainbox hardening | [[arch-brainbox]] |
 | **Observability** | Structured logs, basic metrics | [[arch-observability]] |
 | **Secrets Management** | 1Password + direnv, file-based delivery | [[arch-secrets-management]] |
 | **Shared State** | Vector DB, artifact store | [[arch-shared-state]] |
+
+## Implementation Notes
+
+The following capabilities have been implemented in brainbox, advancing beyond the original Phase 1 scope:
+
+- **Agent role system**: 6 roles (developer, supervisor, worker, merge-queue, pr-shepherd, reviewer) with JSON definitions and markdown role prompts, absorbed from multiclaude (Dan Lorenc). Role-aware crash recovery — persistent agents auto-restart, transient agents clean up.
+- **Multi-repo hub**: Repository management via CRUD endpoints (`/api/hub/repos`) with per-repo agent containers and a dashboard Repos panel.
+- **Claude Code Teams integration**: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` injected into all containers, enabling native multi-agent coordination.

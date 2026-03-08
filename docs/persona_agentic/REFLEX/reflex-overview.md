@@ -37,7 +37,7 @@ This means:
 - **Orchestration** is largely covered — Claude's Task tool implements the star topology, task routing, and message bus
 - **Observability** exceeds PHASE_1 — LangFuse provides full tracing where PHASE_1 specifies only structured JSON logs
 - **Vector DB** is well covered — Qdrant with ingestion pipeline, RAG proxy, and collection isolation
-- **Container lifecycle** is the major gap — Reflex has no container provisioning, hardening, or lifecycle management
+- **Container lifecycle** — Reflex itself has no container lifecycle, but brainbox now implements role-aware container management with persistent/transient agent recovery, multi-repo hub, and Claude Code Teams integration (absorbed from multiclaude). The two systems operate at different levels: brainbox manages containers, Reflex runs inside them.
 - **Secrets management** takes a different approach — `.env` files rather than 1Password/direnv/tmpfs
 
 See [[REFLEX/reflex-phase1-coverage|Coverage Matrix]] for the full mapping, [[REFLEX/reflex-gap-analysis|Gap Analysis]] for what's missing, and [[REFLEX/reflex-strengths|Strengths]] for where Reflex exceeds PHASE_1.

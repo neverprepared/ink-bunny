@@ -78,8 +78,8 @@ sequenceDiagram
     participant Registry as registry.py
     participant LC as lifecycle.py
 
-    Client->>API: POST /api/hub/tasks<br/>{description, agent_name}
-    API->>Router: submit_task(description, agent_name)
+    Client->>API: POST /api/hub/tasks<br/>{description, agent_name, repo_url?}
+    API->>Router: submit_task(description, agent_name, repo_url?)
 
     Router->>Registry: get_agent(agent_name)
     Registry-->>Router: AgentDefinition
@@ -122,8 +122,9 @@ stateDiagram-v2
 
     note right of RUNNING
         check_running_tasks() detects
-        missing/recycled containers
-        and auto-fails the task
+        missing/recycled containers.
+        Persistent agents auto-restart;
+        transient agents are failed.
     end note
 ```
 
@@ -131,7 +132,7 @@ stateDiagram-v2
 |-----------|---------|-------------|
 | PENDING → RUNNING | Container created successfully | Token issued, session launched |
 | RUNNING → COMPLETED | Agent sends `task.completed` message | Container recycled, token revoked |
-| RUNNING → FAILED | Launch error or container missing | Container recycled, token revoked |
+| RUNNING → FAILED | Launch error or container missing | Transient: recycled + revoked. Persistent: auto-restart attempted |
 | RUNNING → CANCELLED | `cancel_task()` called | Container recycled, token revoked |
 | PENDING → CANCELLED | `cancel_task()` called | Token revoked |
 
@@ -177,6 +178,21 @@ sequenceDiagram
 - **Audit log:** Capped ring buffer (`settings.hub.message_retention`, default 100 entries). Records both delivered and rejected messages.
 - **Task completion side effect:** After `messages.route()` returns, `api.py` checks if `payload.event == "task.completed"` and calls `complete_task()` which recycles the container and revokes the token. This logic lives in the API layer, not in `messages.py`.
 
+## Repository Management
+
+The hub tracks repositories for multi-agent coordination. Each repo can have persistent agents (merge-queue, PR shepherd) automatically launched and maintained.
+
+| Operation | Function | Description |
+|-----------|----------|-------------|
+| `add_repo(url, ...)` | Register | Track a repo with optional merge-queue and PR shepherd |
+| `get_repo(name)` | Read | Lookup by short name (derived from URL) |
+| `list_repos()` | List | All tracked repos |
+| `update_repo(name, ...)` | Update | Toggle merge_queue, pr_shepherd, target_branch |
+| `remove_repo(name)` | Delete | Untrack a repo |
+| `ensure_repo_agents(name)` | Launch | Start missing persistent agents for a repo |
+
+When a task is submitted with `repo_url`, the launched container is tracked in `repo.containers[agent_name]`. Repos are persisted in `hub-state.json` alongside tasks.
+
 ## State Persistence
 
 Hub state is periodically flushed to `hub-state.json` and restored on startup. Terminal tasks and stale messages are dropped during restore.
@@ -184,7 +200,7 @@ Hub state is periodically flushed to `hub-state.json` and restored on startup. T
 ```mermaid
 flowchart LR
     subgraph Init["Startup"]
-        Load[load_agents<br/>from agents/*.json]
+        Load[load_agents<br/>from agents/*.json + roles/*.md]
         Restore[restore_state<br/>from hub-state.json]
     end
 
@@ -223,7 +239,8 @@ flowchart LR
     "tokens": [["token-uuid", {"token_id": "...", "agent_name": "...", "expiry": ...}]]
   },
   "router": {
-    "tasks": [["task-uuid", {"id": "...", "status": "running", ...}]]
+    "tasks": [["task-uuid", {"id": "...", "status": "running", "repo_url": "...", ...}]],
+    "repos": [["repo-name", {"url": "...", "name": "...", "containers": {...}, ...}]]
   },
   "messages": {
     "pending": [["token-id", [{"id": "msg-uuid", ...}]]],
@@ -243,17 +260,30 @@ flowchart LR
 
 ## Agent Registry
 
-Agents are defined as JSON files in the `agents/` directory adjacent to the brainbox package.
+Agents are defined as JSON files in the `agents/` directory adjacent to the brainbox package. Role prompts (markdown) live in `agents/roles/`.
+
+The role system was absorbed from Dan Lorenc's [multiclaude](https://github.com/dlorenc/multiclaude) project. Six roles are defined:
+
+| Role | Persistent | Description |
+|------|-----------|-------------|
+| `developer` | No | Interactive session (default) |
+| `supervisor` | Yes | Orchestrates agents, monitors progress |
+| `worker` | No | Task executor, creates PRs |
+| `merge-queue` | Yes | PR automation |
+| `pr-shepherd` | Yes | Fork PR coordination |
+| `reviewer` | No | Code review |
 
 ### Agent definition schema
 
 ```json
 {
-  "name": "code-reviewer",
-  "image": "brainbox-researcher",
-  "description": "Reviews pull requests and suggests improvements",
-  "capabilities": ["read_code", "write_reviews", "use_tools"],
-  "hardened": true
+  "name": "supervisor",
+  "image": "brainbox-developer",
+  "description": "Orchestrates agents, monitors progress, enforces roadmap",
+  "capabilities": ["shell_exec", "read_code", "write_code", "hub_messaging"],
+  "hardened": false,
+  "role_prompt": "roles/supervisor.md",
+  "persistent": true
 }
 ```
 
@@ -264,6 +294,9 @@ Agents are defined as JSON files in the `agents/` directory adjacent to the brai
 | `description` | string | Human-readable purpose |
 | `capabilities` | string[] | Allowed operations (used by policy) |
 | `hardened` | bool | Whether to use hardened container config |
+| `role_prompt` | string? | Path to role prompt markdown (relative to `agents/` dir) |
+| `persistent` | bool | Persistent roles auto-restart; transient roles clean up on failure |
+| `repo_url` | string? | GitHub repo URL for repo-specific agents |
 
 ### Token lifecycle
 
@@ -278,7 +311,7 @@ Tokens are scoped to a single agent + task with TTL expiry.
 | `issued` | int | Epoch milliseconds |
 | `expiry` | int | Epoch milliseconds (`issued + ttl * 1000`) |
 
-**Default TTL:** 3600 seconds (1 hour)
+**Default TTL:** 3600 seconds (1 hour) for transient agents, 86400 seconds (24 hours) for persistent agents.
 
 **Expiry:** Tokens are lazily pruned — `validate_token()` removes expired tokens on access, and `list_tokens()` cleans all expired entries.
 
@@ -300,10 +333,12 @@ All models are Pydantic `BaseModel` subclasses in `models.py`.
 
 | Model | Key Fields | Usage |
 |-------|-----------|-------|
-| `AgentDefinition` | name, image, description, capabilities[], hardened | Loaded from `agents/*.json` |
+| `AgentRole` | enum: developer, supervisor, worker, merge-queue, pr-shepherd, reviewer | Role classification |
+| `AgentDefinition` | name, image, description, capabilities[], hardened, role_prompt, persistent, repo_url | Loaded from `agents/*.json` |
 | `Token` | token_id, agent_name, task_id, capabilities[], issued, expiry | Issued per task |
-| `Task` | id, description, agent_name, status, token_id, session_name, result, error | Router state |
-| `SessionContext` | session_name, container_name, port, role, state, secrets, backend, ... | Lifecycle state |
+| `Task` | id, description, agent_name, status, token_id, session_name, result, error, repo_url | Router state |
+| `Repository` | url, name, containers{}, merge_queue_enabled, pr_shepherd_enabled, target_branch, is_fork, upstream_url | Multi-repo hub |
+| `SessionContext` | session_name, container_name, port, role, teams_enabled, role_prompt_file, repo_url, state, secrets, backend, ... | Lifecycle state |
 | `MessageEnvelope` | recipient, type, payload | Inbound from agent |
 | `Message` | id, timestamp, sender, recipient, type, payload | Stored + queued |
 | `PolicyResult` | allowed, reason | Authorization decision |

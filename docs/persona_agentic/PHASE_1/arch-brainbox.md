@@ -123,6 +123,6 @@ docker run \
 
 ## Lifecycle Rules
 
-- **Restart policy** determines whether a recycled container re-provisions or terminates
+- **Restart policy** determines whether a recycled container re-provisions or terminates. **Now implemented** with role-aware crash recovery: persistent roles (supervisor, merge-queue, pr-shepherd) auto-restart on failure; transient roles (worker, reviewer) clean up.
 - **Orphan reaping**: monitor phase detects containers with no active task and recycles them
 - **State is ephemeral**: container filesystem is destroyed on recycle — durable outputs go to [[arch-shared-state|Shared State]]

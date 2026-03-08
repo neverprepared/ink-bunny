@@ -1,4 +1,8 @@
-"""Hub facade: init/shutdown, state persistence, convenience delegates."""
+"""Hub facade: init/shutdown, state persistence, convenience delegates.
+
+Enhanced with multi-repo awareness and role-aware agent management,
+absorbing patterns from multiclaude (Dan Lorenc, github.com/dlorenc/multiclaude).
+"""
 
 from __future__ import annotations
 
@@ -18,7 +22,9 @@ from .registry import (
 )
 from .router import (
     check_running_tasks,
+    ensure_repo_agents,
     get_state as router_get_state,
+    list_repos,
     list_tasks,
     restore_state as router_restore_state,
 )
@@ -44,9 +50,23 @@ async def init() -> None:
     _flush_task = loop.create_task(_periodic_flush())
     _check_task = loop.create_task(_periodic_check())
 
+    # Ensure persistent repo agents are running after state restore
+    for repo in list_repos():
+        try:
+            await ensure_repo_agents(repo.name)
+        except Exception as exc:
+            log.warning(
+                "hub.repo_agent_launch_failed",
+                metadata={"repo": repo.name, "reason": str(exc)},
+            )
+
     log.info(
         "hub.initialized",
-        metadata={"agents": len(list_agents()), "stateFile": str(settings.state_file)},
+        metadata={
+            "agents": len(list_agents()),
+            "repos": len(list_repos()),
+            "stateFile": str(settings.state_file),
+        },
     )
 
 

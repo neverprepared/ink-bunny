@@ -134,6 +134,8 @@ class HubSettings(BaseSettings):
     prune_completed_after: int = 3600  # seconds
     message_retention: int = 100
     token_ttl: int = 3600  # seconds — default token time-to-live
+    enable_teams: bool = True  # Enable Claude Code Teams in containers
+    persistent_token_ttl: int = 86400  # 24h TTL for persistent agent tokens
 
 
 class Settings(BaseSettings):
@@ -195,6 +197,10 @@ class Settings(BaseSettings):
     @property
     def agents_dir(self) -> Path:
         return Path(__file__).resolve().parent.parent.parent / "agents"
+
+    @property
+    def roles_dir(self) -> Path:
+        return self.agents_dir / "roles"
 
 
 settings = Settings()

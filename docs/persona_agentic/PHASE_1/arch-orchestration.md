@@ -31,7 +31,7 @@ graph TD
 | Component | Responsibility |
 |---|---|
 | **Task Router** | Receives work requests from users, resolves which agent handles them |
-| **Agent Registry** | Catalog of available agents, their capabilities, and container images |
+| **Agent Registry** | Catalog of available agents, their capabilities, and container images. **Now implemented** with a role-based agent system (supervisor, worker, merge-queue, pr-shepherd, reviewer) absorbed from multiclaude — see `brainbox/agents/` for definitions and `brainbox/agents/roles/` for role prompts. |
 | **Policy Engine** | Built-in rules for task authorization and message routing |
 | **Message Router** | Routes all inter-agent communication — request/reply and events |
 

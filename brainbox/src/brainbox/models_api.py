@@ -129,3 +129,31 @@ class QuerySessionRequest(BaseModel):
         if not stripped:
             raise ValueError("prompt is required")
         return stripped
+
+
+class CreateRepoRequest(BaseModel):
+    """Request model for POST /api/hub/repos endpoint."""
+    url: str = Field(..., description="GitHub repo URL")
+    name: str | None = Field(None, description="Short name (derived from URL if omitted)")
+    merge_queue: bool = Field(False, description="Enable merge-queue agent")
+    pr_shepherd: bool = Field(False, description="Enable PR shepherd agent")
+    target_branch: str = Field("main", description="Target branch for merges")
+    is_fork: bool = Field(False, description="Whether this is a fork repo")
+    upstream_url: str | None = Field(None, description="Upstream repo URL (for forks)")
+
+    @field_validator("url")
+    @classmethod
+    def validate_repo_url(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Repository URL is required")
+        if not v.startswith("https://github.com/"):
+            raise ValueError("Only GitHub URLs are supported (https://github.com/owner/repo)")
+        return v
+
+
+class UpdateRepoRequest(BaseModel):
+    """Request model for PATCH /api/hub/repos/{name} endpoint."""
+    merge_queue: bool | None = None
+    pr_shepherd: bool | None = None
+    target_branch: str | None = None

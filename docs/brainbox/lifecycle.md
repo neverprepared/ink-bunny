@@ -34,11 +34,12 @@ sequenceDiagram
     participant BE as Backend
     participant Docker as Docker/UTM
 
-    API->>LC: run_pipeline(session_name, role, ...)
+    API->>LC: run_pipeline(session_name, role, repo_url?, ...)
 
     rect rgb(34, 197, 94, 0.1)
         Note over LC: Phase 1: Provision
         LC->>LC: resolve role, prefix, port
+        LC->>LC: resolve role_prompt + teams config
         LC->>Docker: images.get(image_name)
         LC->>LC: _verify_cosign(image)
         LC->>LC: resolve volumes + profile mounts
@@ -49,6 +50,8 @@ sequenceDiagram
     rect rgb(59, 130, 246, 0.1)
         Note over LC: Phase 2: Configure
         LC->>LC: resolve_secrets() (1Password or files)
+        LC->>LC: inject CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+        LC->>LC: inject BRAINBOX_REPO_URL (if repo_url set)
         LC->>LC: resolve_oauth_account()
         LC->>BE: backend.configure(ctx, secrets, oauth)
         BE->>Docker: exec_run(write secrets + .env)
@@ -279,5 +282,8 @@ All settings use the `CL_` env prefix with `__` as nested delimiter.
 | `resources.cpus` | `CL_RESOURCES__CPUS` | `2` | Container CPU limit |
 | `profile.mount_aws` | `CL_PROFILE__MOUNT_AWS` | `true` | Mount AWS credentials |
 | `profile.mount_ssh` | `CL_PROFILE__MOUNT_SSH` | `true` | Mount SSH directory |
+
+| `hub.enable_teams` | `CL_HUB__ENABLE_TEAMS` | `true` | Inject `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` into containers |
+| `hub.persistent_token_ttl` | `CL_HUB__PERSISTENT_TOKEN_TTL` | `86400` | Token TTL for persistent agents (24h) |
 
 See `config.py` for the full list of nested settings groups: `ResourceSettings`, `HardeningSettings`, `CosignSettings`, `ArtifactSettings`, `LangfuseSettings`, `QdrantSettings`, `ProfileSettings`, `OllamaSettings`, `UTMSettings`, `HubSettings`.

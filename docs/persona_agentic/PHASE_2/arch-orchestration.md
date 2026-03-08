@@ -232,7 +232,7 @@ graph LR
 
 | Use Case | How It Works |
 |---|---|
-| **Isolation boundaries** | Different containers get different secrets, network policies, and roles — a researcher container can't write to production, a performer can |
+| **Isolation boundaries** | Different containers get different secrets, network policies, and roles — a researcher container can't write to production, a performer can. **Now implemented**: brainbox has a role-based agent system (supervisor, worker, merge-queue, pr-shepherd, reviewer) with role-specific prompts, persistent/transient lifecycle policies, and multi-repo scoping. |
 | **Persistent long-running work** | An agent works on a codebase for hours with full state (git history, installed deps) — subagents are ephemeral, containers persist |
 | **Mixed LLM backends** | Sensitive repo in a private Ollama container, complex analysis on Claude API — orchestrator routes by sensitivity |
 | **Role-specific tooling** | Developer has full git, performer has cloud CLIs, researcher has Qdrant — each container is purpose-built |
