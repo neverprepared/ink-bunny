@@ -161,21 +161,23 @@ def get_metrics() -> list[dict[str, Any]]:
 
 
 @mcp.tool()
-def submit_task(description: str, agent_name: str = "developer") -> dict[str, Any]:
+def submit_task(
+    description: str, agent_name: str = "developer", repo_url: str | None = None
+) -> dict[str, Any]:
     """Submit a task to the hub for execution in an isolated container.
 
     Args:
         description: Task description / instructions for the agent
         agent_name: Agent to assign the task to (default: developer)
+        repo_url: Optional GitHub repo URL to associate the task with
     """
-    return _request(
-        "POST",
-        "/api/hub/tasks",
-        {
-            "description": description,
-            "agent_name": agent_name,
-        },
-    )
+    body: dict[str, Any] = {
+        "description": description,
+        "agent_name": agent_name,
+    }
+    if repo_url:
+        body["repo_url"] = repo_url
+    return _request("POST", "/api/hub/tasks", body)
 
 
 @mcp.tool()
@@ -396,6 +398,99 @@ def get_langfuse_trace_detail(trace_id: str) -> dict[str, Any]:
         trace_id: LangFuse trace ID
     """
     return _request("GET", f"/api/langfuse/traces/{trace_id}")
+
+
+# ---------------------------------------------------------------------------
+# Repository management tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def list_repos() -> list[dict[str, Any]]:
+    """List all tracked repositories with their agent containers and settings."""
+    return _request("GET", "/api/hub/repos")
+
+
+@mcp.tool()
+def add_repo(
+    url: str,
+    name: str | None = None,
+    merge_queue_enabled: bool = False,
+    pr_shepherd_enabled: bool = False,
+    target_branch: str = "main",
+    is_fork: bool = False,
+    upstream_url: str | None = None,
+) -> dict[str, Any]:
+    """Register a GitHub repository for multi-agent management.
+
+    Persistent agents (merge-queue, PR shepherd) are auto-launched when enabled.
+
+    Args:
+        url: GitHub repository URL (e.g. https://github.com/org/repo)
+        name: Optional short name (derived from URL if omitted)
+        merge_queue_enabled: Auto-merge PRs when CI passes
+        pr_shepherd_enabled: Coordinate human code reviewers
+        target_branch: Branch for merge operations (default: main)
+        is_fork: Whether this repo is a fork
+        upstream_url: Upstream repo URL if this is a fork
+    """
+    body: dict[str, Any] = {
+        "url": url,
+        "merge_queue_enabled": merge_queue_enabled,
+        "pr_shepherd_enabled": pr_shepherd_enabled,
+        "target_branch": target_branch,
+        "is_fork": is_fork,
+    }
+    if name:
+        body["name"] = name
+    if upstream_url:
+        body["upstream_url"] = upstream_url
+    return _request("POST", "/api/hub/repos", body)
+
+
+@mcp.tool()
+def get_repo(name: str) -> dict[str, Any]:
+    """Get details for a tracked repository.
+
+    Args:
+        name: Repository short name
+    """
+    return _request("GET", f"/api/hub/repos/{name}")
+
+
+@mcp.tool()
+def update_repo(
+    name: str,
+    merge_queue_enabled: bool | None = None,
+    pr_shepherd_enabled: bool | None = None,
+    target_branch: str | None = None,
+) -> dict[str, Any]:
+    """Update settings for a tracked repository.
+
+    Args:
+        name: Repository short name
+        merge_queue_enabled: Toggle merge queue automation
+        pr_shepherd_enabled: Toggle PR shepherd coordination
+        target_branch: Change target branch for merge operations
+    """
+    body: dict[str, Any] = {}
+    if merge_queue_enabled is not None:
+        body["merge_queue_enabled"] = merge_queue_enabled
+    if pr_shepherd_enabled is not None:
+        body["pr_shepherd_enabled"] = pr_shepherd_enabled
+    if target_branch is not None:
+        body["target_branch"] = target_branch
+    return _request("PATCH", f"/api/hub/repos/{name}", body)
+
+
+@mcp.tool()
+def delete_repo(name: str) -> dict[str, Any]:
+    """Remove a tracked repository and stop its persistent agents.
+
+    Args:
+        name: Repository short name
+    """
+    return _request("DELETE", f"/api/hub/repos/{name}")
 
 
 def run() -> None:
