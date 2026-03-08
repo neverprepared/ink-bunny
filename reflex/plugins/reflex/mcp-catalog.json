@@ -73,6 +73,17 @@
         "args": ["-y", "mcp-remote@0.1.37", "https://mcp.microsoft-learn.com/api/mcp/sse"]
       }
     },
+    "az-pim": {
+      "description": "Azure PIM role management — list and activate eligible resource, group, and Entra role assignments via the CLI",
+      "category": "cloud",
+      "url": "https://github.com/neverprepared/az-pim-cli",
+      "requires": [],
+      "notes": "Requires az CLI authenticated via 'az login'. No additional env vars needed.",
+      "definition": {
+        "command": "az-pim-cli",
+        "args": ["mcp"]
+      }
+    },
     "azure": {
       "description": "Azure resource management",
       "category": "cloud",
