@@ -1,8 +1,8 @@
 class Reflex < Formula
   desc "Claude Code plugin for development workflows, skills, and MCP management"
   homepage "https://github.com/neverprepared/ink-bunny"
-  url "https://github.com/neverprepared/ink-bunny/releases/download/reflex-v1.13.1/reflex-1.13.1.tar.gz"
-  sha256 "87e659942e02fd6893b9c37275a9807418a745b073f1542e792f5aa3681ade4d"
+  url "https://github.com/neverprepared/ink-bunny/releases/download/reflex-v1.13.2/reflex-1.13.2.tar.gz"
+  sha256 "152fff5a5d48fc727c8233d39538fa4243728b0548811333f11e43badc653a6c"
   license "MIT"
 
   def install
