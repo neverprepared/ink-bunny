@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.15.0...reflex-v1.16.0) (2026-03-08)
+
+
+### Features
+
+* **reflex:** add az-pim MCP server to catalog ([4f1e734](https://github.com/neverprepared/ink-bunny/commit/4f1e7344d1a89531a25d0df6d0195e859a5dad87))
+* **reflex:** add az-pim-cli MCP server to catalog ([460dd34](https://github.com/neverprepared/ink-bunny/commit/460dd342c0da73f38b8c726fc165d161536275fa))
+
+
+### Bug Fixes
+
+* **reflex:** correct az-pim url to neverprepared fork ([b36b32a](https://github.com/neverprepared/ink-bunny/commit/b36b32aecba2e88b2770c522cf872e1a70038185))
+* **reflex:** point az-pim to mindmorass fork ([23d75cc](https://github.com/neverprepared/ink-bunny/commit/23d75cc2f09ba92c920c9893c61bf0f32d8fe2c6))
+
 ## [1.15.0](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.14.0...reflex-v1.15.0) (2026-03-08)
 
 
