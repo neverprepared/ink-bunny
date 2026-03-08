@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.13.3...reflex-v1.14.0) (2026-03-08)
+
+
+### Features
+
+* **reflex:** add cloudflare DNS MCP server to catalog ([73a1580](https://github.com/neverprepared/ink-bunny/commit/73a15802f883a5c382b6e39b5f8492dd0b8ee89b))
+
 ## [1.13.3](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.13.2...reflex-v1.13.3) (2026-03-08)
 
 
