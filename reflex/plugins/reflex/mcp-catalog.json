@@ -248,7 +248,7 @@
     "az-pim": {
       "description": "Azure Privileged Identity Management — activate and manage PIM role assignments",
       "category": "cloud",
-      "url": "https://github.com/netr0m/az-pim-cli",
+      "url": "https://github.com/mindmorass/az-pim-cli",
       "requires": [],
       "definition": {
         "command": "az-pim-cli",
