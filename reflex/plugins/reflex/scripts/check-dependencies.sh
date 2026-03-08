@@ -131,27 +131,20 @@ else
 fi
 
 # =============================================================================
-# MCP Server Migration & Status
+# MCP Server Status
 # =============================================================================
-MCP_CONFIG="${CLAUDE_DIR}/reflex/mcp-config.json"
 MCP_CATALOG="${CLAUDE_PLUGIN_ROOT}/mcp-catalog.json"
-MCP_GENERATE="${CLAUDE_PLUGIN_ROOT}/scripts/mcp-generate.sh"
+MCP_JSON="${WORKSPACE_HOME:-$HOME}/.mcp.json"
 
 MCP_STATUS=""
 if [[ -f "$MCP_CATALOG" ]]; then
   TOTAL_SERVERS=$(jq '.servers | length' "$MCP_CATALOG" 2>/dev/null || echo "0")
 
-  if [[ ! -f "$MCP_CONFIG" ]] && [[ -x "$MCP_GENERATE" ]]; then
-    # First run: migrate to create config with all servers installed+enabled
-    if "$MCP_GENERATE" --migrate --catalog "$MCP_CATALOG" --config "$MCP_CONFIG" >/dev/null 2>&1; then
-      MCP_STATUS="MCP servers migrated: all ${TOTAL_SERVERS} servers installed and enabled. Customize with /reflex:mcp select"
-    else
-      MCP_STATUS="MCP server migration failed. Run manually: /reflex:mcp select"
-    fi
-  elif [[ -f "$MCP_CONFIG" ]]; then
-    INSTALLED=$(jq '[.servers | to_entries[] | select(.value.installed == true)] | length' "$MCP_CONFIG" 2>/dev/null || echo "0")
-    ENABLED=$(jq '[.servers | to_entries[] | select(.value.installed == true and .value.enabled == true)] | length' "$MCP_CONFIG" 2>/dev/null || echo "0")
-    MCP_STATUS="MCP servers: ${ENABLED}/${TOTAL_SERVERS} enabled (${INSTALLED} installed). Manage: /reflex:mcp"
+  if [[ ! -f "$MCP_JSON" ]]; then
+    MCP_STATUS="MCP servers: none configured. Select servers with /reflex:mcp select"
+  else
+    ENABLED=$(jq '.mcpServers | length' "$MCP_JSON" 2>/dev/null || echo "0")
+    MCP_STATUS="MCP servers: ${ENABLED}/${TOTAL_SERVERS} enabled. Manage: /reflex:mcp"
   fi
 fi
 

@@ -78,7 +78,7 @@ The assistant should:
 1. Read the mcp-catalog.json file
 2. For each package, query npm/PyPI for latest version
 3. Use Edit tool to update each version string in mcp-catalog.json
-4. Run `${CLAUDE_PLUGIN_ROOT}/scripts/mcp-generate.sh` to sync updated servers with Claude Code
+4. Run `/reflex:mcp generate` to re-sync updated definitions from the catalog into `.mcp.json`
 5. Show summary of changes
 
 ### clear-cache

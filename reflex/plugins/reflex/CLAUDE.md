@@ -68,18 +68,21 @@ Reflex is a Claude Code plugin providing skills and RAG integration for applicat
 
 ## MCP Server Management
 
-MCP servers are managed separately from the plugin. The plugin provides a **catalog** of available servers; users install and enable the ones they need.
+MCP servers are managed via `.mcp.json` at `${WORKSPACE_HOME:-$HOME}/.mcp.json` — this is the
+source of truth. A server is **enabled** if its key exists in `.mcpServers`, **disabled** if absent.
+No separate tracking file.
 
-- **Catalog**: `plugins/reflex/mcp-catalog.json` — registry of all available servers
-- **User config**: `${CLAUDE_CONFIG_DIR}/reflex/mcp-config.json` — tracks installed/enabled state
-- **Registration**: Servers are registered via `claude mcp add-json --scope user` (stored in `.claude.json`)
+- **Catalog**: `plugins/reflex/mcp-catalog.json` — registry of 15 third-party servers
+- **Source of truth**: `${WORKSPACE_HOME:-$HOME}/.mcp.json` — read directly by Claude Code
+- **First-party servers**: `qdrant` and `brainbox` are plugin-declared — always available, not managed via `.mcp.json`
 - **Tool names**: `mcp__<server>__<tool>` (e.g., `mcp__atlassian__jira_search`)
 
 Key commands:
-- `/reflex:mcp select` — interactive selection to install/uninstall servers
-- `/reflex:mcp enable` — interactive selection to enable/disable installed servers
-- `/reflex:mcp install <server>` / `uninstall` / `enable` / `disable` — non-interactive management
-- `/reflex:mcp status` — show credential readiness per server
+- `/reflex:mcp select` — interactive multi-select to enable/disable servers
+- `/reflex:mcp enable <server>` / `disable <server>` — non-interactive management
+- `/reflex:mcp install <server>` / `uninstall <server>` — aliases for enable/disable
+- `/reflex:mcp status` — show enabled state and credential readiness per server
+- `/reflex:mcp generate` — re-sync definitions from catalog into `.mcp.json` (after catalog updates)
 
 ## Performance
 
