@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.2](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.13.1...reflex-v1.13.2) (2026-03-08)
+
+
+### Code Refactoring
+
+* simplify /reflex:mcp to use .mcp.json as source of truth ([41524a8](https://github.com/neverprepared/ink-bunny/commit/41524a843ce143f08504b41240cc5d6231f095f2))
+
 ## [1.13.1](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.13.0...reflex-v1.13.1) (2026-03-01)
 
 
