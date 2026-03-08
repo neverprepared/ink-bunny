@@ -135,6 +135,7 @@ Reflex includes a catalog of 17 MCP servers. Use `/reflex:mcp select` to choose 
 | spacelift | cloud | Spacelift IaC management and deployment |
 | google-workspace | collaboration | Gmail, Calendar, Drive, Docs |
 | brainbox | development | Container session management |
+| cloudflare | cloud | Cloudflare DNS record management |
 | uptime-kuma | cloud | Uptime Kuma v2 monitoring |
 
 Configure credentials with `/reflex:init <service>`. See `/reflex:mcp status` for current state.

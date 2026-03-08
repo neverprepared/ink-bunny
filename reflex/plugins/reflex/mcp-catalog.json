@@ -215,6 +215,19 @@
         }
       }
     },
+    "cloudflare": {
+      "description": "Cloudflare DNS record management — list, create, update, delete DNS records",
+      "category": "cloud",
+      "url": "https://github.com/neverprepared/mcp-cloudflare-dns",
+      "requires": ["CLOUDFLARE_API_TOKEN"],
+      "definition": {
+        "command": "npx",
+        "args": ["-y", "@neverprepared/mcp-cloudflare-dns"],
+        "env": {
+          "CLOUDFLARE_API_TOKEN": "${CLOUDFLARE_API_TOKEN}"
+        }
+      }
+    },
     "uptime-kuma": {
       "description": "Uptime Kuma v2 monitoring — monitors, notifications, tags, status pages, and maintenance",
       "category": "cloud",
