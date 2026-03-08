@@ -7,6 +7,7 @@ import json
 import re
 import shlex
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from typing import Any
 
 import docker
@@ -26,7 +27,11 @@ def _docker() -> docker.DockerClient:
     """Get or create Docker client singleton."""
     global _client
     if _client is None:
-        _client = docker.from_env()
+        macos_sock = Path.home() / ".docker" / "run" / "docker.sock"
+        if macos_sock.is_socket():
+            _client = docker.DockerClient(base_url=f"unix://{macos_sock}")
+        else:
+            _client = docker.from_env()
     return _client
 
 

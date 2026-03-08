@@ -37,7 +37,11 @@ log = get_logger()
 def _docker() -> docker.DockerClient:
     global _client
     if _client is None:
-        _client = docker.from_env()
+        macos_sock = Path.home() / ".docker" / "run" / "docker.sock"
+        if macos_sock.is_socket():
+            _client = docker.DockerClient(base_url=f"unix://{macos_sock}")
+        else:
+            _client = docker.from_env()
     return _client
 
 

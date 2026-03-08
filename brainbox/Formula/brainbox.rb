@@ -79,8 +79,13 @@ class Brainbox < Formula
           DOCKER_FLAGS="$DOCKER_FLAGS -it"
       fi
 
+      DOCKER_SOCK="${HOME}/.docker/run/docker.sock"
+      if [ ! -S "$DOCKER_SOCK" ]; then
+          DOCKER_SOCK="/var/run/docker.sock"
+      fi
+
       exec docker run $DOCKER_FLAGS \\
-          -v /var/run/docker.sock:/var/run/docker.sock \\
+          -v "$DOCKER_SOCK:/var/run/docker.sock" \\
           -v "$HOME/.config/brainbox:/home/developer/.config" \\
           -v "$PWD:/workspace" \\
           "$BRAINBOX_IMAGE" \\
