@@ -68,13 +68,12 @@ Reflex is a Claude Code plugin providing skills and RAG integration for applicat
 
 ## MCP Server Management
 
-MCP servers are managed via `.mcp.json` at `${WORKSPACE_HOME:-$HOME}/.mcp.json` — this is the
-source of truth. A server is **enabled** if its key exists in `.mcpServers`, **disabled** if absent.
-No separate tracking file.
+MCP servers are managed via `$CLAUDE_CONFIG_DIR/.claude.json` (user scope) — a server is
+**enabled** if its key exists in `.mcpServers`, **disabled** if absent. No separate config file.
 
 - **Catalog**: `plugins/reflex/mcp-catalog.json` — registry of 15 third-party servers
-- **Source of truth**: `${WORKSPACE_HOME:-$HOME}/.mcp.json` — read directly by Claude Code
-- **First-party servers**: `qdrant` and `brainbox` are plugin-declared — always available, not managed via `.mcp.json`
+- **Source of truth**: `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.claude.json` → `mcpServers`
+- **First-party servers**: `qdrant` and `brainbox` are plugin-declared — always available, not managed here
 - **Tool names**: `mcp__<server>__<tool>` (e.g., `mcp__atlassian__jira_search`)
 
 Key commands:
@@ -82,7 +81,7 @@ Key commands:
 - `/reflex:mcp enable <server>` / `disable <server>` — non-interactive management
 - `/reflex:mcp install <server>` / `uninstall <server>` — aliases for enable/disable
 - `/reflex:mcp status` — show enabled state and credential readiness per server
-- `/reflex:mcp generate` — re-sync definitions from catalog into `.mcp.json` (after catalog updates)
+- `/reflex:mcp generate` — re-sync definitions from catalog into `.claude.json` (after catalog updates)
 
 ## Performance
 

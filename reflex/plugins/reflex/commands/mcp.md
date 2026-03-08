@@ -6,23 +6,33 @@ argument-hint: [list|select|install|uninstall|enable|disable|status|generate] [s
 
 # MCP Server Management
 
-Manage MCP servers for your workspace. `.mcp.json` is the source of truth — a server is
-**enabled** if its key exists in `.mcpServers`, **disabled** if absent. No separate config file.
+Manage MCP servers for your workspace. `$CLAUDE_CONFIG_DIR/.claude.json` is the source of truth —
+a server is **enabled** if its key exists in `.mcpServers`, **disabled** if absent. No separate
+config file.
 
 ## Paths
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 CATALOG="${PLUGIN_ROOT}/mcp-catalog.json"
-MCP_JSON="${WORKSPACE_HOME:-$HOME}/.mcp.json"
+CLAUDE_JSON="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.claude.json"
 ```
 
-Initialize `.mcp.json` if missing (run before any subcommand that reads or writes it):
+**Important**: `.claude.json` contains many user settings — always update only the `mcpServers`
+key using `jq`, never overwrite the whole file.
+
+Helper for in-place updates:
 
 ```bash
-if [[ ! -f "$MCP_JSON" ]]; then
-  echo '{"mcpServers":{}}' > "$MCP_JSON"
-fi
+# Enable a server (add/overwrite one key in mcpServers)
+DEF=$(jq -c ".servers[\"$name\"].definition" "$CATALOG")
+jq --arg n "$name" --argjson d "$DEF" '.mcpServers[$n] = $d' "$CLAUDE_JSON" > /tmp/mcp.tmp && mv /tmp/mcp.tmp "$CLAUDE_JSON"
+
+# Disable a server (remove one key from mcpServers)
+jq --arg n "$name" 'del(.mcpServers[$n])' "$CLAUDE_JSON" > /tmp/mcp.tmp && mv /tmp/mcp.tmp "$CLAUDE_JSON"
+
+# Replace all mcpServers at once
+jq --argjson s "$NEW_SERVERS" '.mcpServers = $s' "$CLAUDE_JSON" > /tmp/mcp.tmp && mv /tmp/mcp.tmp "$CLAUDE_JSON"
 ```
 
 ---
@@ -35,9 +45,9 @@ Show all catalog servers with their enabled/disabled status.
 
 **Instructions:**
 
-1. Initialize `.mcp.json` if missing
-2. Read `${CATALOG}` and `${MCP_JSON}`
-3. Count enabled: number of keys in `.mcpServers`
+1. Read `${CATALOG}` and `${CLAUDE_JSON}`
+2. Enabled servers: `jq -r '.mcpServers | keys[]' "$CLAUDE_JSON"`
+3. Count enabled vs total catalog servers
 4. Display a table:
 
 ```
@@ -57,14 +67,14 @@ Show all catalog servers with their enabled/disabled status.
 
 ### `/reflex:mcp select`
 
-Interactive server selection — add/remove servers from `.mcp.json`.
+Interactive server selection — add/remove servers from `.claude.json`.
 
 **Instructions:**
 
-1. Initialize `.mcp.json` if missing
-2. Read `${CATALOG}` and `${MCP_JSON}`
-3. Collect currently enabled server names: `jq -r '.mcpServers | keys[]' "$MCP_JSON"`
-4. Present two `AskUserQuestion` calls (4 questions each, max 4 options per question):
+1. Read `${CATALOG}` and `${CLAUDE_JSON}`
+2. Collect currently enabled server names: `jq -r '.mcpServers | keys[]' "$CLAUDE_JSON"`
+3. Present two `AskUserQuestion` calls (4 questions each, max 4 options per question).
+   Pre-select options whose names are in the currently enabled set.
 
 **First call** (Development + Data & Docs):
 - Question 1 — "Which Development servers to enable?": `git`, `github`, `playwright`, `atlassian`
@@ -74,10 +84,10 @@ Interactive server selection — add/remove servers from `.mcp.json`.
 - Question 3 — "Which Azure Cloud servers to enable?": `azure`, `azure-devops`, `azure-ai-foundry`, `devbox`
 - Question 4 — "Which Ops & Infra servers to enable?": `kubernetes`, `spacelift`, `uptime-kuma`
 
-Option labels: `<name> - <description>` (from catalog). Pre-select servers currently in `.mcpServers`.
+Option labels: `<name> — <description>` (from catalog).
 
-5. Combine all selected names from both calls into `SELECTED`
-6. Build new `mcpServers` by reading `.servers.<name>.definition` from catalog for each selected name:
+4. Combine all selected names from both calls into `SELECTED`
+5. Build new `mcpServers` object from catalog definitions for each selected name:
 
 ```bash
 NEW_SERVERS='{}'
@@ -85,10 +95,10 @@ for name in "${SELECTED[@]}"; do
   DEF=$(jq -c ".servers[\"$name\"].definition" "$CATALOG")
   NEW_SERVERS=$(echo "$NEW_SERVERS" | jq --arg n "$name" --argjson d "$DEF" '. + {($n): $d}')
 done
-echo "{\"mcpServers\": $NEW_SERVERS}" > "$MCP_JSON"
+jq --argjson s "$NEW_SERVERS" '.mcpServers = $s' "$CLAUDE_JSON" > /tmp/mcp.tmp && mv /tmp/mcp.tmp "$CLAUDE_JSON"
 ```
 
-7. Output: "Updated `.mcp.json` — {N} servers enabled. Restart Claude Code to apply."
+6. Output: "Updated — {N} servers enabled. Restart Claude Code to apply."
 
 Note: `qdrant` and `brainbox` are plugin-declared and excluded from this selection.
 
@@ -96,32 +106,31 @@ Note: `qdrant` and `brainbox` are plugin-declared and excluded from this selecti
 
 ### `/reflex:mcp enable <server...>`
 
-Enable one or more servers by adding their definitions to `.mcp.json`.
+Enable one or more servers by adding their definitions to `.claude.json`.
 
 **Instructions:**
 
-1. Initialize `.mcp.json` if missing
-2. For each server name in arguments:
+1. For each server name in arguments:
    - Look up `.servers.<name>.definition` in `${CATALOG}`
    - If not found in catalog: warn "Unknown server: {name}" and skip
-   - Otherwise add/overwrite in `.mcp.json`:
+   - Otherwise add/overwrite:
      ```bash
      DEF=$(jq -c ".servers[\"$name\"].definition" "$CATALOG")
-     jq --arg n "$name" --argjson d "$DEF" '.mcpServers[$n] = $d' "$MCP_JSON" > /tmp/mcp.tmp && mv /tmp/mcp.tmp "$MCP_JSON"
+     jq --arg n "$name" --argjson d "$DEF" '.mcpServers[$n] = $d' "$CLAUDE_JSON" > /tmp/mcp.tmp && mv /tmp/mcp.tmp "$CLAUDE_JSON"
      ```
-3. Output: "Enabled: {names}. Restart Claude Code to apply."
+2. Output: "Enabled: {names}. Restart Claude Code to apply."
 
 ---
 
 ### `/reflex:mcp disable <server...>`
 
-Disable one or more servers by removing them from `.mcp.json`.
+Disable one or more servers by removing them from `.claude.json`.
 
 **Instructions:**
 
 1. For each server name in arguments:
    ```bash
-   jq --arg n "$name" 'del(.mcpServers[$n])' "$MCP_JSON" > /tmp/mcp.tmp && mv /tmp/mcp.tmp "$MCP_JSON"
+   jq --arg n "$name" 'del(.mcpServers[$n])' "$CLAUDE_JSON" > /tmp/mcp.tmp && mv /tmp/mcp.tmp "$CLAUDE_JSON"
    ```
 2. Output: "Disabled: {names}. Restart Claude Code to apply."
 
@@ -145,8 +154,8 @@ Show detailed status for each catalog server including credential readiness.
 
 **Instructions:**
 
-1. Initialize `.mcp.json` if missing
-2. Read `${CATALOG}` and `${MCP_JSON}`
+1. Read `${CATALOG}` and `${CLAUDE_JSON}`
+2. Enabled servers: `jq -r '.mcpServers | keys[]' "$CLAUDE_JSON"`
 3. For each catalog server, check:
    - **Enabled**: key present in `.mcpServers`
    - **Credentials**: for each var in `.servers.<name>.requires[]`, test `[[ -n "${!VAR}" ]]`
@@ -169,29 +178,28 @@ Show detailed status for each catalog server including credential readiness.
 
 ### `/reflex:mcp generate`
 
-Re-sync `.mcp.json` definitions from the current catalog (useful after `/reflex:update-mcp apply`).
+Re-sync `.claude.json` server definitions from the current catalog (useful after `/reflex:update-mcp apply`).
 
 **Instructions:**
 
-1. Read `${MCP_JSON}` — get list of currently enabled server names: `jq -r '.mcpServers | keys[]' "$MCP_JSON"`
+1. Read `${CLAUDE_JSON}` — get currently enabled names: `jq -r '.mcpServers | keys[]' "$CLAUDE_JSON"`
 2. For each enabled name: look up `.servers.<name>.definition` in `${CATALOG}`
    - If not in catalog: warn "Server '{name}' not in catalog — keeping existing definition" and skip
-3. Build updated `mcpServers` object and write to `.mcp.json`:
+3. Build updated `mcpServers` and write back (preserving all other `.claude.json` keys):
 
 ```bash
-ENABLED=$(jq -r '.mcpServers | keys[]' "$MCP_JSON")
+ENABLED=$(jq -r '.mcpServers | keys[]' "$CLAUDE_JSON")
 NEW_SERVERS='{}'
 while IFS= read -r name; do
   [[ -z "$name" ]] && continue
   DEF=$(jq -c ".servers[\"$name\"].definition // empty" "$CATALOG")
   if [[ -z "$DEF" ]]; then
-    # Keep existing definition
-    DEF=$(jq -c ".mcpServers[\"$name\"]" "$MCP_JSON")
+    DEF=$(jq -c ".mcpServers[\"$name\"]" "$CLAUDE_JSON")
     echo "Warning: '$name' not in catalog, keeping existing definition" >&2
   fi
   NEW_SERVERS=$(echo "$NEW_SERVERS" | jq --arg n "$name" --argjson d "$DEF" '. + {($n): $d}')
 done <<< "$ENABLED"
-echo "{\"mcpServers\": $NEW_SERVERS}" > "$MCP_JSON"
+jq --argjson s "$NEW_SERVERS" '.mcpServers = $s' "$CLAUDE_JSON" > /tmp/mcp.tmp && mv /tmp/mcp.tmp "$CLAUDE_JSON"
 ```
 
 4. Output: "Re-synced {N} server definitions from catalog. Restart Claude Code to apply."
