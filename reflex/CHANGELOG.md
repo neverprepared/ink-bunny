@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.14.0...reflex-v1.15.0) (2026-03-08)
+
+
+### Features
+
+* **reflex:** rename /reflex:container to /reflex:brainbox, rename cloudflare MCP key to cloudflare-dns ([a1e2d5a](https://github.com/neverprepared/ink-bunny/commit/a1e2d5a7c9cbd072601115f288fbb18ed5dfb596))
+
 ## [1.14.0](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.13.3...reflex-v1.14.0) (2026-03-08)
 
 
