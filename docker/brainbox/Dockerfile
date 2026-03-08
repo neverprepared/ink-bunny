@@ -34,16 +34,18 @@ RUN useradd -m -s /bin/bash developer \
 WORKDIR /home/developer
 
 # =============================================================================
-# Homebrew — install as root (required for QEMU cross-arch builds), then
-# hand ownership to developer so brew works normally at runtime.
+# Homebrew — pre-create prefix as root so the installer's sudo call is
+# unnecessary (required for QEMU cross-arch builds where sudo fails).
 # =============================================================================
-RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" \
-    && chown -R developer:developer /home/linuxbrew/.linuxbrew
+RUN mkdir -p /home/linuxbrew/.linuxbrew \
+    && chown -R developer:developer /home/linuxbrew
+
+USER developer
+
+RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 ENV PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:${PATH}"
 ENV HOMEBREW_NO_AUTO_UPDATE=1
-
-USER developer
 
 RUN brew install \
     fd \
