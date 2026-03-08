@@ -110,7 +110,7 @@ plugins/reflex/
 
 | Command | Description |
 |---------|-------------|
-| `/reflex:container` | Manage brainbox API and sandboxed containers (start/stop/status/create/query/dashboard/health/config) |
+| `/reflex:brainbox` | Manage brainbox API and sandboxed containers (start/stop/status/create/query/dashboard/health/config) |
 | `/reflex:agents` | List available agents |
 | `/reflex:skills` | List available skills |
 | `/reflex:mcp` | Manage MCP servers (list/install/uninstall/enable/disable/select) |

@@ -60,7 +60,7 @@ Key skills include:
 
 | Command | Description |
 |---------|-------------|
-| `/reflex:container <start\|stop\|status\|create\|query\|dashboard\|health\|config>` | Manage brainbox API and sandboxed containers |
+| `/reflex:brainbox <start\|stop\|status\|create\|query\|dashboard\|health\|config>` | Manage brainbox API and sandboxed containers |
 | `/reflex:agents` | List available agents |
 | `/reflex:skills` | List available skills |
 | `/reflex:mcp` | Manage MCP servers (list/install/uninstall/enable/disable/select) |

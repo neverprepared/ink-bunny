@@ -21,7 +21,7 @@ CONNECT_SCRIPT="${CLAUDE_PLUGIN_ROOT}/scripts/brainbox-connect.sh"
 
 ## Subcommands
 
-### `/reflex:container start`
+### `/reflex:brainbox start`
 
 Start the brainbox API locally (if not already running).
 
@@ -32,7 +32,7 @@ CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 Show the result to the user. If status is "connected", say it was already running. If "started", confirm the API was started. If "unavailable", explain why (check the `reason` field).
 
-### `/reflex:container stop`
+### `/reflex:brainbox stop`
 
 Stop a locally auto-started brainbox API.
 
@@ -50,7 +50,7 @@ else
 fi
 ```
 
-### `/reflex:container status`
+### `/reflex:brainbox status`
 
 Show connection info, running containers, and dashboard URL.
 
@@ -78,7 +78,7 @@ if [ -f "$URL_FILE" ]; then
 else
   echo "**Connection:** Not connected"
   echo ""
-  echo "Start with: /reflex:container start"
+  echo "Start with: /reflex:brainbox start"
 fi
 
 echo ""
@@ -97,7 +97,7 @@ echo "  BRAINBOX_URL=${BRAINBOX_URL:-<not set>}"
 echo "  BRAINBOX_AUTOSTART=${BRAINBOX_AUTOSTART:-<not set>}"
 ```
 
-### `/reflex:container dashboard`
+### `/reflex:brainbox dashboard`
 
 Open the brainbox dashboard in the default browser.
 
@@ -111,11 +111,11 @@ if [ -f "$URL_FILE" ]; then
   echo "Opened dashboard at $URL"
 else
   echo "Brainbox is not connected. Start it first:"
-  echo "  /reflex:container start"
+  echo "  /reflex:brainbox start"
 fi
 ```
 
-### `/reflex:container create`
+### `/reflex:brainbox create`
 
 Create a new sandboxed container. Auto-detects the caller's workspace profile and home from environment variables (`WORKSPACE_PROFILE`, `WORKSPACE_HOME`). An optional name can be provided as an argument; defaults to the profile name.
 
@@ -127,7 +127,7 @@ URL_FILE="${CLAUDE_DIR}/reflex/.brainbox-url"
 
 if [ ! -f "$URL_FILE" ]; then
   echo "Brainbox is not connected. Start it first:"
-  echo "  /reflex:container start"
+  echo "  /reflex:brainbox start"
   exit 1
 fi
 
@@ -180,16 +180,16 @@ Show the result: on success report the container URL and detected profile. On fa
 **Examples:**
 ```bash
 # Create with auto-detected profile name
-/reflex:container create
+/reflex:brainbox create
 
 # Create with custom name
-/reflex:container create myproject
+/reflex:brainbox create myproject
 
 # Create with additional volume mounts
-/reflex:container create myproject --mount /data:/workspace/data:ro --mount /configs:/workspace/.config:rw
+/reflex:brainbox create myproject --mount /data:/workspace/data:ro --mount /configs:/workspace/.config:rw
 ```
 
-### `/reflex:container query`
+### `/reflex:brainbox query`
 
 Send a query to a running container and get the response via tmux. This is the primary way to interact with containers for orchestration workflows.
 
@@ -199,23 +199,23 @@ URL_FILE="${CLAUDE_DIR}/reflex/.brainbox-url"
 
 if [ ! -f "$URL_FILE" ]; then
   echo "Brainbox is not connected. Start it first:"
-  echo "  /reflex:container start"
+  echo "  /reflex:brainbox start"
   exit 1
 fi
 
 URL=$(cat "$URL_FILE")
 
 # Parse arguments: session_name and query text
-# Format: /reflex:container query <session-name> <query-text>
+# Format: /reflex:brainbox query <session-name> <query-text>
 SESSION_NAME=$(echo "$ARG" | awk '{print $1}')
 QUERY=$(echo "$ARG" | cut -d' ' -f2-)
 
 if [ -z "$SESSION_NAME" ] || [ -z "$QUERY" ]; then
-  echo "Usage: /reflex:container query <session-name> <query>"
+  echo "Usage: /reflex:brainbox query <session-name> <query>"
   echo ""
   echo "Examples:"
-  echo "  /reflex:container query test-1 'What files are in the current directory?'"
-  echo "  /reflex:container query myproject 'Run the tests'"
+  echo "  /reflex:brainbox query test-1 'What files are in the current directory?'"
+  echo "  /reflex:brainbox query myproject 'Run the tests'"
   exit 1
 fi
 
@@ -237,13 +237,13 @@ Show the result to the user. On success, display the container's response. On ti
 **Examples:**
 ```bash
 # Query a container
-/reflex:container query test-1 Create a Python script that prints hello world
+/reflex:brainbox query test-1 Create a Python script that prints hello world
 
 # Run commands
-/reflex:container query myproject List all files in the workspace
+/reflex:brainbox query myproject List all files in the workspace
 ```
 
-### `/reflex:container health`
+### `/reflex:brainbox health`
 
 Check health status of observability services (LangFuse, Qdrant).
 
@@ -253,7 +253,7 @@ URL_FILE="${CLAUDE_DIR}/reflex/.brainbox-url"
 
 if [ ! -f "$URL_FILE" ]; then
   echo "Brainbox is not connected. Start it first:"
-  echo "  /reflex:container start"
+  echo "  /reflex:brainbox start"
   exit 1
 fi
 
@@ -274,7 +274,7 @@ QDRANT_URL=$(echo "$QDRANT" | jq -r '.url // "unknown"')
 echo "**Qdrant:** ${QDRANT_STATUS} (${QDRANT_URL})"
 ```
 
-### `/reflex:container config`
+### `/reflex:brainbox config`
 
 Show or set configuration values. With no extra arguments, show current config. With key=value pairs, update the config file.
 
@@ -298,8 +298,8 @@ echo ""
 echo "Config file: ${CONFIG_FILE}"
 echo ""
 echo "Set values with:"
-echo "  /reflex:container config url=http://host:port"
-echo "  /reflex:container config autostart=false"
+echo "  /reflex:brainbox config url=http://host:port"
+echo "  /reflex:brainbox config autostart=false"
 ```
 
 **Set config (e.g. `url=http://remote:8080`):**
@@ -331,7 +331,7 @@ cat "$CONFIG_FILE" | jq .
 If no argument or invalid argument provided, show usage:
 
 ```
-Usage: /reflex:container <start|stop|status|create|query|dashboard|health|config>
+Usage: /reflex:brainbox <start|stop|status|create|query|dashboard|health|config>
 
 Manage the brainbox API for sandboxed dev environments.
 
@@ -356,13 +356,13 @@ Configuration:
     BRAINBOX_AUTOSTART  true/false (default: true)
 
 Examples:
-  /reflex:container start
-  /reflex:container create
-  /reflex:container create myproject
-  /reflex:container create myproject --mount /data:/workspace/data:ro
-  /reflex:container query test-1 'List all files in the workspace'
-  /reflex:container health
-  /reflex:container status
-  /reflex:container config url=http://remote:9999
-  /reflex:container config autostart=false
+  /reflex:brainbox start
+  /reflex:brainbox create
+  /reflex:brainbox create myproject
+  /reflex:brainbox create myproject --mount /data:/workspace/data:ro
+  /reflex:brainbox query test-1 'List all files in the workspace'
+  /reflex:brainbox health
+  /reflex:brainbox status
+  /reflex:brainbox config url=http://remote:9999
+  /reflex:brainbox config autostart=false
 ```

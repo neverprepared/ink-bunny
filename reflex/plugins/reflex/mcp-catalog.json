@@ -215,7 +215,7 @@
         }
       }
     },
-    "cloudflare": {
+    "cloudflare-dns": {
       "description": "Cloudflare DNS record management — list, create, update, delete DNS records",
       "category": "cloud",
       "url": "https://github.com/neverprepared/mcp-cloudflare-dns",

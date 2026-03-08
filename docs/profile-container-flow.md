@@ -4,7 +4,7 @@ How workspace profiles, environment variables, and volume mounts flow from the h
 
 ## End-to-End Flow
 
-Each workspace profile is a self-contained directory with its own `.envrc`, `.env` template, `.ssh/`, `.gitconfig`, and a dedicated 1Password vault. The flow is identical for every profile — `cd` into it, direnv activates, and `/reflex:container create` provisions a container scoped to that profile.
+Each workspace profile is a self-contained directory with its own `.envrc`, `.env` template, `.ssh/`, `.gitconfig`, and a dedicated 1Password vault. The flow is identical for every profile — `cd` into it, direnv activates, and `/reflex:brainbox create` provisions a container scoped to that profile.
 
 ```mermaid
 graph TB
@@ -29,7 +29,7 @@ graph TB
         Load["dotenv_if_exists<br/><i>all vars available in shell</i>"]
     end
 
-    subgraph Reflex["Reflex Plugin — /reflex:container create"]
+    subgraph Reflex["Reflex Plugin — /reflex:brainbox create"]
         DetectProfile["Auto-detect from env<br/>WORKSPACE_PROFILE<br/>WORKSPACE_HOME"]
         APICall["POST /api/create<br/>{name, workspace_profile,<br/>workspace_home}"]
     end
@@ -211,7 +211,7 @@ sequenceDiagram
     D->>D: dotenv_if_exists $cache/.env
     Note over D: Shell now has all profile vars
 
-    Note over BB: /reflex:container create
+    Note over BB: /reflex:brainbox create
     BB->>BB: Read WORKSPACE_PROFILE + WORKSPACE_HOME from caller env
     BB->>VC: Read $TMPDIR/sp-profiles/{profile}/.env
     BB->>BB: Filter _HOST_ONLY_VARS<br/>(HOME, PATH, SSH_AUTH_SOCK,<br/>CLAUDE_CONFIG_DIR, ...)
