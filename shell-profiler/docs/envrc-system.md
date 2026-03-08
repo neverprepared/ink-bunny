@@ -6,7 +6,7 @@ Shell-profiler uses a three-file system for environment configuration:
 
 ```
 .envrc         → Main direnv config (version controlled)
-.env           → Base environment variables (version controlled, additive updates)
+.env           → Base environment variables (gitignored by default; additive updates)
 .envrc.local   → Local overrides (NOT version controlled, gitignored)
 ```
 
@@ -27,11 +27,11 @@ Shell-profiler uses a three-file system for environment configuration:
 - Welcome message and iTerm2 tab color
 
 **Template variables**:
-- `{{.ProfileName}}` - Only in comments
+- `{{.ProfileName}}` - In comments and in `export WORKSPACE_PROFILE="{{.ProfileName}}"`
 - `{{.Template}}` - Only for iTerm2 tab color selection
 - `{{.CreatedAt}}` - Only in comments
 
-**Updates**: Overwritten by `shell-profiler create/update` - should not be manually edited
+**Updates**: `shell-profiler create` overwrites with the full template; `shell-profiler update` makes targeted in-place modifications (preserves manual edits where possible)
 
 **Example**:
 ```bash
@@ -69,7 +69,7 @@ fi
 
 **Purpose**: Tool-specific paths and configuration (non-secret)
 
-**Status**: ✅ Version controlled, template-based with user additions preserved
+**Status**: ⚠️ Gitignored by default (`.gitignore` excludes `.env`); template-based with user additions preserved
 
 **Contains**:
 - Git configuration paths (`GIT_CONFIG_GLOBAL`, `GIT_SSH_COMMAND`)
@@ -184,7 +184,7 @@ When you `cd` into a profile directory:
    ↓
 2. .envrc sets WORKSPACE_PROFILE and WORKSPACE_HOME
    ↓
-3. .envrc loads global/.global/exports.sh (if exists)
+3. .envrc loads .global/exports.sh from the parent directory of the profile (if exists)
    ↓
 4. .envrc resolves profile environment:
    - Starts with .env (base template)
@@ -205,7 +205,7 @@ When you `cd` into a profile directory:
 | Aspect | .envrc | .env | .envrc.local |
 |--------|--------|------|--------------|
 | **Purpose** | direnv logic | Base env vars | Local overrides |
-| **Version Control** | ✅ Yes | ✅ Yes | ❌ No (gitignored) |
+| **Version Control** | ✅ Yes | ⚠️ Gitignored by default | ❌ No (gitignored) |
 | **Template-based** | ✅ Yes | ✅ Yes | ❌ No (user-managed) |
 | **Updates** | Overwritten | Additive only | Never touched |
 | **User edits** | ❌ Discouraged | ✅ Preserved | ✅ Expected |
@@ -226,7 +226,7 @@ Creates all files from templates:
 ### shell-profiler update
 
 Updates existing profiles:
-- `.envrc` → **OVERWRITTEN** with latest template (preserves profile name/type)
+- `.envrc` → **TARGETED IN-PLACE MODIFICATIONS** - removes stale tool exports, adds `dotenv_if_exists .env` if missing, updates vault discovery block; does not fully overwrite
 - `.env` → **ADDITIVE** - only appends missing variables
 - `.envrc.local` → **NEVER TOUCHED** - preserved as-is
 
@@ -236,9 +236,9 @@ Updates existing profiles:
 
 ### ✅ DO
 
-1. **Commit `.envrc` and `.env` to git**
+1. **Commit `.envrc` to git** (`.env` is gitignored by default — remove it from `.gitignore` only if it contains no secrets)
    ```bash
-   git add .envrc .env
+   git add .envrc
    git commit -m "feat: add workspace profile"
    ```
 
@@ -397,7 +397,7 @@ If you have an old profile with everything in `.envrc`:
 shell-profiler create my-project --template work
 
 # Navigate to profile
-cd ~/.config/shell-profiler/profiles/my-project
+cd ~/workspaces/profiles/my-project
 
 # Allow direnv
 direnv allow

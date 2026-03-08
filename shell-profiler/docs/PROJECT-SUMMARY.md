@@ -51,25 +51,22 @@ This workspace profile switcher allows you to:
 ## Architecture
 
 ```
-workspace-profiles/
-├── profile                    # Main CLI entry point (Go binary)
-├── profiles/                  # Your workspace profiles
-│   ├── personal/             # Personal workspace
-│   │   ├── .envrc           # Environment variables
-│   │   ├── dotfiles/        # Configuration files
-│   │   │   └── .gitconfig   # Git configuration
-│   │   ├── bin/             # Custom scripts (in PATH)
-│   │   └── .env             # Secrets (gitignored)
-│   ├── work/                # Work workspace
-│   └── client-acme/         # Client workspace
-├── docs/
-│   └── examples/            # Templates and examples
-│   ├── .envrc.example       # Example environment config
-│   └── .gitconfig.example   # Example git config
-└── docs/                    # Documentation
-    ├── README.md            # Full documentation (in root)
-    ├── QUICKSTART.md        # Quick start guide
-    └── INSTALL.md           # Installation guide
+~/workspaces/profiles/         # Profiles directory (configurable via shell-profiler init)
+├── personal/                 # Personal workspace
+│   ├── .envrc               # Core workspace identity + direnv commands
+│   ├── .env                 # Tool-specific path variables
+│   ├── .gitconfig           # Git configuration
+│   ├── .gitignore
+│   ├── .ssh/config
+│   ├── .aws/
+│   ├── .kube/
+│   ├── .config/
+│   │   ├── 1Password/agent.toml
+│   │   ├── claude/
+│   │   └── gemini/
+│   └── bin/                 # Custom scripts (auto-added to PATH)
+├── work/                    # Work workspace
+└── client-acme/             # Client workspace
 ```
 
 ## Core Components
@@ -86,9 +83,10 @@ workspace-profiles/
 Each profile contains:
 
 - `.envrc` - Core workspace identity and direnv commands
-- `.env` - Tool-specific path variables and secrets (not tracked in git)
-- `dotfiles/.gitconfig` - Git configuration
-- `bin/` - Custom executable scripts
+- `.env` - Tool-specific path variables (gitignored by default)
+- `.gitconfig` - Git configuration
+- `.gitignore` - Git ignore rules
+- `bin/` - Custom executable scripts (auto-added to PATH)
 - `.env.example` - Template for tool variables and secrets
 
 ### 3. Environment Variables
@@ -100,7 +98,7 @@ Key variables set by each profile:
 - `WORKSPACE_PROFILE` - Profile name
 - `WORKSPACE_HOME` - Profile directory path
 - `PATH_add bin` - Add scripts to PATH
-- `dotenv_if_exists .env` - Load tool-specific variables
+- 1Password secret resolution + `dotenv_if_exists "$_sp_env"` - Load resolved environment
 
 **In `.env`** (tool-specific path variables and secrets):
 
@@ -110,31 +108,35 @@ Key variables set by each profile:
 
 ### 4. Management Tools
 
-Scripts for profile lifecycle:
+Commands for profile lifecycle:
 
-- `profile create` - Create new profiles
-- `profile list` - List all profiles
-- `profile delete` - Remove profiles
-- `profile info` - Show current profile details
-- `profile status` - Show direnv status
+- `shell-profiler create` - Create new profiles
+- `shell-profiler list` - List all profiles
+- `shell-profiler select` - Select and switch to a profile
+- `shell-profiler delete` - Remove profiles
+- `shell-profiler update` - Update a profile with new features
+- `shell-profiler info` - Show current profile details
+- `shell-profiler status` - Show direnv status
+- `shell-profiler dotfiles` - Manage dotfiles within a profile
+- `shell-profiler sync` - Git sync operations (init, pull, push, sync, remote, status)
 
 ## Workflow Example
 
 ```bash
 # Create a new work profile
-./profile create my-work-project \
+shell-profiler create my-work-project \
     --template work \
     --git-name "John Doe" \
     --git-email "john@company.com"
 
 # Navigate to the profile
-cd profiles/my-work-project
+cd ~/workspaces/profiles/my-work-project
 
 # Allow direnv (first time only)
 direnv allow
 
 # Verify profile is active
-./profile info
+shell-profiler info
 # Output:
 #   Profile Name:    my-work-project
 #   Profile Home:    /path/to/profiles/my-work-project
@@ -152,7 +154,7 @@ git commit -m "My commit"
 # Commits are made as john@company.com
 
 # Switch to personal project
-cd ../../profiles/personal
+cd ~/workspaces/profiles/personal
 # Environment automatically switches
 git config user.email
 # Output: personal@example.com
@@ -265,23 +267,21 @@ The system can configure any tool that uses environment variables:
 
 ### CLI Commands
 
-- `profile` - Main CLI entry point (Go binary)
-  - `profile create` - Profile creation
-  - `profile list` - Profile listing
-  - `profile delete` - Profile deletion
-  - `profile info` - Show current profile
-  - `profile status` - Show direnv status
-  - `profile git` - Git operations
-
-### Templates (2 files)
-
-- `docs/examples/.envrc.example` - Environment template
-- `docs/examples/.gitconfig.example` - Git config template
+- `shell-profiler` - Main CLI binary
+  - `shell-profiler create` - Profile creation
+  - `shell-profiler list` - Profile listing
+  - `shell-profiler select` - Profile selection
+  - `shell-profiler delete` - Profile deletion
+  - `shell-profiler update` - Update profile with new features
+  - `shell-profiler info` - Show current profile
+  - `shell-profiler status` - Show direnv status
+  - `shell-profiler dotfiles` - Manage dotfiles
+  - `shell-profiler sync` - Git sync operations
 
 ### Generated Per Profile (6+ files)
 
 - `.envrc` - Environment configuration
-- `dotfiles/.gitconfig` - Git configuration
+- `.gitconfig` - Git configuration
 - `.gitignore` - Git ignore rules
 - `.env.example` - Secrets template
 - `README.md` - Profile documentation
@@ -302,10 +302,10 @@ echo 'eval "$(direnv hook bash)"' >> ~/.bashrc
 exec $SHELL
 
 # 4. Create profile
-./profile create my-project --interactive
+shell-profiler create my-project --interactive
 
 # 5. Activate
-cd profiles/my-project
+cd ~/workspaces/profiles/my-project
 direnv allow
 ```
 
@@ -363,14 +363,14 @@ use_aws() {
 
 ### Profile Templates
 
-Templates are built into the Go CLI. To add custom templates, modify the template logic in `internal/commands/create.go`.
+Templates are built into the Go CLI. To add custom templates, modify the template files in `internal/templates/`.
 
 ## Maintenance
 
 ### Regular Tasks
 
-- Review active profiles: `./profile list --verbose`
-- Clean up old profiles: `./profile delete old-project`
+- Review active profiles: `shell-profiler list --verbose`
+- Clean up old profiles: `shell-profiler delete old-project`
 - Update git configs as identity changes
 - Rotate secrets in `.env` files
 

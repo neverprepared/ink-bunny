@@ -157,8 +157,8 @@ User Command
     ▼
 ┌────────────────────────────────────┐
 │ File System                        │
-│   ~/.config/shell-profiler/        │
-│     profiles/my-profile/           │
+│   ~/workspaces/profiles/           │
+│     my-profile/                    │
 │       ├─ .envrc                    │
 │       ├─ .env                      │
 │       ├─ .gitconfig                │

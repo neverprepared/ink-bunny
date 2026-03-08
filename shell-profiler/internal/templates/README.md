@@ -118,7 +118,7 @@ func createSSHConfig(profileDir string, opts CreateOptions) error {
 
 - `ProfileName` - Name of the workspace profile
 - `Template` - Template type (basic, personal, work, client)
-- `CreatedAt` - Timestamp when the profile was created (RFC3339 format)
+- `CreatedAt` - Timestamp when the profile was created (format: `2006-01-02 15:04:05 UTC`)
 
 ### Template-Specific Variables
 

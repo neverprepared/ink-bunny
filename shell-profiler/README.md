@@ -40,29 +40,24 @@ When you navigate into a workspace directory, direnv automatically loads the pro
 ## Directory Structure
 
 ```
-workspace-profiles/
-├── README.md
-├── profiles/
-│   ├── personal/
-│   │   ├── .envrc              # Workspace core vars + direnv commands
-│   │   ├── .env                # Tool-specific path variables
-│   │   └── dotfiles/
-│   │       └── .gitconfig
-│   ├── work/
-│   │   ├── .envrc
-│   │   ├── .env
-│   │   └── dotfiles/
-│   │       └── .gitconfig
-│   └── client-acme/
-│       ├── .envrc
-│       ├── .env
-│       └── dotfiles/
-│           └── .gitconfig
-└── docs/
-    └── examples/
-        ├── .envrc.example
-        ├── .env.example
-        └── .gitconfig.example
+~/workspaces/profiles/
+├── personal/
+│   ├── .envrc              # Core workspace identity + direnv commands
+│   ├── .env                # Tool-specific path variables
+│   ├── .gitconfig          # Git configuration
+│   ├── .gitignore
+│   ├── .ssh/config
+│   ├── .aws/
+│   ├── .kube/
+│   ├── .config/
+│   │   ├── 1Password/agent.toml
+│   │   ├── claude/
+│   │   └── gemini/
+│   └── bin/                # Custom scripts (auto-added to PATH)
+├── work/
+│   └── ...
+└── client-acme/
+    └── ...
 ```
 
 ## Prerequisites
@@ -107,7 +102,7 @@ workspace-profiles/
 2. **Navigate to your workspace**:
 
    ```bash
-   cd profiles/my-project
+   cd ~/workspaces/profiles/my-project
    ```
 
 3. **Allow direnv** (first time only):
@@ -133,7 +128,7 @@ When you enter a workspace directory, direnv loads two files:
 - **`WORKSPACE_PROFILE`**: Name of the current profile (e.g., "personal", "work")
 - **`WORKSPACE_HOME`**: Absolute path to the workspace directory
 - `PATH_add bin` and other direnv stdlib commands
-- Loads `.env` via `dotenv_if_exists`
+- Resolves profile environment (`.env` base + 1Password secrets from `workspace-<profile>` vault) and loads via `dotenv_if_exists`
 
 **`.env`** — Tool-specific path variables (dotenv format, no `export`):
 
@@ -166,7 +161,7 @@ Profiles ship with built-in support for the following tools:
 - **Azure**: `AZURE_CONFIG_DIR`
 - **Docker**: `DOCKER_CONFIG`
 
-The same pattern extends to any tool that reads environment variables. See `docs/examples/.env.example` for the full list of supported variables.
+The same pattern extends to any tool that reads environment variables.
 
 > **We welcome pull requests** that add first-class support for additional tools and ecosystems. If you configure a tool via environment variables in your own profiles, consider contributing it back so others can benefit.
 
@@ -177,13 +172,13 @@ The same pattern extends to any tool that reads environment variables. See `docs
 1. Create profile directory:
 
    ```bash
-   mkdir -p profiles/my-profile/dotfiles
+   mkdir -p ~/workspaces/profiles/my-profile/{.ssh,.aws,.kube,bin}
    ```
 
 2. Create `.envrc`:
 
    ```bash
-   cat > profiles/my-profile/.envrc << 'EOF'
+   cat > ~/workspaces/profiles/my-profile/.envrc << 'EOF'
    # Set workspace identification
    export WORKSPACE_PROFILE="my-profile"
    export WORKSPACE_HOME="$PWD"
@@ -199,17 +194,17 @@ The same pattern extends to any tool that reads environment variables. See `docs
 3. Create `.env` (tool-specific path variables):
 
    ```bash
-   cat > profiles/my-profile/.env << 'EOF'
-   GIT_CONFIG_GLOBAL="$WORKSPACE_HOME/dotfiles/.gitconfig"
-   GIT_SSH_COMMAND="ssh -F $WORKSPACE_HOME/dotfiles/.ssh/config"
-   XDG_CONFIG_HOME="$WORKSPACE_HOME/dotfiles/.config"
+   cat > ~/workspaces/profiles/my-profile/.env << 'EOF'
+   GIT_CONFIG_GLOBAL="$WORKSPACE_HOME/.gitconfig"
+   GIT_SSH_COMMAND="ssh -F $WORKSPACE_HOME/.ssh/config"
+   XDG_CONFIG_HOME="$WORKSPACE_HOME/.config"
    EOF
    ```
 
 4. Create `.gitconfig`:
 
    ```bash
-   cat > profiles/my-profile/dotfiles/.gitconfig << 'EOF'
+   cat > ~/workspaces/profiles/my-profile/.gitconfig << 'EOF'
    [user]
        name = Your Name
        email = your.email@example.com
@@ -224,7 +219,7 @@ The same pattern extends to any tool that reads environment variables. See `docs
 
 5. Allow direnv:
    ```bash
-   cd profiles/my-profile
+   cd ~/workspaces/profiles/my-profile
    direnv allow
    ```
 
@@ -232,8 +227,8 @@ The same pattern extends to any tool that reads environment variables. See `docs
 
 ```bash
 shell-profiler create my-profile
-cd profiles/my-profile
-# Edit dotfiles/.gitconfig as needed
+cd ~/workspaces/profiles/my-profile
+# Edit .gitconfig as needed
 direnv allow
 ```
 
@@ -243,11 +238,11 @@ direnv allow
 
 ```bash
 # Work on personal project
-cd ~/workspaces/build/profiles/personal
+cd ~/workspaces/profiles/personal
 # Git now uses personal email: personal@example.com
 
 # Switch to work project
-cd ~/workspaces/build/profiles/work
+cd ~/workspaces/profiles/work
 # Git now uses work email: work@company.com
 ```
 
@@ -348,7 +343,7 @@ This project was built with Go, direnv, and standard Unix tooling. We encourage 
 - Improve profile templates and example configurations
 - Fix bugs or improve documentation
 
-Pull requests are welcome. See `CLAUDE.md` for development guidelines and `docs/examples/` for the current set of tool integrations.
+Pull requests are welcome. See `CLAUDE.md` for development guidelines.
 
 ## References
 

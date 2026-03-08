@@ -73,10 +73,10 @@ Three example profiles are ready to use:
 
 ```bash
 # View all profiles
-./profile list
+shell-profiler list
 
 # See detailed information
-./profile list --verbose
+shell-profiler list --verbose
 ```
 
 You'll see:
@@ -87,11 +87,11 @@ You'll see:
 
 ## Step 3: Try It Out
 
-### Activate the Personal Profile
+### Activate a Profile
 
 ```bash
-# Navigate to the personal profile
-cd profiles/personal
+# Navigate to the profile
+cd ~/workspaces/profiles/personal
 
 # Allow direnv (REQUIRED - first time only)
 direnv allow
@@ -123,7 +123,7 @@ git config user.email
 
 ```bash
 # Navigate to work profile
-cd ../work
+cd ~/workspaces/profiles/work
 
 # Allow direnv (first time only)
 direnv allow
@@ -147,7 +147,7 @@ git config user.email
 cd ../..
 
 # Create a new profile interactively
-./profile create my-project --interactive
+shell-profiler create my-project --interactive
 ```
 
 Follow the prompts to configure your profile.
@@ -155,7 +155,7 @@ Follow the prompts to configure your profile.
 ### Option B: Quick Creation
 
 ```bash
-./profile create my-project \
+shell-profiler create my-project \
     --template personal \
     --git-name "Your Name" \
     --git-email "your@email.com"
@@ -164,7 +164,7 @@ Follow the prompts to configure your profile.
 ### Option C: Work Profile with Full Config
 
 ```bash
-./profile create my-work-project \
+shell-profiler create my-work-project \
     --template work \
     --git-name "Work Name" \
     --git-email "work@company.com"
@@ -175,7 +175,7 @@ Follow the prompts to configure your profile.
 Navigate to your new profile:
 
 ```bash
-cd profiles/my-project
+cd ~/workspaces/profiles/my-project
 direnv allow
 ```
 
@@ -191,9 +191,9 @@ Add tool-specific path variables and secrets:
 
 ```bash
 # Tool configurations (path variables)
-GIT_CONFIG_GLOBAL="$WORKSPACE_HOME/dotfiles/.gitconfig"
-NPM_CONFIG_USERCONFIG="$WORKSPACE_HOME/dotfiles/.npmrc"
-DOCKER_CONFIG="$WORKSPACE_HOME/dotfiles/.docker"
+GIT_CONFIG_GLOBAL="$WORKSPACE_HOME/.gitconfig"
+NPM_CONFIG_USERCONFIG="$WORKSPACE_HOME/.npmrc"
+DOCKER_CONFIG="$WORKSPACE_HOME/.docker"
 
 # Secrets (API keys, tokens, credentials)
 AWS_ACCESS_KEY_ID=AKIA...
@@ -230,7 +230,7 @@ direnv allow
 Edit git configuration:
 
 ```bash
-vim dotfiles/.gitconfig
+vim .gitconfig
 ```
 
 Add your preferences:
@@ -280,25 +280,25 @@ deploy.sh
 
 ```bash
 # Create client profiles
-./profile create client-alpha --template client --git-email "dev@alpha.com"
-./profile create client-beta --template client --git-email "dev@beta.com"
+shell-profiler create client-alpha --template client --git-email "dev@alpha.com"
+shell-profiler create client-beta --template client --git-email "dev@beta.com"
 
 # Switch between them
-cd profiles/client-alpha  # Uses dev@alpha.com
-cd ../client-beta         # Uses dev@beta.com
+cd ~/workspaces/profiles/client-alpha  # Uses dev@alpha.com
+cd ~/workspaces/profiles/client-beta   # Uses dev@beta.com
 ```
 
 ### Personal vs Work Separation
 
 ```bash
 # Morning: Work on company projects
-cd profiles/work
+cd ~/workspaces/profiles/work
 git clone https://github.com/company/repo.git
 cd repo
 git commit -m "Work commit"  # Commits as work@company.com
 
 # Evening: Work on personal projects
-cd ../../profiles/personal
+cd ~/workspaces/profiles/personal
 git clone https://github.com/me/my-project.git
 cd my-project
 git commit -m "Personal commit"  # Commits as personal@example.com
@@ -308,9 +308,9 @@ git commit -m "Personal commit"  # Commits as personal@example.com
 
 ```bash
 # Create cloud-specific profiles
-./profile create aws-dev
-./profile create azure-dev
-./profile create gcp-dev
+shell-profiler create aws-dev
+shell-profiler create azure-dev
+shell-profiler create gcp-dev
 
 # In each profile's .env, add:
 # AWS profile
@@ -318,35 +318,35 @@ AWS_PROFILE="my-aws-profile"
 AWS_DEFAULT_REGION="us-east-1"
 
 # Azure profile
-AZURE_CONFIG_DIR="$WORKSPACE_HOME/dotfiles/.azure"
+AZURE_CONFIG_DIR="$WORKSPACE_HOME/.azure"
 
 # GCP profile
-CLOUDSDK_CONFIG="$WORKSPACE_HOME/dotfiles/.config/gcloud"
+CLOUDSDK_CONFIG="$WORKSPACE_HOME/.gcloud"
 ```
 
 ## Essential Commands
 
 ```bash
 # Create new profile
-./profile create <name> [options]
+shell-profiler create <name> [options]
 
 # List all profiles
-./profile list
+shell-profiler list
 
 # List with details
-./profile list --verbose
+shell-profiler list --verbose
 
 # Show current profile info
-./profile info
+shell-profiler info
 
 # Show direnv status
-./profile status
+shell-profiler status
 
 # Delete a profile
-./profile delete <name>
+shell-profiler delete <name>
 
 # Get help
-./profile help
+shell-profiler help
 ```
 
 ## Understanding the Files
@@ -372,16 +372,16 @@ Tool-specific path variables and secret values in dotenv format (no `export` key
 
 ```bash
 # Tool configurations
-GIT_CONFIG_GLOBAL="$WORKSPACE_HOME/dotfiles/.gitconfig"
-DOCKER_CONFIG="$WORKSPACE_HOME/dotfiles/.docker"
-KUBECONFIG="$WORKSPACE_HOME/dotfiles/.kube/config"
+GIT_CONFIG_GLOBAL="$WORKSPACE_HOME/.gitconfig"
+DOCKER_CONFIG="$WORKSPACE_HOME/.docker"
+KUBECONFIG="$WORKSPACE_HOME/.kube/config"
 
 # Secrets
 AWS_ACCESS_KEY_ID=AKIA...
 API_KEY=secret-key
 ```
 
-### `dotfiles/.gitconfig` - Git Configuration
+### `.gitconfig` - Git Configuration
 
 Your git settings for this profile.
 

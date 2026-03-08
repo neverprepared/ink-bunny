@@ -47,7 +47,7 @@ Get up and running with workspace profiles in 5 minutes.
 ### Option 1: Interactive Setup (Recommended for First-Time Users)
 
 ```bash
-profile create my-project --interactive
+shell-profiler create my-project --interactive
 ```
 
 Follow the prompts to configure your profile.
@@ -56,15 +56,15 @@ Follow the prompts to configure your profile.
 
 ```bash
 # Create a basic profile
-profile create my-project
+shell-profiler create my-project
 
 # Or create with git configuration
-profile create my-project \
+shell-profiler create my-project \
     --git-name "Your Name" \
     --git-email "your.email@example.com"
 
 # Use a template
-profile create work-project --template work \
+shell-profiler create work-project --template work \
     --git-name "Work Name" \
     --git-email "work@company.com"
 ```
@@ -73,16 +73,16 @@ profile create work-project --template work \
 
 Three example profiles are already created:
 
-- `profiles/personal` - Personal projects
-- `profiles/work` - Work projects
-- `profiles/client-acme` - Client projects
+- `~/workspaces/profiles/personal` - Personal projects
+- `~/workspaces/profiles/work` - Work projects
+- `~/workspaces/profiles/client-acme` - Client projects
 
 ## Activate a Profile
 
 1. **Navigate to the profile directory**:
 
    ```bash
-   cd profiles/personal
+   cd ~/workspaces/profiles/personal
    ```
 
 2. **Allow direnv** (first time only):
@@ -94,7 +94,7 @@ Three example profiles are already created:
    You should see:
 
    ```
-   direnv: loading ~/workspaces/build/workspace-profiles/profiles/personal/.envrc
+   direnv: loading ~/workspaces/profiles/personal/.envrc
    direnv: export +GIT_CONFIG_GLOBAL +WORKSPACE_HOME +WORKSPACE_PROFILE ~PATH
    ```
 
@@ -117,22 +117,22 @@ Switch between profiles and watch the environment change:
 
 ```bash
 # Go to personal profile
-cd profiles/personal
+cd ~/workspaces/profiles/personal
 git config user.email
 # Output: personal@example.com
 
 # Switch to work profile
-cd ../work
+cd ~/workspaces/profiles/work
 git config user.email
 # Output: work@company.com
 
 # Switch to client profile
-cd ../client-acme
+cd ~/workspaces/profiles/client-acme
 git config user.email
 # Output: dev@acmecorp.com
 
 # Leave all profiles
-cd ../..
+cd ~
 git config user.email
 # Output: (your global git config)
 ```
@@ -144,8 +144,8 @@ git config user.email
 Edit the profile's git config:
 
 ```bash
-cd profiles/personal
-vim dotfiles/.gitconfig
+cd ~/workspaces/profiles/personal
+vim .gitconfig
 ```
 
 Changes take effect immediately for that profile.
@@ -155,7 +155,7 @@ Changes take effect immediately for that profile.
 Edit the profile's `.env` file (dotenv format, no `export` keyword):
 
 ```bash
-cd profiles/personal
+cd ~/workspaces/profiles/personal
 vim .env
 ```
 
@@ -163,9 +163,9 @@ Add tool-specific path variables and secrets:
 
 ```bash
 # Tool configurations (path variables)
-GIT_CONFIG_GLOBAL="$WORKSPACE_HOME/dotfiles/.gitconfig"
-NPM_CONFIG_USERCONFIG="$WORKSPACE_HOME/dotfiles/.npmrc"
-DOCKER_CONFIG="$WORKSPACE_HOME/dotfiles/.docker"
+GIT_CONFIG_GLOBAL="$WORKSPACE_HOME/.gitconfig"
+NPM_CONFIG_USERCONFIG="$WORKSPACE_HOME/.npmrc"
+DOCKER_CONFIG="$WORKSPACE_HOME/.docker"
 
 # Secrets (API keys, tokens, credentials)
 AWS_ACCESS_KEY_ID=your-key
@@ -201,7 +201,7 @@ direnv allow
 Put executable scripts in the `bin/` directory:
 
 ```bash
-cd profiles/personal
+cd ~/workspaces/profiles/personal
 cat > bin/deploy.sh << 'EOF'
 #!/bin/bash
 echo "Deploying from $WORKSPACE_PROFILE..."
@@ -237,17 +237,17 @@ env | grep WORKSPACE
 
 ```bash
 # Create profile for your project
-profile create my-existing-project \
+shell-profiler create my-existing-project \
     --git-name "Your Name" \
     --git-email "your@email.com"
 ```
 
 # Link your existing project directory
-cd profiles/my-existing-project
+cd ~/workspaces/profiles/my-existing-project
 ln -s /path/to/your/existing/project code
 
 # Or work directly in the profile directory
-cd profiles/my-existing-project
+cd ~/workspaces/profiles/my-existing-project
 git clone https://github.com/user/repo.git
 ```
 
@@ -308,7 +308,7 @@ git config --show-origin user.email
 Should show:
 
 ```
-file:/path/to/workspace-profiles/profiles/personal/dotfiles/.gitconfig
+file:/path/to/workspaces/profiles/personal/.gitconfig
 ```
 
 ### Changes not taking effect
@@ -329,7 +329,7 @@ git config --show-origin --list
 ## Next Steps
 
 1. **Read the full README**: `cat ../README.md`
-2. **Explore examples**: Look in `docs/examples/` directory
+2. **Customize your profile**: Edit `.gitconfig`, `.env`, and other config files in your profile directory
 3. **Customize templates**: Templates are built into the Go CLI
 4. **Add more tools**: Configure AWS, Docker, Kubernetes, etc.
 
@@ -352,7 +352,7 @@ use node 18
 
 ```bash
 # In .env (tool-specific path variable)
-NPM_CONFIG_USERCONFIG="$WORKSPACE_HOME/dotfiles/.npmrc"
+NPM_CONFIG_USERCONFIG="$WORKSPACE_HOME/.npmrc"
 ```
 
 ### Python Virtual Environment
@@ -371,7 +371,7 @@ PYTHONPATH="$WORKSPACE_HOME/lib"
 
 ```bash
 # In .env
-DOCKER_CONFIG="$WORKSPACE_HOME/dotfiles/.docker"
+DOCKER_CONFIG="$WORKSPACE_HOME/.docker"
 ```
 
 ### Kubernetes Context
@@ -380,14 +380,14 @@ Kubernetes configuration is automatically set up in new profiles:
 
 ```bash
 # Automatically configured in .env
-KUBECONFIG="$WORKSPACE_HOME/dotfiles/.kube/config"
+KUBECONFIG="$WORKSPACE_HOME/.kube/config"
 ```
 
 To use it, simply copy or generate your kubeconfig:
 
 ```bash
 # Copy existing kubeconfig
-cp ~/.kube/config dotfiles/.kube/config
+cp ~/.kube/config .kube/config
 
 # Or generate from AWS EKS
 aws eks update-kubeconfig --name my-cluster --region us-east-1
@@ -400,27 +400,27 @@ Many modern CLI tools respect the XDG Base Directory specification, which is aut
 
 ```bash
 # Automatically configured in .env
-XDG_CONFIG_HOME="$WORKSPACE_HOME/dotfiles/.config"
+XDG_CONFIG_HOME="$WORKSPACE_HOME/.config"
 ```
 
 Tools like neovim, tmux, bat, ripgrep, and many others will automatically use profile-specific configs:
 
 ```bash
 # Create tool-specific configs
-mkdir -p dotfiles/.config/nvim
-vim dotfiles/.config/nvim/init.vim
+mkdir -p .config/nvim
+vim .config/nvim/init.vim
 
 # Or copy existing configs
-cp -r ~/.config/tmux dotfiles/.config/
+cp -r ~/.config/tmux .config/
 ```
 
 Common XDG-compliant tools:
 
-- **Neovim**: `dotfiles/.config/nvim/`
-- **Tmux**: `dotfiles/.config/tmux/`
-- **Bat**: `dotfiles/.config/bat/`
-- **Ripgrep**: `dotfiles/.config/ripgrep/`
-- **Git** (also supports XDG): `dotfiles/.config/git/`
+- **Neovim**: `.config/nvim/`
+- **Tmux**: `.config/tmux/`
+- **Bat**: `.config/bat/`
+- **Ripgrep**: `.config/ripgrep/`
+- **Git** (also supports XDG): `.config/git/`
 
 ### SSH Agent
 
@@ -445,7 +445,7 @@ If you use 1Password as your SSH agent, you can configure which keys to load:
 
 ```bash
 # Edit the agent configuration
-vim dotfiles/.config/1Password/agent.toml
+vim .config/1Password/agent.toml
 
 # Example configuration:
 [[ssh-keys]]
@@ -480,6 +480,6 @@ op item get "GitHub SSH Key" --vault Private
 
 ## Getting Help
 
-- View command help: `profile create --help`
+- View command help: `shell-profiler create --help`
 - Check direnv docs: https://direnv.net/
 - Git environment variables: https://git-scm.com/docs/git-config#ENVIRONMENT

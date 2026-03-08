@@ -106,17 +106,16 @@ type direnv
 If you just want to get started quickly:
 
 ```bash
-cd workspace-profiles
 
 # Create your first profile
-./profile create my-project --interactive
+shell-profiler create my-project --interactive
 
 # Activate the profile
-cd profiles/my-project
+cd ~/workspaces/profiles/my-project
 direnv allow
 
 # Verify it works
-./profile info
+shell-profiler info
 ```
 
 ### Option 2: Manual Review
@@ -130,37 +129,30 @@ If you want to review and customize before using:
    cat QUICKSTART.md
    ```
 
-2. **Review the examples**:
+2. **Create a profile**:
 
    ```bash
-   cat docs/examples/.envrc.example
-   cat docs/examples/.gitconfig.example
-   ```
-
-3. **Create a profile**:
-
-   ```bash
-   ./profile create my-project \
+   shell-profiler create my-project \
        --template personal \
        --git-name "Your Name" \
        --git-email "your@email.com"
    ```
 
-4. **Review the generated files**:
+3. **Review the generated files**:
 
    ```bash
-   cd profiles/my-project
+   cd ~/workspaces/profiles/my-project
    cat .envrc
-   cat dotfiles/.gitconfig
+   cat .gitconfig
    ```
 
-5. **Allow direnv**:
+4. **Allow direnv**:
 
    ```bash
    direnv allow
    ```
 
-6. **Test it**:
+5. **Test it**:
    ```bash
    echo $WORKSPACE_PROFILE
    git config user.email
@@ -182,7 +174,7 @@ use_profile() {
     local profile_name=$1
     export WORKSPACE_PROFILE="$profile_name"
     export WORKSPACE_HOME="$(pwd)"
-    export GIT_CONFIG_GLOBAL="$WORKSPACE_HOME/dotfiles/.gitconfig"
+    export GIT_CONFIG_GLOBAL="$WORKSPACE_HOME/.gitconfig"
 }
 
 # AWS profile helper
@@ -234,14 +226,14 @@ Add to your shell config (`~/.bashrc`, `~/.zshrc`, etc.):
 
 ```bash
 # Workspace profile aliases
-alias wp='cd ~/workspaces/build/workspace-profiles'
-alias wpl='~/workspaces/build/workspace-profiles/profile list'
-alias wpc='~/workspaces/build/workspace-profiles/profile create'
-alias wpi='~/workspaces/build/workspace-profiles/profile info'
+alias wp='cd ~/workspaces/profiles'
+alias wpl='shell-profiler list'
+alias wpc='shell-profiler create'
+alias wpi='shell-profiler info'
 
 # Quick profile switching
-alias wpwork='cd ~/workspaces/build/workspace-profiles/profiles/work'
-alias wppersonal='cd ~/workspaces/build/workspace-profiles/profiles/personal'
+alias wpwork='cd ~/workspaces/profiles/work'
+alias wppersonal='cd ~/workspaces/profiles/personal'
 ```
 
 ## Verification
@@ -250,8 +242,8 @@ Run through this checklist to ensure everything is working:
 
 - [ ] direnv is installed: `direnv version`
 - [ ] direnv is hooked: `type direnv` shows it's a function
-- [ ] Can create profiles: `./profile create test --dry-run`
-- [ ] Can list profiles: `./profile list`
+- [ ] Can create profiles: `shell-profiler create test --dry-run`
+- [ ] Can list profiles: `shell-profiler list`
 - [ ] Can activate profile: Navigate to profile and run `direnv allow`
 - [ ] Environment loads: `echo $WORKSPACE_PROFILE` shows profile name
 - [ ] Git config works: `git config user.email` shows profile email
@@ -307,7 +299,7 @@ Run through this checklist to ensure everything is working:
 **Solution**:
 
 ```bash
-chmod +x profile
+chmod +x shell-profiler
 ```
 
 ## Uninstallation
@@ -317,16 +309,15 @@ To completely remove the workspace profile system:
 1. **Delete all profiles** (backup if needed):
 
    ```bash
-   ./profile delete <profile-name>
+   shell-profiler delete <profile-name>
    # Or manually:
-   rm -rf profiles/
+   rm -rf ~/workspaces/profiles/
    ```
 
-2. **Remove the workspace-profiles directory**:
+2. **Remove the shell-profiler config**:
 
    ```bash
-   cd ..
-   rm -rf workspace-profiles/
+   rm -f ~/.profile-manager
    ```
 
 3. **Remove direnv hook** (optional):
@@ -351,8 +342,7 @@ To completely remove the workspace profile system:
 ## Getting Help
 
 - **Documentation**: See [README.md](../README.md) and [QUICKSTART.md](QUICKSTART.md)
-- **Examples**: Check docs/examples/ directory
-- **Command help**: Run `profile help` or `profile create --help`
+- **Command help**: Run `shell-profiler help` or `shell-profiler create --help`
 - **direnv docs**: https://direnv.net/
 - **Git environment variables**: https://git-scm.com/docs/git-config#ENVIRONMENT
 
@@ -360,5 +350,5 @@ To completely remove the workspace profile system:
 
 1. Read [QUICKSTART.md](QUICKSTART.md) for usage examples
 2. Read [README.md](../README.md) for comprehensive documentation
-3. Create your first profile: `./profile create --interactive`
+3. Create your first profile: `shell-profiler create my-profile`
 4. Customize templates and examples for your workflow

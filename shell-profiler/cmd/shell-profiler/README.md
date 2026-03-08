@@ -1,6 +1,6 @@
-# Profile CLI - Go Implementation
+# shell-profiler - Go Implementation
 
-This is the Go implementation of the workspace profile manager. It provides the same functionality as `profile.sh` but as a compiled binary.
+This is the Go implementation of the workspace profile manager CLI.
 
 ## Building
 
@@ -19,9 +19,6 @@ make install
 
 ```bash
 # Run directly without building
-make run
-
-# Or
 go run ./cmd/shell-profiler
 
 # Run tests
@@ -33,27 +30,25 @@ make test
 The Go implementation is structured as follows:
 
 - `cmd/shell-profiler/` - Main entry point
-- `internal/cli/` - CLI command handling and routing
-- `internal/profile/` - Profile management logic (info, status)
-- `internal/scripts/` - Script execution wrapper (delegates to shell scripts)
+- `internal/cli/` - CLI command routing (`app.go`) and color constants
+- `internal/commands/` - Command implementations (create, delete, dotfiles, git, init, list, select, update)
+- `internal/config/` - Configuration management (`~/.profile-manager`)
+- `internal/profile/` - Profile business logic (info, direnv status)
+- `internal/templates/` - Go templates for generating profile files (envrc.tpl, env.tpl, gitconfig.tpl)
+- `internal/ui/` - Interactive prompts and color utilities
 
-Currently, most commands delegate to the existing shell scripts. Over time, these can be migrated to pure Go implementations.
+## Implementation Status
 
-## Current Implementation Status
+All commands are fully implemented in Go:
 
-- ✅ `info` - Fully implemented in Go
-- ✅ `status` - Fully implemented in Go
-- ✅ `help` - Fully implemented in Go
-- 🔄 `create` - Delegates to `scripts/create-profile.sh`
-- 🔄 `update` - Delegates to `scripts/update-profile.sh`
-- 🔄 `list` - Delegates to `scripts/list-profiles.sh`
-- 🔄 `delete` - Delegates to `scripts/delete-profile.sh`
-- 🔄 `restore` - Delegates to `scripts/restore-profile.sh`
-
-## Future Enhancements
-
-- Migrate all commands to pure Go implementations
-- Add better error handling and user feedback
-- Add configuration file support
-- Add unit tests
-- Add integration tests
+- ✅ `init` - Initialize configuration (`~/.profile-manager`)
+- ✅ `create` (`new`, `add`) - Create a new workspace profile
+- ✅ `update` (`upgrade`) - Update an existing profile
+- ✅ `list` (`ls`) - List all profiles
+- ✅ `select` (`use`) - Select and switch to a profile
+- ✅ `delete` (`remove`, `rm`) - Delete a profile
+- ✅ `info` (`current`, `show`) - Show current profile details
+- ✅ `status` - Show direnv status
+- ✅ `dotfiles` - Manage dotfiles (subcommands: `list`, `edit`)
+- ✅ `sync` - Git sync operations (subcommands: `init`, `pull`, `push`, `sync`, `remote`, `status`)
+- ⚠️ `restore` - Not yet implemented
