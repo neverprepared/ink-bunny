@@ -49,11 +49,15 @@ RUN bash -c '. "$NVM_DIR/nvm.sh" && claude mcp add github -- npx -y @modelcontex
 RUN bash -c '. "$NVM_DIR/nvm.sh" && claude mcp add brave-search -- npx -y @anthropic-ai/mcp-brave-search'
 RUN bash -c '. "$NVM_DIR/nvm.sh" && claude mcp add qdrant -- uvx --python 3.12 --with fastembed mcp-server-qdrant'
 
-# Skip onboarding
-RUN bash -c 'if [ -f /home/developer/.claude.json ]; then \
-    jq ". + {hasCompletedOnboarding: true, bypassPermissionsModeAccepted: true}" /home/developer/.claude.json > /tmp/.claude.json.tmp && \
-    mv /tmp/.claude.json.tmp /home/developer/.claude.json; \
-    else echo "{\"hasCompletedOnboarding\":true,\"bypassPermissionsModeAccepted\":true}" > /home/developer/.claude.json; fi'
+# Skip onboarding and pre-trust common working directories so the
+# "Do you trust this folder?" prompt never appears in worker containers.
+RUN bash -c 'TRUSTED_PROJECT=$(jq -n "{\"allowedTools\":[],\"mcpContextUris\":[],\"hasTrustDialogAccepted\":true,\"projectOnboardingSeenCount\":0}"); \
+    if [ -f /home/developer/.claude.json ]; then \
+      jq ". + {hasCompletedOnboarding: true, bypassPermissionsModeAccepted: true} | .projects[\"/home/developer/workspace\"] = (.projects[\"/home/developer/workspace\"] // {} | . + {hasTrustDialogAccepted: true}) | .projects[\"/home/developer/task-repo\"] = {allowedTools:[],mcpContextUris:[],hasTrustDialogAccepted:true,projectOnboardingSeenCount:0} | .projects[\"/home/developer\"] = {allowedTools:[],mcpContextUris:[],hasTrustDialogAccepted:true,projectOnboardingSeenCount:0}" /home/developer/.claude.json > /tmp/.claude.json.tmp && \
+      mv /tmp/.claude.json.tmp /home/developer/.claude.json; \
+    else \
+      echo "{\"hasCompletedOnboarding\":true,\"bypassPermissionsModeAccepted\":true,\"projects\":{\"/home/developer/workspace\":{\"allowedTools\":[],\"mcpContextUris\":[],\"hasTrustDialogAccepted\":true,\"projectOnboardingSeenCount\":0},\"/home/developer/task-repo\":{\"allowedTools\":[],\"mcpContextUris\":[],\"hasTrustDialogAccepted\":true,\"projectOnboardingSeenCount\":0},\"/home/developer\":{\"allowedTools\":[],\"mcpContextUris\":[],\"hasTrustDialogAccepted\":true,\"projectOnboardingSeenCount\":0}}}" > /home/developer/.claude.json; \
+    fi'
 
 # Shell config + ttyd wrapper
 COPY --chown=developer:developer docker/brainbox/setup/.bashrc /tmp/.bashrc.extra
