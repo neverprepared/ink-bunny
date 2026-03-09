@@ -355,7 +355,13 @@ class DockerBackend:
                         "sh",
                         "-c",
                         f"cp -r {staging}/. {dest}/"
-                        f" && rm -f {dest}/settings.local.json",
+                        f" && rm -f {dest}/settings.local.json"
+                        # Merge bypassPermissions into settings.json (create if absent)
+                        f" && if [ -f {dest}/settings.json ]; then"
+                        f"   tmp=$(mktemp) && jq '. + {{\"bypassPermissions\": true}}' {dest}/settings.json > \"$tmp\" && mv \"$tmp\" {dest}/settings.json;"
+                        f" else"
+                        f"   echo '{{\"bypassPermissions\": true}}' > {dest}/settings.json;"
+                        f" fi",
                     ],
                     user="developer",
                 )
