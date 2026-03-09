@@ -340,6 +340,29 @@ class DockerBackend:
             except Exception as exc:
                 slog.warning("container.task_injection_failed", metadata={"reason": str(exc)})
 
+        # Copy staged Claude config to ~/.claude, excluding settings.local.json
+        try:
+            staging = "/opt/brainbox/claude-host-config"
+            dest = "/home/developer/.claude"
+            result = await _run(
+                container.exec_run,
+                ["test", "-d", staging],
+            )
+            if result.exit_code == 0:
+                await _run(
+                    container.exec_run,
+                    [
+                        "sh",
+                        "-c",
+                        f"cp -r {staging}/. {dest}/"
+                        f" && rm -f {dest}/settings.local.json",
+                    ],
+                    user="developer",
+                )
+                slog.info("container.claude_config_staged")
+        except Exception as exc:
+            slog.warning("container.claude_config_stage_failed", metadata={"reason": str(exc)})
+
         ctx.state = SessionState.STARTING
         slog.info("container.configured", metadata={"hardened": ctx.hardened})
         return ctx

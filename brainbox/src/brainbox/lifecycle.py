@@ -270,12 +270,12 @@ def _build_volume_map(env_vars: dict) -> dict[str, dict[str, str]]:
             if host_dir is not None:
                 mounts[str(host_dir)] = {"bind": container_targets[name], "mode": mode}
 
-    # Claude config dir: mount workspace .claude so container Claude gets the
-    # same skills, hooks, and MCP server configuration as the host.
+    # Claude config dir: mount workspace .claude to a staging path; configure()
+    # copies it to ~/.claude excluding settings.local.json (host-specific).
     if p.mount_claude_config:
         claude_config = ws_path / ".claude"
         if claude_config.is_dir():
-            mounts[str(claude_config)] = {"bind": "/home/developer/.claude", "mode": "ro"}
+            mounts[str(claude_config)] = {"bind": "/opt/brainbox/claude-host-config", "mode": "ro"}
 
     # Reflex share dir: mount so hooks/skills inside the container can invoke
     # the same reflex runtime that the host uses.
