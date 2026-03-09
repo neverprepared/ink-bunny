@@ -323,17 +323,37 @@ class DockerBackend:
                     metadata={"role": ctx.role, "reason": str(exc)},
                 )
 
-        # Inject task description for hub-spawned workers
+        # Inject task description + completion helper for hub-spawned workers
         if ctx.task_description:
             try:
+                complete_script = (
+                    "#!/bin/sh\n"
+                    "# Call this when your task is done to mark it complete in the hub.\n"
+                    "TOKEN=$(cat /home/developer/.agent-token 2>/dev/null)\n"
+                    "HUB=$(cat /home/developer/.brainbox/hub-url.txt 2>/dev/null || echo 'http://host.docker.internal:9999')\n"
+                    'RESULT="${1:-done}"\n'
+                    'curl -sf -X POST "${HUB}/api/hub/messages" \\\n'
+                    '  -H "Authorization: Bearer ${TOKEN}" \\\n'
+                    '  -H "Content-Type: application/json" \\\n'
+                    '  -d "{\\"payload\\": {\\"event\\": \\"task.completed\\", \\"result\\": \\"${RESULT}\\"}}" \\\n'
+                    "  && echo 'Task marked complete.' || echo 'Warning: could not reach hub.'\n"
+                )
+                task_with_footer = (
+                    ctx.task_description
+                    + "\n\nWhen your task is fully complete (PR opened or final output delivered), "
+                    "run this to notify the hub: ~/.brainbox/complete.sh \"<brief result summary>\""
+                )
                 await _run(
                     container.exec_run,
                     [
                         "sh",
                         "-c",
                         f"mkdir -p /home/developer/.brainbox"
-                        f" && echo {shlex.quote(ctx.task_description)} > /home/developer/.brainbox/task.txt"
-                        f" && chmod 644 /home/developer/.brainbox/task.txt",
+                        f" && echo {shlex.quote(task_with_footer)} > /home/developer/.brainbox/task.txt"
+                        f" && chmod 644 /home/developer/.brainbox/task.txt"
+                        f" && echo 'http://host.docker.internal:9999' > /home/developer/.brainbox/hub-url.txt"
+                        f" && printf {shlex.quote(complete_script)} > /home/developer/.brainbox/complete.sh"
+                        f" && chmod 755 /home/developer/.brainbox/complete.sh",
                     ],
                 )
                 slog.info("container.task_injected", metadata={"task_len": len(ctx.task_description)})
