@@ -16,11 +16,13 @@ else
         CLAUDE_CMD="$CLAUDE_CMD --model $CLAUDE_MODEL"
     fi
 
-    # Hub-spawned workers receive their task via a file; run non-interactively
+    # Start Claude interactively; hub-spawned workers get their task injected
+    # as the first prompt so the session stays alive for follow-up queries.
+    tmux send-keys -t main "$CLAUDE_CMD" Enter
     if [ -f "/home/developer/.brainbox/task.txt" ]; then
-        tmux send-keys -t main "$CLAUDE_CMD --print < /home/developer/.brainbox/task.txt 2>&1 | tee /home/developer/.brainbox/output.log" Enter
-    else
-        tmux send-keys -t main "$CLAUDE_CMD" Enter
+        # Wait for Claude to start, then send the task as the first prompt
+        sleep 5
+        tmux send-keys -t main "$(cat /home/developer/.brainbox/task.txt)" Enter
     fi
     exec tmux attach -t main
 fi
