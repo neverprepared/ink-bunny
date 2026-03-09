@@ -59,11 +59,31 @@ PLAYWRIGHT_WRITE_PATTERN = re.compile(
 
 
 # =============================================================================
+# Allowlist — destinations always permitted regardless of HTTP method
+# =============================================================================
+
+# Targets that agents must be able to write to (e.g. hub task reporting)
+ALLOWED_DESTINATIONS = [
+    r"host[.]docker[.]internal:\d+",  # brainbox hub API (any port)
+]
+
+
+def is_allowlisted(command: str) -> bool:
+    """Return True if the command targets an explicitly allowed destination."""
+    for pattern in ALLOWED_DESTINATIONS:
+        if re.search(pattern, command):
+            return True
+    return False
+
+
+# =============================================================================
 # Matching
 # =============================================================================
 
 def check_bash_command(command: str) -> str | None:
     """Check if a Bash command performs a network write. Returns description or None."""
+    if is_allowlisted(command):
+        return None
     for pattern, description in BASH_WRITE_PATTERNS:
         if re.search(pattern, command, re.IGNORECASE):
             return description

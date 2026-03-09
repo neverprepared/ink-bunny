@@ -530,6 +530,7 @@ async def provision(
     vm_template: str | None = None,
     ports: dict[str, int] | None = None,
     repo_url: str | None = None,
+    task_description: str | None = None,
 ) -> SessionContext:
     from .backends import create_backend
 
@@ -579,6 +580,7 @@ async def provision(
         teams_enabled=teams_enabled,
         role_prompt_file=role_prompt_file,
         repo_url=repo_url,
+        task_description=task_description,
     )
 
     slog = get_logger(session_name=session_name, container_name=container_name)
@@ -813,6 +815,7 @@ async def run_pipeline(
     vm_template: str | None = None,
     ports: dict[str, int] | None = None,
     repo_url: str | None = None,
+    task_description: str | None = None,
 ) -> SessionContext:
     ctx = await provision(
         session_name=session_name,
@@ -831,6 +834,7 @@ async def run_pipeline(
         vm_template=vm_template,
         ports=ports,
         repo_url=repo_url,
+        task_description=task_description,
     )
     await configure(ctx)
     await start(ctx)

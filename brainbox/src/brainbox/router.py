@@ -108,6 +108,7 @@ async def submit_task(
             hardened=agent_def.hardened,
             token=token,
             repo_url=repo_url,
+            task_description=description,
         )
     except Exception as exc:
         task.status = TaskStatus.FAILED

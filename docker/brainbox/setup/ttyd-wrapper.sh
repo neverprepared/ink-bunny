@@ -15,6 +15,12 @@ else
     if [ -n "$CLAUDE_MODEL" ]; then
         CLAUDE_CMD="$CLAUDE_CMD --model $CLAUDE_MODEL"
     fi
-    tmux send-keys -t main "$CLAUDE_CMD" Enter
+
+    # Hub-spawned workers receive their task via a file; run non-interactively
+    if [ -f "/home/developer/.brainbox/task.txt" ]; then
+        tmux send-keys -t main "$CLAUDE_CMD --print < /home/developer/.brainbox/task.txt 2>&1 | tee /home/developer/.brainbox/output.log" Enter
+    else
+        tmux send-keys -t main "$CLAUDE_CMD" Enter
+    fi
     exec tmux attach -t main
 fi

@@ -75,6 +75,7 @@ class SessionContext(BaseModel):
     teams_enabled: bool = False  # Claude Code Teams experimental feature
     role_prompt_file: str | None = None  # Path to role prompt injected into container
     repo_url: str | None = None  # Associated repository URL
+    task_description: str | None = None  # Task description for hub-spawned workers
     state: SessionState = SessionState.PROVISIONING
     created_at: int  # epoch ms
     ttl: int  # seconds

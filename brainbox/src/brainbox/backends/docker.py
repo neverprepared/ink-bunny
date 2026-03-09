@@ -323,6 +323,23 @@ class DockerBackend:
                     metadata={"role": ctx.role, "reason": str(exc)},
                 )
 
+        # Inject task description for hub-spawned workers
+        if ctx.task_description:
+            try:
+                await _run(
+                    container.exec_run,
+                    [
+                        "sh",
+                        "-c",
+                        f"mkdir -p /home/developer/.brainbox"
+                        f" && echo {shlex.quote(ctx.task_description)} > /home/developer/.brainbox/task.txt"
+                        f" && chmod 644 /home/developer/.brainbox/task.txt",
+                    ],
+                )
+                slog.info("container.task_injected", metadata={"task_len": len(ctx.task_description)})
+            except Exception as exc:
+                slog.warning("container.task_injection_failed", metadata={"reason": str(exc)})
+
         ctx.state = SessionState.STARTING
         slog.info("container.configured", metadata={"hardened": ctx.hardened})
         return ctx
