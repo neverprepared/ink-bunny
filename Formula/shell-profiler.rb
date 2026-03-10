@@ -3,6 +3,8 @@ class ShellProfiler < Formula
   homepage "https://github.com/neverprepared/ink-bunny"
   version "0.5.2"
 
+  depends_on "direnv"
+
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/neverprepared/ink-bunny/releases/download/shell-profiler/v#{version}/shell-profiler-v#{version}-darwin-arm64.tar.gz"
@@ -24,8 +26,6 @@ class ShellProfiler < Formula
       sha256 "8d0550d069902e18ba39e677d85d6f01533d2b544bf8c98cada7c603fb15f13a" # linux-amd64
     end
   end
-
-  depends_on "direnv"
 
   def install
     bin.install "shell-profiler"

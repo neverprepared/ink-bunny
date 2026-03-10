@@ -22,6 +22,6 @@ class Reflex < Formula
   end
 
   test do
-    assert_predicate share/"reflex/.claude-plugin/plugin.json", :exist?
+    assert_path_exists share/"reflex/.claude-plugin/plugin.json"
   end
 end

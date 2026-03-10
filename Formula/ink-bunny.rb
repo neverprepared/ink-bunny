@@ -4,9 +4,9 @@ class InkBunny < Formula
   # Points to an existing monorepo tag; nothing is installed from this archive.
   # Update url/sha256 when cutting a dedicated ink-bunny release.
   url "https://github.com/neverprepared/ink-bunny/archive/refs/tags/brainbox/v0.12.9.tar.gz"
+  version "1.0.0"
   sha256 "5888a8c7450acd40ccec92cc7974ceae86412a4e1f999d094add60e33372b43a"
   license "MIT"
-  version "1.0.0"
 
   depends_on "neverprepared/ink-bunny/brainbox"
   depends_on "neverprepared/ink-bunny/reflex"
@@ -17,6 +17,6 @@ class InkBunny < Formula
   end
 
   test do
-    assert_predicate HOMEBREW_PREFIX/"share/reflex/.claude-plugin/plugin.json", :exist?
+    assert_path_exists HOMEBREW_PREFIX/"share/reflex/.claude-plugin/plugin.json"
   end
 end
