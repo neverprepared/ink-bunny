@@ -19,3 +19,4 @@ tmp/
 
 # Docker volume data (runtime state, not source)
 docker/volumes/
+tasks/
