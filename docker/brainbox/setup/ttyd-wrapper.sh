@@ -32,7 +32,7 @@ else
     for i in $(seq 1 60); do
         sleep 2
         if [ -f "/home/developer/.brainbox/task.txt" ] && \
-           tmux capture-pane -t main -p 2>/dev/null | grep -qE "^❯ *$"; then
+           tmux capture-pane -t main -p 2>/dev/null | grep -qE "^❯"; then
             READY=$((READY + 1))
             if [ "$READY" -ge 2 ]; then
                 # Collapse newlines to spaces — tmux send-keys fires Enter on
