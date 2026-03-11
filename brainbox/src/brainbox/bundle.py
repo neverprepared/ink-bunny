@@ -249,13 +249,8 @@ def build_config_bundle(
         )
         _add_bytes(tf, ".claude/settings.json", settings_json.encode())
 
-        # .gitconfig — git identity
-        gitconfig = user_home / ".gitconfig"
-        if gitconfig.is_file():
-            try:
-                tf.add(gitconfig, arcname=".gitconfig")
-            except OSError:
-                pass
+        # .gitconfig is bind-mounted by docker-compose — skip it in the bundle
+        # to avoid put_archive failing with "device or resource busy".
 
         # ~/.claude dirs: plugins/, hooks/, skills/, agents/, commands/
         if claude_dir.is_dir():
