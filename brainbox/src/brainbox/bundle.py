@@ -99,8 +99,15 @@ def _filter_macos_hooks(hooks: dict) -> dict:
     return result
 
 
-def _build_container_settings(settings_path: Path, path_map: dict[str, str]) -> str:
-    """Load user settings.json, apply translations, force container overrides."""
+def _build_container_settings(
+    settings_path: Path, claude_json_path: Path, path_map: dict[str, str]
+) -> str:
+    """Load user settings.json, apply translations, force container overrides.
+
+    MCP servers are merged from three sources (later wins on collision):
+      1. settings.json mcpServers (workspace-specific, path-translated)
+      2. ~/.claude.json mcpServers (user-level, path-translated)
+    """
     user: dict = {}
     if settings_path.exists():
         try:
@@ -113,15 +120,23 @@ def _build_container_settings(settings_path: Path, path_map: dict[str, str]) -> 
     # Translate all string values recursively
     result = _translate(result, path_map)
 
+    # Merge user-level MCP servers from ~/.claude.json (user-level wins)
+    if claude_json_path.exists():
+        try:
+            claude_json = json.loads(claude_json_path.read_text())
+            user_servers = claude_json.get("mcpServers", {})
+            if user_servers:
+                merged = {**result.get("mcpServers", {}), **user_servers}
+                result["mcpServers"] = _translate(merged, path_map)
+        except (json.JSONDecodeError, OSError):
+            pass
+
     # Force container-required settings
     result.update(FORCED_SETTINGS)
 
     # Suppress macOS-only hooks
     if "hooks" in result:
         result["hooks"] = _filter_macos_hooks(result["hooks"])
-
-    # Remove MCP server configs from settings.json — delivered via ~/.mcp.json
-    result.pop("mcpServers", None)
 
     return json.dumps(result, indent=2)
 
@@ -229,15 +244,10 @@ def build_config_bundle(
 
     with tarfile.open(fileobj=buf, mode="w:gz") as tf:
         # settings.json — translated + forced overrides
-        settings_json = _build_container_settings(claude_dir / "settings.json", resolved_map)
-        _add_bytes(tf, ".claude/settings.json", settings_json.encode())
-
-        # ~/.mcp.json — MCP server configs with path-translated binary paths
-        mcp_json = _build_container_mcp(
-            user_home / ".mcp.json", Path.home() / ".claude.json", resolved_map
+        settings_json = _build_container_settings(
+            claude_dir / "settings.json", Path.home() / ".claude.json", resolved_map
         )
-        if mcp_json:
-            _add_bytes(tf, ".mcp.json", mcp_json.encode())
+        _add_bytes(tf, ".claude/settings.json", settings_json.encode())
 
         # .gitconfig — git identity
         gitconfig = user_home / ".gitconfig"
