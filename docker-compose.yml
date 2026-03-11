@@ -36,6 +36,16 @@ services:
       - brainbox-net
     restart: unless-stopped
 
+  brainbox-ui:
+    image: ghcr.io/neverprepared/brainbox-ui:latest
+    ports:
+      - "127.0.0.1:9998:80"
+    depends_on:
+      - brainbox-api
+    networks:
+      - brainbox-net
+    restart: unless-stopped
+
   qdrant:
     image: qdrant/qdrant:latest
     ports:
