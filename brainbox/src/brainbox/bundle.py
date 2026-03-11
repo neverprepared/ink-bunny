@@ -43,7 +43,9 @@ FORCED_SETTINGS: dict[str, Any] = {
 
 def _default_path_map() -> dict[str, str]:
     """Build default host→container path substitutions from environment."""
-    home = str(Path.home())
+    # When running inside the brainbox-api container, Path.home() returns /root.
+    # BRAINBOX_HOST_HOME carries the actual host user home for path translation.
+    home = os.environ.get("BRAINBOX_HOST_HOME") or str(Path.home())
     ws = os.environ.get("WORKSPACE_HOME", home)
     claude_config = os.environ.get("CLAUDE_CONFIG_DIR", home + "/.claude")
 
@@ -184,24 +186,36 @@ def build_config_bundle(
 
     Returns raw tar.gz bytes suitable for container.put_archive().
     """
-    home = Path(workspace_home) if workspace_home else Path.home()
+    # Resolve the Claude config directory:
+    # 1. explicit workspace_home → workspace_home/.claude
+    # 2. CLAUDE_CONFIG_DIR env var (set by compose / local env)
+    # 3. fallback to Path.home()/.claude
+    if workspace_home:
+        claude_dir = Path(workspace_home) / ".claude"
+        user_home = Path(workspace_home)
+    elif claude_config_env := os.environ.get("CLAUDE_CONFIG_DIR"):
+        claude_dir = Path(claude_config_env)
+        user_home = claude_dir.parent
+    else:
+        user_home = Path.home()
+        claude_dir = user_home / ".claude"
+
     resolved_map = path_map if path_map is not None else _default_path_map()
 
     buf = io.BytesIO()
 
     with tarfile.open(fileobj=buf, mode="w:gz") as tf:
         # settings.json — translated + forced overrides
-        claude_dir = home / ".claude"
         settings_json = _build_container_settings(claude_dir / "settings.json", resolved_map)
         _add_bytes(tf, ".claude/settings.json", settings_json.encode())
 
         # ~/.mcp.json — MCP server configs with path-translated binary paths
-        mcp_json = _build_container_mcp(home / ".mcp.json", resolved_map)
+        mcp_json = _build_container_mcp(user_home / ".mcp.json", resolved_map)
         if mcp_json:
             _add_bytes(tf, ".mcp.json", mcp_json.encode())
 
         # .gitconfig — git identity
-        gitconfig = home / ".gitconfig"
+        gitconfig = user_home / ".gitconfig"
         if gitconfig.is_file():
             try:
                 tf.add(gitconfig, arcname=".gitconfig")
@@ -227,7 +241,7 @@ def build_config_bundle(
     log.info(
         "bundle.built",
         metadata={
-            "home": str(home),
+            "claude_dir": str(claude_dir),
             "bundle_bytes": buf.tell(),
         },
     )

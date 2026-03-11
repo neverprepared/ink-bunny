@@ -9,8 +9,47 @@ class Brainbox < Formula
   depends_on "docker"
 
   def install
-    # Install docker-compose.yml
-    (share/"brainbox").install "docker-compose.yml"
+    # Write docker-compose.yml — embedded so the tarball doesn't need to contain it
+    (share/"brainbox").mkpath
+    (share/"brainbox/docker-compose.yml").write <<~YAML
+      # Brainbox stack — API + Qdrant
+      # Usage: brainbox up
+      services:
+        brainbox-api:
+          image: ghcr.io/neverprepared/brainbox-api:latest
+          ports:
+            - "127.0.0.1:9999:9999"
+          volumes:
+            - "${HOME}/.config/brainbox:/home/developer/.config/brainbox"
+            - "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}:/home/developer/.claude:ro"
+            - "${HOME}/.aws:/home/developer/.aws:ro"
+            - "${HOME}/.ssh:/home/developer/.ssh:ro"
+            - "${HOME}/.gitconfig:/home/developer/.gitconfig:ro"
+            - "${HOME}/.azure:/home/developer/.azure:ro"
+            - "${HOME}/.kube:/home/developer/.kube:ro"
+            - "/var/run/docker.sock:/var/run/docker.sock"
+          environment:
+            - SSH_AUTH_SOCK=/run/host-services/ssh-auth.sock
+            - CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR:-${HOME}/.claude}
+            - WORKSPACE_HOME=${WORKSPACE_HOME:-${HOME}}
+          networks:
+            - brainbox-net
+          restart: unless-stopped
+
+        qdrant:
+          image: qdrant/qdrant:latest
+          ports:
+            - "127.0.0.1:6333:6333"
+          volumes:
+            - "${QDRANT_DATA_DIR:-${HOME}/.config/brainbox/qdrant}:/qdrant/storage"
+          networks:
+            - brainbox-net
+          restart: unless-stopped
+
+      networks:
+        brainbox-net:
+          name: brainbox-net
+    YAML
 
     # Create compose-aware wrapper script
     (bin/"brainbox").write <<~EOS

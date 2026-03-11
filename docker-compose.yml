@@ -1,20 +1,36 @@
 # Brainbox stack — API + Qdrant
 # Usage: docker compose up -d
+#
+# DooD (Docker-outside-Docker) note: bind mount paths for session containers must be
+# host paths (resolved by the Docker daemon). So the API config dir is mounted at the
+# same host path inside the container, ensuring session mounts are valid host paths.
 services:
   brainbox-api:
     image: ghcr.io/neverprepared/brainbox-api:latest
     ports:
       - "127.0.0.1:9999:9999"
     volumes:
-      - "${HOME}/.config/brainbox:/home/developer/.config/brainbox"
-      - "${HOME}/.claude:/home/developer/.claude:ro"
-      - "${HOME}/.aws:/home/developer/.aws:ro"
-      - "${HOME}/.ssh:/home/developer/.ssh:ro"
-      - "${HOME}/.gitconfig:/home/developer/.gitconfig:ro"
-      - "${HOME}/.azure:/home/developer/.azure:ro"
-      - "${HOME}/.kube:/home/developer/.kube:ro"
+      # API config (sessions, api key, state) — mounted at the same path as on the host
+      # so that session container bind mounts reference real host paths.
+      - "${XDG_CONFIG_HOME:-${HOME}/.config}:${XDG_CONFIG_HOME:-${HOME}/.config}"
+      # Claude config for bundle assembly — read-only
+      - "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}:${CLAUDE_CONFIG_DIR:-${HOME}/.claude}:ro"
+      # Live credentials — read-only (bundle.py reads these for the config bundle)
+      - "${WORKSPACE_HOME:-${HOME}}/.aws:${WORKSPACE_HOME:-${HOME}}/.aws:ro"
+      - "${WORKSPACE_HOME:-${HOME}}/.ssh:${WORKSPACE_HOME:-${HOME}}/.ssh:ro"
+      - "${WORKSPACE_HOME:-${HOME}}/.gitconfig:${WORKSPACE_HOME:-${HOME}}/.gitconfig:ro"
+      - "${WORKSPACE_HOME:-${HOME}}/.azure:${WORKSPACE_HOME:-${HOME}}/.azure:ro"
+      - "${WORKSPACE_HOME:-${HOME}}/.kube:${WORKSPACE_HOME:-${HOME}}/.kube:ro"
+      # Docker socket — DooD for session container management
       - "/var/run/docker.sock:/var/run/docker.sock"
     environment:
+      # Pass through host env vars unchanged so paths resolve identically inside the container
+      - XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-${HOME}/.config}
+      - CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR:-${HOME}/.claude}
+      - WORKSPACE_HOME=${WORKSPACE_HOME:-${HOME}}
+      # Host home dir — used by bundle.py for path translation (Path.home() returns /root in container)
+      - BRAINBOX_HOST_HOME=${HOME}
+      # SSH agent socket (Docker Desktop for Mac)
       - SSH_AUTH_SOCK=/run/host-services/ssh-auth.sock
     networks:
       - brainbox-net
@@ -25,7 +41,7 @@ services:
     ports:
       - "127.0.0.1:6333:6333"
     volumes:
-      - "${QDRANT_DATA_DIR:-${HOME}/.config/brainbox/qdrant}:/qdrant/storage"
+      - "${QDRANT_DATA_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/qdrant}:/qdrant/storage"
     networks:
       - brainbox-net
     restart: unless-stopped
