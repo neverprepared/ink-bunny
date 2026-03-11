@@ -601,6 +601,28 @@ class DockerBackend:
                     ],
                 )
 
+                # Merge user mcpServers into .claude.json workspace project —
+                # Claude Code reads MCP servers from .claude.json, not settings.json.
+                user_mcps = json.loads(settings_json).get("mcpServers", {})
+                if user_mcps:
+                    mcp_json = json.dumps(user_mcps)
+                    await _run(
+                        container.exec_run,
+                        [
+                            "sh",
+                            "-c",
+                            f'echo {shlex.quote(mcp_json)} | python3 -c "'
+                            "import json, pathlib, sys; "
+                            "p = pathlib.Path('/home/developer/.claude.json'); "
+                            "d = json.loads(p.read_text()) if p.exists() else {}; "
+                            "u = json.load(sys.stdin); "
+                            "ws = '/home/developer/workspace'; "
+                            "d.setdefault('projects', {}).setdefault(ws, {}).setdefault('mcpServers', {}).update(u); "
+                            "p.write_text(json.dumps(d, indent=2))"
+                            '"',
+                        ],
+                    )
+
             slog.info("container.config_bundle_injected")
         except Exception as exc:
             slog.warning("container.config_bundle_inject_failed", metadata={"reason": str(exc)})
