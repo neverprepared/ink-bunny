@@ -345,22 +345,33 @@ _HOST_ONLY_VARS = frozenset(
 )
 
 
-def _resolve_profile_env(workspace_profile: str | None = None) -> str | None:
-    """Read the volatile .env cache and return content suitable for a container.
+def _resolve_profile_env(
+    workspace_profile: str | None = None,
+    workspace_home: str | None = None,
+) -> str | None:
+    """Read the profile .env and return content suitable for a container.
 
-    When *workspace_profile* is provided it is used instead of the API
-    process's own WORKSPACE_PROFILE env var.  TMPDIR is shared across
-    profiles on the same OS user so we always read it from os.environ.
+    Resolution order:
+    1. Volatile tmpdir cache written by shell-profiler (works on host; not
+       accessible when brainbox-api runs inside Docker).
+    2. workspace_home/.env — the actual profile env file, always accessible
+       via the WORKSPACES_HOME bind mount.
 
     Returns the file content with host-only vars stripped and workspace identity
-    vars prepended, or None if no cached .env exists.
+    vars prepended, or None if neither source is found.
     """
     profile = workspace_profile or os.environ.get("WORKSPACE_PROFILE", "")
     if not profile:
         return None
 
+    # Try tmpdir cache first (works when API runs on host)
     tmpdir = os.environ.get("TMPDIR", "/tmp")
     cache_env = Path(tmpdir) / "sp-profiles" / profile / ".env"
+
+    # Fall back to workspace_home/.env (works when API runs in Docker)
+    if not cache_env.is_file() and workspace_home:
+        cache_env = Path(workspace_home) / ".env"
+
     if not cache_env.is_file():
         return None
 

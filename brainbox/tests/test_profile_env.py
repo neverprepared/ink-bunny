@@ -983,4 +983,4 @@ class TestStartProfileEnv:
 
             await start(ctx)
 
-        mock_env.assert_called_once_with(workspace_profile="firebuild")
+        mock_env.assert_called_once_with(workspace_profile="firebuild", workspace_home=None)

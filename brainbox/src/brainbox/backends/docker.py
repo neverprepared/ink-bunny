@@ -432,7 +432,10 @@ class DockerBackend:
                 slog.warning("container.ttyd_start_failed", metadata={"reason": str(exc)})
 
         # Write profile env to /run/profile/.env (after start)
-        profile_env = _resolve_profile_env(workspace_profile=ctx.workspace_profile)
+        profile_env = _resolve_profile_env(
+            workspace_profile=ctx.workspace_profile,
+            workspace_home=ctx.workspace_home,
+        )
         if profile_env:
             try:
                 # Create /run/profile as root
