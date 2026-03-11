@@ -234,7 +234,7 @@ def build_config_bundle(
 
         # ~/.mcp.json — MCP server configs with path-translated binary paths
         mcp_json = _build_container_mcp(
-            user_home / ".mcp.json", user_home / ".claude.json", resolved_map
+            user_home / ".mcp.json", Path.home() / ".claude.json", resolved_map
         )
         if mcp_json:
             _add_bytes(tf, ".mcp.json", mcp_json.encode())
