@@ -15,6 +15,8 @@ services:
       - "${XDG_CONFIG_HOME:-${HOME}/.config}:${XDG_CONFIG_HOME:-${HOME}/.config}"
       # Claude config for bundle assembly — read-only
       - "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}:${CLAUDE_CONFIG_DIR:-${HOME}/.claude}:ro"
+      # User-level Claude state (mcpServers, auth) — read-only for bundle assembly
+      - "${HOME}/.claude.json:${HOME}/.claude.json:ro"
       # Live credentials — read-only (bundle.py reads these for the config bundle)
       - "${WORKSPACE_HOME:-${HOME}}/.aws:${WORKSPACE_HOME:-${HOME}}/.aws:ro"
       - "${WORKSPACE_HOME:-${HOME}}/.ssh:${WORKSPACE_HOME:-${HOME}}/.ssh:ro"

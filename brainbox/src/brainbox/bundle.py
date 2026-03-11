@@ -244,8 +244,11 @@ def build_config_bundle(
 
     with tarfile.open(fileobj=buf, mode="w:gz") as tf:
         # settings.json — translated + forced overrides
+        # BRAINBOX_HOST_HOME is set by docker-compose so Path.home() (/root)
+        # doesn't shadow the real host home where .claude.json lives.
+        host_home = Path(os.environ.get("BRAINBOX_HOST_HOME") or Path.home())
         settings_json = _build_container_settings(
-            claude_dir / "settings.json", Path.home() / ".claude.json", resolved_map
+            claude_dir / "settings.json", host_home / ".claude.json", resolved_map
         )
         _add_bytes(tf, ".claude/settings.json", settings_json.encode())
 
