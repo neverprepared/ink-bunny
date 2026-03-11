@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.0](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.16.0...reflex-v1.17.0) (2026-03-11)
+
+
+### Features
+
+* add ci-ratchet repo access mode (Brownian ratchet) ([0e3f10f](https://github.com/neverprepared/ink-bunny/commit/0e3f10fd0712ac168de5c534358e774f412fc185))
+* repo access modes for container sessions (worktree-mount, clone, clone-worktree) ([ca68b35](https://github.com/neverprepared/ink-bunny/commit/ca68b35e4b251625c64f363027b702ca4acfae97))
+
+
+### Bug Fixes
+
+* check Homebrew install path first in statusline command ([900fdf9](https://github.com/neverprepared/ink-bunny/commit/900fdf9775e08bc1525c84f28de2778300e9a455))
+
 ## [1.16.0](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.15.0...reflex-v1.16.0) (2026-03-08)
 
 
