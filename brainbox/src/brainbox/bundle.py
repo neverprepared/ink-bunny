@@ -126,13 +126,36 @@ def _build_container_settings(settings_path: Path, path_map: dict[str, str]) -> 
     return json.dumps(result, indent=2)
 
 
-def _build_container_mcp(mcp_path: Path, path_map: dict[str, str]) -> str | None:
-    """Load ~/.mcp.json, translate binary paths."""
-    if not mcp_path.exists():
-        return None
-    try:
-        mcp = json.loads(mcp_path.read_text())
-    except (json.JSONDecodeError, OSError):
+def _build_container_mcp(
+    mcp_path: Path, claude_json_path: Path, path_map: dict[str, str]
+) -> str | None:
+    """Merge MCP servers from ~/.mcp.json and ~/.claude/.claude.json, translate binary paths.
+
+    Claude Code stores user-level MCP servers in .claude.json under mcpServers.
+    We extract them and merge with ~/.mcp.json so containers get all servers.
+    """
+    mcp: dict = {}
+
+    # Load ~/.mcp.json (project-level)
+    if mcp_path.exists():
+        try:
+            mcp = json.loads(mcp_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # Merge user-level servers from .claude.json
+    if claude_json_path.exists():
+        try:
+            claude_json = json.loads(claude_json_path.read_text())
+            user_servers = claude_json.get("mcpServers", {})
+            if user_servers:
+                mcp.setdefault("mcpServers", {})
+                # ~/.mcp.json takes precedence if same key exists
+                mcp["mcpServers"] = {**user_servers, **mcp["mcpServers"]}
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    if not mcp:
         return None
     return json.dumps(_translate(mcp, path_map), indent=2)
 
@@ -210,7 +233,9 @@ def build_config_bundle(
         _add_bytes(tf, ".claude/settings.json", settings_json.encode())
 
         # ~/.mcp.json — MCP server configs with path-translated binary paths
-        mcp_json = _build_container_mcp(user_home / ".mcp.json", resolved_map)
+        mcp_json = _build_container_mcp(
+            user_home / ".mcp.json", claude_dir / ".claude.json", resolved_map
+        )
         if mcp_json:
             _add_bytes(tf, ".mcp.json", mcp_json.encode())
 
