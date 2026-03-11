@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.0](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.18.0...reflex-v1.19.0) (2026-03-11)
+
+
+### Features
+
+* **reflex:** interactive wizard for brainbox create with --role support ([93b0c6f](https://github.com/neverprepared/ink-bunny/commit/93b0c6fddbd0fc3456a002fe69d7d8384059953d))
+
+
+### Bug Fixes
+
+* **reflex:** use uvx from git for brainbox MCP server ([6b7e4b0](https://github.com/neverprepared/ink-bunny/commit/6b7e4b0202cf05c5ba6684e00e677bcb75021ae6))
+
 ## [1.18.0](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.17.0...reflex-v1.18.0) (2026-03-11)
 
 
