@@ -223,6 +223,12 @@ RUN bash -c 'if [ -f /home/developer/.claude.json ]; then \
       echo "{\"hasCompletedOnboarding\":true,\"bypassPermissionsModeAccepted\":true,\"projects\":{\"/home/developer/workspace\":{\"allowedTools\":[],\"mcpContextUris\":[],\"hasTrustDialogAccepted\":true,\"projectOnboardingSeenCount\":0},\"/home/developer/task-repo\":{\"allowedTools\":[],\"mcpContextUris\":[],\"hasTrustDialogAccepted\":true,\"projectOnboardingSeenCount\":0},\"/home/developer\":{\"allowedTools\":[],\"mcpContextUris\":[],\"hasTrustDialogAccepted\":true,\"projectOnboardingSeenCount\":0}}}" > /home/developer/.claude.json; \
     fi'
 
+# Reflex plugin — install at /opt/reflex/share/reflex so Claude can be
+# launched with --plugin-dir /opt/reflex/share/reflex (same convention as
+# the host wrapper: claude --plugin-dir /opt/homebrew/opt/reflex/share/reflex)
+COPY --chown=developer:developer reflex/plugins/reflex /opt/reflex/share/reflex
+RUN find /opt/reflex/share/reflex/scripts -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
+
 # Shell config + ttyd wrapper
 COPY --chown=developer:developer docker/brainbox/setup/.bashrc /tmp/.bashrc.extra
 RUN cat /tmp/.bashrc.extra >> /home/developer/.bashrc && rm /tmp/.bashrc.extra

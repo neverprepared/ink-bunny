@@ -11,7 +11,8 @@ else
     tmux set -t main mouse on
 
     # Start claude (env vars are loaded via BASH_ENV -> .bashrc -> .env)
-    CLAUDE_CMD="claude --dangerously-skip-permissions"
+    # --plugin-dir mirrors the host wrapper: claude --plugin-dir .../reflex
+    CLAUDE_CMD="claude --plugin-dir /opt/reflex/share/reflex --dangerously-skip-permissions"
     if [ -n "$CLAUDE_MODEL" ]; then
         CLAUDE_CMD="$CLAUDE_CMD --model $CLAUDE_MODEL"
     fi
