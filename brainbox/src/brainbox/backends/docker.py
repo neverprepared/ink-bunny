@@ -431,6 +431,24 @@ class DockerBackend:
             except Exception as exc:
                 slog.warning("container.ttyd_start_failed", metadata={"reason": str(exc)})
 
+            # For autonomous containers (ci-ratchet workers), also start the wrapper
+            # directly so task injection fires without requiring a browser connection.
+            # When someone later opens the web terminal, ttyd re-runs the wrapper which
+            # detects the existing tmux session and simply attaches.
+            if ctx.task_description:
+                try:
+                    await _run(
+                        container.exec_run,
+                        ["/home/developer/ttyd-wrapper.sh"],
+                        detach=True,
+                        user="developer",
+                    )
+                    slog.info("container.wrapper_autostarted")
+                except Exception as exc:
+                    slog.warning(
+                        "container.wrapper_autostart_failed", metadata={"reason": str(exc)}
+                    )
+
         # Write profile env to /run/profile/.env (after start)
         profile_env = _resolve_profile_env(
             workspace_profile=ctx.workspace_profile,

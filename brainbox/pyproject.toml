@@ -1,6 +1,6 @@
 [project]
 name = "brainbox"
-version = "0.13.19"
+version = "0.13.20"
 description = "Sandboxed Docker container orchestration for Claude Code"
 requires-python = ">=3.11"
 dependencies = [
