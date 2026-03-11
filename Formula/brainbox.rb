@@ -12,26 +12,42 @@ class Brainbox < Formula
     # Write docker-compose.yml — embedded so the tarball doesn't need to contain it
     (share/"brainbox").mkpath
     (share/"brainbox/docker-compose.yml").write <<~YAML
-      # Brainbox stack — API + Qdrant
+      # Brainbox stack — UI + API + Qdrant
       # Usage: brainbox up
+      #
+      # DooD note: bind mount paths for session containers must be host paths.
+      # XDG_CONFIG_HOME and CLAUDE_CONFIG_DIR are mounted at their actual host
+      # paths so session container mounts resolve correctly via the Docker daemon.
       services:
+        brainbox-ui:
+          image: ghcr.io/neverprepared/brainbox-ui:latest
+          ports:
+            - "127.0.0.1:9998:80"
+          depends_on:
+            - brainbox-api
+          networks:
+            - brainbox-net
+          restart: unless-stopped
+
         brainbox-api:
           image: ghcr.io/neverprepared/brainbox-api:latest
           ports:
             - "127.0.0.1:9999:9999"
           volumes:
-            - "${HOME}/.config/brainbox:/home/developer/.config/brainbox"
-            - "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}:/home/developer/.claude:ro"
-            - "${HOME}/.aws:/home/developer/.aws:ro"
-            - "${HOME}/.ssh:/home/developer/.ssh:ro"
-            - "${HOME}/.gitconfig:/home/developer/.gitconfig:ro"
-            - "${HOME}/.azure:/home/developer/.azure:ro"
-            - "${HOME}/.kube:/home/developer/.kube:ro"
+            - "${XDG_CONFIG_HOME:-${HOME}/.config}:${XDG_CONFIG_HOME:-${HOME}/.config}"
+            - "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}:${CLAUDE_CONFIG_DIR:-${HOME}/.claude}:ro"
+            - "${WORKSPACE_HOME:-${HOME}}/.aws:${WORKSPACE_HOME:-${HOME}}/.aws:ro"
+            - "${WORKSPACE_HOME:-${HOME}}/.ssh:${WORKSPACE_HOME:-${HOME}}/.ssh:ro"
+            - "${WORKSPACE_HOME:-${HOME}}/.gitconfig:${WORKSPACE_HOME:-${HOME}}/.gitconfig:ro"
+            - "${WORKSPACE_HOME:-${HOME}}/.azure:${WORKSPACE_HOME:-${HOME}}/.azure:ro"
+            - "${WORKSPACE_HOME:-${HOME}}/.kube:${WORKSPACE_HOME:-${HOME}}/.kube:ro"
             - "/var/run/docker.sock:/var/run/docker.sock"
           environment:
-            - SSH_AUTH_SOCK=/run/host-services/ssh-auth.sock
+            - XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-${HOME}/.config}
             - CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR:-${HOME}/.claude}
             - WORKSPACE_HOME=${WORKSPACE_HOME:-${HOME}}
+            - BRAINBOX_HOST_HOME=${HOME}
+            - SSH_AUTH_SOCK=/run/host-services/ssh-auth.sock
           networks:
             - brainbox-net
           restart: unless-stopped
@@ -41,7 +57,7 @@ class Brainbox < Formula
           ports:
             - "127.0.0.1:6333:6333"
           volumes:
-            - "${QDRANT_DATA_DIR:-${HOME}/.config/brainbox/qdrant}:/qdrant/storage"
+            - "${QDRANT_DATA_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/qdrant}:/qdrant/storage"
           networks:
             - brainbox-net
           restart: unless-stopped
@@ -117,10 +133,11 @@ class Brainbox < Formula
       Start the brainbox stack:
         brainbox up
 
-      The API will be available at http://localhost:9999
+      Dashboard: http://localhost:9998
+      API:       http://localhost:9999
 
-      Configuration is stored in ~/.config/brainbox
-      Qdrant data is stored in ~/.config/brainbox/qdrant (override with QDRANT_DATA_DIR)
+      Configuration is stored in $XDG_CONFIG_HOME/developer (default: ~/.config/developer)
+      Qdrant data stored in $XDG_CONFIG_HOME/qdrant (override with QDRANT_DATA_DIR)
     EOS
   end
 
