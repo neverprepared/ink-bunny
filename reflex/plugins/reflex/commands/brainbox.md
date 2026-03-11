@@ -117,12 +117,119 @@ fi
 
 ### `/reflex:brainbox create`
 
-Create a new sandboxed container. Auto-detects the caller's workspace profile and home from environment variables (`WORKSPACE_PROFILE`, `WORKSPACE_HOME`). An optional name can be provided as an argument; defaults to the profile name.
+Create a new sandboxed container. Auto-detects the caller's workspace profile and home from environment variables (`WORKSPACE_PROFILE`, `WORKSPACE_HOME`).
 
-Supports additional volume mounts via `--mount` flags and repo access configuration via `--repo`, `--repo-mode`, and `--branch` flags.
+Supports agent role selection via `--role`, additional volume mounts via `--mount`, and repo access configuration via `--repo`, `--repo-mode`, and `--branch` flags.
+
+**If `$ARG` is empty (no arguments provided), run the interactive wizard** — ask each question in sequence using `AskUserQuestion`, then proceed to the payload section with the gathered values.
+
+#### Interactive wizard (no-argument path)
+
+**Step 1 — Container name**
+
+Ask:
+```
+Container name? (leave blank to use your workspace profile name: <WORKSPACE_PROFILE or "default">)
+```
+Use the answer or fall back to `${WORKSPACE_PROFILE:-default}`.
+
+**Step 2 — Agent role**
+
+Ask:
+```
+Agent role?
+
+  1) developer     — Interactive Claude Code session (default)
+  2) supervisor    — Persistent orchestrator: assigns tasks to workers, monitors progress
+  3) worker        — Transient task executor: completes a task and opens a PR
+  4) reviewer      — Transient PR reviewer: reads code, flags blocking issues
+  5) merge-queue   — Persistent merge gatekeeper: auto-merges PRs that pass CI
+  6) pr-shepherd   — Persistent PR monitor: nudges stalled PRs, pings reviewers
+
+Enter choice (1–6) [1]:
+```
+Map answer to role name (`developer`, `supervisor`, etc.). Default: `developer`.
+
+**Step 3 — Repo**
+
+Ask:
+```
+Attach a repo? Enter a local path or git remote URL, or leave blank to skip.
+```
+If blank, skip steps 4–7 and continue to step 8.
+
+**Step 4 — Repo mode** (only if repo provided)
+
+Ask:
+```
+Repo access mode for <repo>?
+
+  1) worktree-mount   — Create a git worktree on your machine and mount it in.
+                        Edits are immediately visible on the host branch.
+  2) clone            — Clone fresh inside the container. No host paths modified.
+  3) clone-worktree   — Clone fresh, then create an inner worktree for the branch.
+  4) ci-ratchet       — Autonomous worker: clones, does task, opens PR. CI merges it.
+                        Repo does NOT need to exist locally.
+
+Enter choice (1–4):
+```
+
+**Step 5 — Branch** (modes 1–3 only)
+
+Ask:
+```
+Branch name? [brainbox/<container-name>]
+```
+Default: `brainbox/<name>`.
+
+**Step 6 — Task** (ci-ratchet only)
+
+Ask:
+```
+Task for this worker (what should the agent accomplish?):
+```
+(Required — re-prompt if blank.)
+
+**Step 7 — Merge queue** (ci-ratchet only)
+
+Ask:
+```
+Auto-start a merge-queue agent to merge passing PRs? [Y/n]
+```
+Default: yes.
+
+**Step 8 — Extra volume mounts**
+
+Ask:
+```
+Add extra volume mounts? Enter as /host/path:/container/path[:ro], one per line.
+Leave blank and press Enter when done.
+```
+Collect until a blank line is entered.
+
+**Step 9 — Confirm**
+
+Display a summary of all collected values and ask:
+```
+Create container with these settings? [Y/n]
+```
+If no, abort with "Cancelled."
+
+Then proceed to the payload section using the wizard-collected values.
+
+---
+
+#### Flag-based path (arguments provided)
 
 Parse the `$ARG` from the user's argument:
 - First non-flag argument is the container name (defaults to profile name if not provided)
+- `--role <role>` — Agent role for this container (default: `developer`). Roles:
+  - `developer` — Default interactive Claude Code session with full polyglot toolchain
+  - `supervisor` — Persistent orchestrator: assigns tasks to workers, monitors progress, enforces roadmap
+  - `worker` — Transient task executor: completes assigned work and opens a PR when done
+  - `reviewer` — Transient PR reviewer: reads code, posts comments, flags blocking issues
+  - `merge-queue` — Persistent merge gatekeeper: auto-merges PRs that pass CI
+  - `pr-shepherd` — Persistent PR monitor: nudges stalled PRs, pings reviewers and authors
 - `--mount /host/path:/container/path[:mode]` — Additional volume mounts (can be specified multiple times)
 - `--repo <path-or-url>` — Local path or git remote URL to make available inside the container
 - `--repo-mode worktree-mount|clone|clone-worktree|ci-ratchet` — How the repo is delivered:
@@ -135,39 +242,11 @@ Parse the `$ARG` from the user's argument:
 - `--task <description>` — Task for the worker agent (required for `ci-ratchet` mode)
 - `--no-merge-queue` — Skip auto-starting the merge-queue agent (ci-ratchet only; default: start it)
 
-**If `--repo` is provided but `--repo-mode` is not specified**, ask the user before proceeding:
+**If `--repo` is provided but `--repo-mode` is not specified**, ask the user before proceeding (same mode menu as wizard step 4 above), then ask for branch / task / merge-queue as needed.
 
-```
-Repo access mode for <repo-name>?
+---
 
-  1) worktree-mount   — Create a git worktree on your machine and mount it into the container.
-                        Edits are immediately visible on the host branch; main is untouched.
-  2) clone            — Clone the repo fresh inside the container. No host paths modified.
-                        Agent opens a PR when done.
-  3) clone-worktree   — Clone fresh, then create an inner worktree for the target branch.
-                        Fully isolated; useful for multi-workspace repos.
-  4) ci-ratchet       — Autonomous worker: clones, does task, opens PR. CI merges it.
-                        The repo does NOT need to exist on this machine.
-                        (Brownian ratchet concept from multiclaude by Dan Lorenc et al.
-                         https://github.com/dlorenc/multiclaude)
-
-Enter choice (1/2/3/4):
-```
-
-For modes 1–3, ask for a branch name if not provided:
-```
-Branch name [brainbox/<session-name>]:
-```
-
-For mode 4 (`ci-ratchet`), ask for the task and merge-queue preference if not provided via flags:
-```
-Task for this worker (what should the agent accomplish?):
->
-
-Start a merge-queue agent to auto-merge passing PRs? [Y/n]:
-```
-
-After gathering all inputs, build and send the payload:
+After gathering all inputs (via wizard or flags), build and send the payload:
 
 ```bash
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
@@ -189,6 +268,8 @@ if [ -z "$NAME" ] || echo "$NAME" | grep -q '^--'; then
   NAME="${PROFILE:-default}"
 fi
 
+ROLE=$(echo "$ARG" | grep -oE -- '--role [^ ]+' | sed 's/--role //' | head -1)
+ROLE="${ROLE:-developer}"
 REPO_URL=$(echo "$ARG" | grep -oE -- '--repo [^ ]+' | sed 's/--repo //' | head -1)
 REPO_MODE=$(echo "$ARG" | grep -oE -- '--repo-mode [^ ]+' | sed 's/--repo-mode //' | head -1)
 BRANCH=$(echo "$ARG" | grep -oE -- '--branch [^ ]+' | sed 's/--branch //' | head -1)
@@ -204,9 +285,10 @@ fi
 # Build JSON payload
 PAYLOAD=$(jq -n \
   --arg name "$NAME" \
+  --arg role "$ROLE" \
   --arg profile "$PROFILE" \
   --arg ws_home "$WS_HOME" \
-  '{name: $name, role: "developer"} +
+  '{name: $name, role: $role} +
    (if $profile != "" then {workspace_profile: $profile} else {} end) +
    (if $ws_home != "" then {workspace_home: $ws_home} else {} end)')
 
@@ -266,6 +348,11 @@ On failure show the error.
 
 # Create with custom name
 /reflex:brainbox create myproject
+
+# Create with a specific role
+/reflex:brainbox create orchestrator --role supervisor
+/reflex:brainbox create pr-guard --role merge-queue
+/reflex:brainbox create task-1 --role worker
 
 # Create with additional volume mounts
 /reflex:brainbox create myproject --mount /data:/workspace/data:ro
@@ -447,7 +534,9 @@ Commands:
   stop       Stop a locally auto-started API
   status     Show connection info and running containers
   create     Create a container (auto-detects profile from env)
-             Syntax: create [name] [--mount /host:/container[:mode]] [--repo <url>] [--repo-mode <mode>] [--task <desc>] ...
+             Syntax: create [name] [--role <role>] [--mount /host:/container[:mode]] [--repo <url>] [--repo-mode <mode>] [--task <desc>] ...
+             Roles: developer (default), supervisor, worker, reviewer, merge-queue, pr-shepherd
+             Repo modes: worktree-mount, clone, clone-worktree, ci-ratchet
   query      Send a query to a running container via tmux
              Syntax: query <session-name> <query-text>
   dashboard  Open the dashboard in browser
