@@ -260,6 +260,20 @@
         "args": ["mcp"]
       }
     },
+    "argocd": {
+      "description": "Argo CD application management — list, sync, and inspect applications and resources",
+      "category": "cloud",
+      "url": "https://github.com/argoproj-labs/mcp-for-argocd",
+      "requires": ["ARGOCD_BASE_URL", "ARGOCD_API_TOKEN"],
+      "definition": {
+        "command": "npx",
+        "args": ["-y", "argocd-mcp@0.5.0", "stdio"],
+        "env": {
+          "ARGOCD_BASE_URL": "${ARGOCD_BASE_URL}",
+          "ARGOCD_API_TOKEN": "${ARGOCD_API_TOKEN}"
+        }
+      }
+    },
     "grafana": {
       "description": "Grafana dashboards, datasources, alerts, and Loki/Prometheus queries",
       "category": "observability",
