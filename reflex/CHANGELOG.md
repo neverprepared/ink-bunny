@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.0](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.20.0...reflex-v1.21.0) (2026-03-14)
+
+
+### Features
+
+* **reflex:** add argocd MCP server to catalog ([4082d19](https://github.com/neverprepared/ink-bunny/commit/4082d19e2456f4bc67cc4d5b4f6220580717a8d5))
+
 ## [1.20.0](https://github.com/neverprepared/ink-bunny/compare/reflex-v1.19.0...reflex-v1.20.0) (2026-03-14)
 
 
